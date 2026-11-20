@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Palet Baku Madzhair Barber & Co */
+  --color-obsidian: #0B0B0C;
+  --color-surface: #141416;
+  --color-surface-elevated: #1A1A1D;
+  --color-hairline: #26262A;
+  --color-ivory: #F4F3EF;
+  --color-stone: #9A9891;
+  --color-brass: #D49B4B;
+  --color-emerald-live: #34D399;
+  --color-crimson-alert: #EF4444;
+
+  /* Tipografi Editorial (Anti-AI-Slop: NO Inter/Roboto/Space Grotesk) */
+  --font-display: var(--font-syne), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html {
+    background-color: #0B0B0C;
+    color: #F4F3EF;
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: #0B0B0C;
+    color: #F4F3EF;
+    font-family: var(--font-sans);
+    min-height: 100dvh;
+    overscroll-behavior-y: contain;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Anti-zoom Safari iOS: seluruh input/select/textarea minimal 16px */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1rem);
+    line-height: 1.5;
+  }
+
+  ::selection {
+    background-color: rgba(212, 155, 75, 0.25);
+    color: #F4F3EF;
+  }
+
+  :focus-visible {
+    outline: 1px solid #D49B4B;
+    outline-offset: 2px;
+  }
+}
+
+/* Safe Area Insets (Paritas Android & iOS Notch / Home Indicator) */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility pb-safe {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+@utility pb-safe-flush {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility px-safe {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+
+/* Presisi Angka Jam, Tarif & Kode Tiket */
+@utility tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Garis Batas Arsitektural Tipis (1px solid #26262A) */
+@utility hairline-border {
+  border: 1px solid #26262A;
+}
+
+@utility hairline-t {
+  border-top: 1px solid #26262A;
+}
+
+@utility hairline-b {
+  border-bottom: 1px solid #26262A;
+}
+
+@utility hairline-l {
+  border-left: 1px solid #26262A;
+}
+
+@utility hairline-r {
+  border-right: 1px solid #26262A;
+}
+
+/* Standar Area Sentuh Minimal Android & iOS (44px x 44px) */
+@utility touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
