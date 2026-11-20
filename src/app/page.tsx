@@ -182,9 +182,11 @@ export default async function HomePage() {
 
   const scheduleNote = settings.is_force_closed
     ? "Tutup Sementara"
-    : liveStatus.openTime && liveStatus.closeTime
-      ? `${liveStatus.openTime} – ${liveStatus.closeTime} WIB`
-      : liveStatus.closedReason ?? undefined;
+    : liveStatus.reason === "BEFORE_OPEN" && liveStatus.openTime && liveStatus.closeTime
+      ? `Buka ${liveStatus.openTime}–${liveStatus.closeTime} WIB`
+      : liveStatus.openTime && liveStatus.closeTime
+        ? `${liveStatus.openTime} – ${liveStatus.closeTime} WIB`
+        : liveStatus.closedReason ?? undefined;
 
   const heroImageUrl = settings.hero_image_url?.trim() || brand.heroImage;
 
@@ -204,6 +206,7 @@ export default async function HomePage() {
               <LiveStatusTag
                 isOpen={liveStatus.isOpen}
                 isForceClosed={settings.is_force_closed}
+                reason={liveStatus.reason}
                 scheduleNote={scheduleNote}
                 compact
               />
@@ -246,6 +249,7 @@ export default async function HomePage() {
                 <LiveStatusTag
                   isOpen={liveStatus.isOpen}
                   isForceClosed={settings.is_force_closed}
+                  reason={liveStatus.reason}
                   scheduleNote={scheduleNote}
                   compact
                 />

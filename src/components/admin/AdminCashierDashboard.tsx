@@ -1146,10 +1146,15 @@ export function AdminCashierDashboard({
               <LiveStatusTag
                 isOpen={liveStatus.isOpen}
                 isForceClosed={settings.is_force_closed}
+                reason={liveStatus.reason}
                 scheduleNote={
-                  liveStatus.openTime && liveStatus.closeTime
-                    ? `${liveStatus.openTime}–${liveStatus.closeTime} WIB`
-                    : liveStatus.closedReason ?? undefined
+                  liveStatus.reason === "BEFORE_OPEN" &&
+                  liveStatus.openTime &&
+                  liveStatus.closeTime
+                    ? `Buka ${liveStatus.openTime}–${liveStatus.closeTime} WIB`
+                    : liveStatus.openTime && liveStatus.closeTime
+                      ? `${liveStatus.openTime}–${liveStatus.closeTime} WIB`
+                      : liveStatus.closedReason ?? undefined
                 }
                 compact
               />

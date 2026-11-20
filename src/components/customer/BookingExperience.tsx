@@ -160,9 +160,28 @@ export function BookingExperience({
   const [selectedServiceId, setSelectedServiceId] = useState<string>(
     () => activeServices[0]?.id ?? ""
   );
-  const [selectedDate, setSelectedDate] = useState<string>(
-    () => initialDateStr || upcomingDates[0]?.dateStr || ""
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const defaultService = activeServices[0];
+    if (defaultService && !initialSettings.is_force_closed) {
+      const initialNow = getStoreNowParts(initialSettings.timezone);
+      const firstOpenDate = upcomingDates.find((item) => {
+        const daySlots = calculateAvailableSlots({
+          date: item.dateStr,
+          service: defaultService,
+          schedules: initialSchedules,
+          closedDates: initialClosedDates,
+          bookings: item.dateStr === initialDateStr ? initialBookings : [],
+          settings: initialSettings,
+          nowParts: initialNow,
+        });
+        return daySlots.some((s) => s.available);
+      });
+      if (firstOpenDate) {
+        return firstOpenDate.dateStr;
+      }
+    }
+    return initialDateStr || upcomingDates[0]?.dateStr || "";
+  });
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [customerName, setCustomerName] = useState<string>("");
   const [honeypotWebsite, setHoneypotWebsite] = useState<string>("");
@@ -358,6 +377,9 @@ export function BookingExperience({
   const scheduleNote = useMemo(() => {
     if (settings.is_force_closed) {
       return "Reservasi dijeda sementara";
+    }
+    if (liveStatus.reason === "BEFORE_OPEN" && liveStatus.openTime && liveStatus.closeTime) {
+      return `Buka ${liveStatus.openTime}–${liveStatus.closeTime} WIB`;
     }
     if (liveStatus.openTime && liveStatus.closeTime) {
       return `${liveStatus.openTime} – ${liveStatus.closeTime} WIB`;
@@ -573,6 +595,7 @@ export function BookingExperience({
               <LiveStatusTag
                 isOpen={liveStatus.isOpen}
                 isForceClosed={settings.is_force_closed}
+                reason={liveStatus.reason}
                 scheduleNote={scheduleNote}
               />
             }

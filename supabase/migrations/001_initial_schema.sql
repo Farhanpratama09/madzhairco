@@ -578,10 +578,27 @@ ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gallery_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 
--- Enforce zero direct writes to bookings by anon at privilege level as well as RLS
+-- Enforce schema & table-level privileges alongside RLS
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+
 REVOKE INSERT, UPDATE, DELETE ON public.bookings FROM anon;
-GRANT SELECT ON public.bookings TO anon;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.bookings TO authenticated;
+GRANT SELECT ON
+  public.store_settings,
+  public.weekly_schedules,
+  public.closed_dates,
+  public.services,
+  public.gallery_items,
+  public.bookings
+TO anon;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  public.store_settings,
+  public.weekly_schedules,
+  public.closed_dates,
+  public.services,
+  public.gallery_items,
+  public.bookings
+TO authenticated;
 
 -- store_settings policies
 DROP POLICY IF EXISTS "Public read store_settings" ON public.store_settings;

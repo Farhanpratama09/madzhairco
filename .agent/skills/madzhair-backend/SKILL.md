@@ -36,7 +36,8 @@ description: Pengelola skema PostgreSQL Supabase, fungsi RPC atomic booking lock
      - `get_public_bookings_for_date(p_date) -> TABLE (id, booking_date, start_time, end_time, status)` (tanpa PII pelanggan).
      - `get_booking_by_ticket_code(p_ticket_code) -> SETOF public.bookings` (lookup tepat 1 tiket by `ticket_code`).
 
-3. **Keamanan RLS, Realtime, & Storage:**
+3. **Keamanan RLS, Privileges (`GRANT`), Realtime, & Storage:**
+   - Wajib menyertakan `GRANT USAGE ON SCHEMA public TO anon, authenticated`, `GRANT SELECT` untuk `anon`, serta `GRANT SELECT, INSERT, UPDATE, DELETE` untuk `authenticated` pada seluruh tabel CMS/katalog (`store_settings`, `weekly_schedules`, `closed_dates`, `services`, `gallery_items`, `bookings`) — lihat `supabase/migrations/002_fix_table_grants.sql` — agar tidak muncul error PostgreSQL `permission denied for table ...`.
    - Publik (`anon`) **DILARANG** `INSERT`, `UPDATE`, `DELETE` langsung ke `bookings` (`REVOKE INSERT, UPDATE, DELETE` + tanpa policy tulis).
    - Publik (`anon`) hanya memiliki `SELECT` untuk sinkronisasi slot/Realtime.
    - Mutasi pada `store_settings`, `weekly_schedules`, `closed_dates`, `services`, `gallery_items`, dan `bookings` hanya untuk role `authenticated` (`auth.uid() IS NOT NULL`).
