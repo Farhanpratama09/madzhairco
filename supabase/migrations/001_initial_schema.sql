@@ -130,12 +130,20 @@ CREATE OR REPLACE FUNCTION public.generate_madzhair_ticket_code()
 RETURNS text
 LANGUAGE plpgsql
 VOLATILE
-SET search_path = public, pg_temp
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
   -- 32 non-ambiguous characters (256 % 32 == 0, zero modulo bias)
   v_chars constant text := '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-  v_bytes bytea := gen_random_bytes(4);
+  v_bytes bytea := decode(
+    md5(
+      clock_timestamp()::text ||
+      random()::text ||
+      txid_current()::text ||
+      random()::text
+    ),
+    'hex'
+  );
   v_code text := 'MDZ-';
   v_idx int;
 BEGIN
@@ -160,7 +168,7 @@ CREATE OR REPLACE FUNCTION public.create_booking_safe(
 RETURNS public.bookings
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
   v_customer_name text;

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkBookingRateLimit, extractClientIp } from "@/lib/security/rate-limit";
+import {
+  checkBookingRateLimit,
+  extractClientIp,
+  recordBookingQuotaUse,
+} from "@/lib/security/rate-limit";
 import {
   checkHoneypot,
   sanitizeCustomerName,
@@ -176,6 +180,7 @@ export async function POST(request: NextRequest) {
 
   // Silent fake success for automated bots triggering the hidden honeypot field
   if (checkHoneypot(body.website)) {
+    recordBookingQuotaUse(clientIp);
     const fakeCode = generateDemoTicketCode();
     const nowIso = new Date().toISOString();
     const fakeBooking: Booking = {
@@ -267,6 +272,15 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       const mapped = mapRpcError(error.message ?? "");
+      if (mapped.status === 409) {
+        recordBookingQuotaUse(clientIp);
+      } else {
+        console.error(
+          "[bookings] create_booking_safe RPC error:",
+          error.code,
+          error.message
+        );
+      }
       return NextResponse.json({ error: mapped.error }, { status: mapped.status });
     }
 
@@ -277,6 +291,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    recordBookingQuotaUse(clientIp);
     return NextResponse.json(
       { booking: data, mode: "supabase" },
       { status: 201 }
@@ -324,6 +339,9 @@ export async function POST(request: NextRequest) {
     const isConflict =
       targetSlot.status === "BOOKED" ||
       targetSlot.status === "INSUFFICIENT_TIME";
+    if (isConflict) {
+      recordBookingQuotaUse(clientIp);
+    }
     return NextResponse.json(
       {
         error:
@@ -357,6 +375,7 @@ export async function POST(request: NextRequest) {
   };
 
   demoStore.push(demoBooking);
+  recordBookingQuotaUse(clientIp);
 
   return NextResponse.json(
     { booking: demoBooking, mode: "demo" },
