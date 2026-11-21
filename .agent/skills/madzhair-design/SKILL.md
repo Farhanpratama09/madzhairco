@@ -1,47 +1,45 @@
 ---
 name: madzhair-design
-description: Spesialis UI/UX, identitas visual Soft-Editorial Madzhair Barber & Co (v1.6 Warm Alabaster, Deep S-Curve Edge Feathering, Floating Pill 3 Segmen + Dropdown Pricelist, Side-by-Side Media, Vertical Stepper, Plus Jakarta Sans tabular-nums), penegak standar Anti-AI-Slop, dan paritas tampilan Android serta iOS.
+description: Spesialis UI/UX, identitas visual Soft-Editorial Madzhair Barber & Co (v1.7 Warm Alabaster, Poppins UI + Instrument Serif Hero, Crisp S-Curve tanpa kabut, Floating Pill 3 Segmen Dropdown, Galeri & Reels murni visual, Vertical Stepper, Footer 3 Kolom rounded-t-[32px]), penegak standar Anti-AI-Slop, dan paritas tampilan Android serta iOS.
 ---
 
 # Skill: Divisi UI/UX & Design System (`madzhair-design`)
 
-## 1. Identitas Visual Madzhair Barber & Co (v1.6 — Soft-Editorial Editorial Minimalist)
-- **Karakter:** Hangat editorial, modern berkelas, bersih tanpa jargon/kode developer, lembut menyatu dengan kanvas terang hangat (`#EFE8DD`) melalui *S-curve* organik dan *gradient edge feathering*.
+## 1. Identitas Visual Madzhair Barber & Co (v1.7 — Soft-Editorial Editorial Minimalist)
+- **Karakter:** Hangat editorial, lugas, modern berisi, bersih tanpa kabut silau maupun jargon/kode developer di atas kanvas terang hangat (`#EFE8DD`).
 - **Palet Warna Baku (Aturan 60–30–10):**
   - **60% — Kanvas Utama (`--color-alabaster`):** `#EFE8DD` (Warm Alabaster).
-  - **30% — Permukaan Kartu, Dock & Sheet (`--color-surface`):** `#F7F3EC` (Soft Ivory) dengan garis batas tipis `#DCD4C6` (`--color-hairline`) untuk kartu standar, atau tanpa border dengan soft shadow (`shadow-[0_20px_50px_-14px_rgba(48,56,65,0.13)]`) pada Floating Pill Dock (`rounded-3xl lg:rounded-full`).
+  - **30% — Permukaan Kartu, Dock & Sheet (`--color-surface`):** `#F7F3EC` (Soft Ivory) dengan hairline `#DCD4C6` (`--color-hairline`) pada kartu standar, atau soft shadow (`shadow-[0_20px_50px_-14px_rgba(48,56,65,0.13)]`) pada Floating Pill Dock (`rounded-3xl lg:rounded-full`).
   - **Sub-Surface Lembut (`--color-surface-elevated`):** `#E6DDD0` (Warm Sand Tint).
-  - **Teks Utama / Heading / Blok Aksen Gelap (`--color-ink`):** `#303841` (Deep Slate Charcoal).
+  - **Teks Utama / Heading / Footer Gelap (`--color-ink`):** `#303841` (Deep Slate Charcoal).
   - **Teks Sekunder (`--color-muted`):** `#5C646D` (Muted Slate).
   - **10% — Aksen Utama (`--color-terracotta`):** `#C25934` (Burnt Terracotta) dengan teks `#F7F3EC`.
   - **Status Semantik:**
-    - `--color-emerald-live`: `#2E6F56` (Sedang buka / Tersedia / Selesai)
-    - `--color-crimson-alert`: `#B83B3B` (Tutup darurat / Dibatalkan / Hari ini libur)
-  - **Overlay Media Galeri Full-Bleed:** Gradasi scrim gelap bawah `from-[#1E2329]/90 via-[#303841]/45 to-transparent` dengan teks `#F7F3EC`.
+    - `--color-emerald-live`: `#2E6F56` (Sedang buka / Selesai)
+    - `--color-crimson-alert`: `#B83B3B` (Tutup darurat / Terisi / Dibatalkan)
 
-## 2. Tipografi Seragam, Geometri Organik & Aturan Keras Anti-AI-Slop (v1.6)
+## 2. Tipografi Poppins + Hero Instrument Serif & Geometri Bersih (v1.7)
 1. **Pemetaan Font Ketat (Wajib):**
-   - **Judul Besar / Editorial Heading (`h1`, `h2`, judul kartu media):** `Instrument Serif` (`--font-serif`) dengan aksen *italic* (`text-terracotta italic`), ukuran proporsional (`h1`: `text-4xl sm:text-5xl lg:text-[62px] leading-[1.06] tracking-tight`, `h2`: `text-2xl sm:text-3xl lg:text-[34px]`).
-   - **Seluruh Teks UI, Jam, Harga, Tanggal & Kode Tiket di `/` & `/tiket/[code]`:** **HENTIKAN penggunaan `JetBrains Mono` (`font-mono`)** di seluruh halaman pelanggan (`/`) dan tiket (`/tiket/[code]`). Wajib gunakan `Plus Jakarta Sans` (`--font-sans`) dengan `tabular-nums` dalam **Sentence Case** untuk teks, jam (`10:00 – 20:00 WIB`), nominal harga (`Rp 30k`), tanggal, dan kode tiket (`MDZ-XXXX`).
-   - **Wordmark Logo:** `Syne` (`--font-display`) pada `Madzhair.co` (Sentence Case).
-2. **DILARANG — Prefix Angka Developer, Titik Kotak & Link Admin Publik:**
-   - Nol prefiks kode (`00 /`, `01 //`, `02 //`, `03 /`), nol titik kotak `rounded-[2px]`, nol kapsul border pada status navbar kanan.
-   - Navbar kanan HANYA menampilkan ikon kalender/jam kecil (`CalendarCheck`/`Clock`) + teks bersih **"Booking tersedia"** tanpa jam operasional.
-   - Hapus tautan **"Akses Kasir"** dari footer Landing Page agar rute `/admin` terpisah sepenuhnya dari pengunjung publik.
-3. **Geometri v1.6 (Deep S-Curve Feathering, 3-Segmen Pill Dropdown, Media Kiri-Kanan & Vertical Stepper):**
-   - **Navbar Tengah & Hero Kiri:** Logo di kiri, 4 tautan navigasi bersih (`Layanan`, `Galeri`, `Reservasi`, `Lokasi`) di tengah (`md:grid-cols-[1fr_auto_1fr]`), status `"Booking tersedia"` di kanan. Hero kiri hanya memiliki eyebrow singkat (`Studio cukur satu kursi`), judul besar `Instrument Serif`, subjudul ringkas, dan **1 CTA utama** (`Pilih Jadwal` kapsul Terracotta) tanpa tautan `Lihat Lokasi`.
-   - **Hero Kanan & Edge Feathering:** Tanpa kotak putih mengambang di atas foto. Foto hero menggunakan lengkungan organik **S-curve** mendalam di tepi kiri (`lg:`) ditambah **gradient mask / edge feathering** halus di sisi kiri dan bawah agar visual memudar menyatu dengan `#EFE8DD`.
-   - **Floating Pill Dock 3 Segmen (`#layanan`):** Padding lega (`px-6 py-4 sm:px-8 sm:py-5`, `bg-[#F7F3EC]`, tanpa tombol `Pilih Jadwal` dan tanpa teks pricelist di luar pill) berisi tepat 3 segmen sejajar: (1) **Layanan & Tarif** dengan dropdown pricelist interaktif lengkap, (2) **Jam Operasional** (satu-satunya tempat menampilkan jam operasional hari ini), dan (3) **Location** klikabel ke Google Maps.
-   - **Sesi Media Kiri-Kanan (`#galeri`):** 2 kolom berdampingan di desktop (`lg:grid-cols-12`: kiri `lg:col-span-5` Video Embed lazy-load facade, kanan `lg:col-span-7` Carousel 4 Foto dengan tombol `< >`, swipe mobile, dan dot pagination) dengan tinggi seragam (`h-[430px] sm:h-[490px] lg:h-[520px]`), bertumpuk rapi di mobile.
-   - **Area Reservasi (`#reservasi`):** Grid desktop `lg:grid-cols-[minmax(0,1fr)_360px]`; header tanggal lengkap (*Hari, Tanggal Bulan Tahun*) di kanan atas + strip 21 hari dengan tombol geser `< >`; kartu layanan (`Haircut` & `Hair Chemicals`) ber-padding presisi (`p-4 sm:p-5`); **Live Booking Preview** memakai **Vertical Stepper** (4 titik bulat bercentang `✓` terhubung garis vertikal) tanpa tombol Lokasi.
-   - **Admin Kasir Minimalis (`/admin`):** Agenda timeline ringkas dengan aksi `Selesai`, `Geser`, `Batal`, `Lihat Tiket` di dalam **Bottom Sheet** saat blok jadwal di-tap.
-4. **Placeholder Media Terpusat:** Seluruh aset dikelola via `src/config/media.ts`.
+   - **Judul Utama Hero (`h1`):** `Instrument Serif` (`--font-serif`, `text-4xl sm:text-5xl lg:text-[62px] leading-[1.06] tracking-tight`) dengan baris kedua *italic* Terracotta — **eksklusif untuk judul utama Hero** agar kontras editorial tetap kuat.
+   - **Seluruh UI, Heading Seksi, Tombol, Deskripsi & Angka (`/` & `/tiket/[code]`):** Google Font **`Poppins`** (`--font-sans` via `--font-poppins`, weight `400/500/600/700`) dengan `tabular-nums` untuk jam, tanggal, harga, dan kode tiket `MDZ-XXXX`. Dilarang memakai `JetBrains Mono` di `/` & `/tiket/[code]`.
+   - **Wordmark Logo:** `Syne` (`--font-display`) pada `Madzhair.co` (mendukung `tone="default"` & `tone="onDark"` untuk footer gelap).
+2. **DILARANG — Kabut Silau, Prefix Kode, Teks Overlay Media & Link Admin Publik:**
+   - Nol efek kabut/gradasi putih silau pada tepi foto hero (`feGaussianBlur` / white fog mask dihapus); gunakan **S-curve vektor tajam solid `#EFE8DD`** tanpa kotak putih mengambang.
+   - Navbar kanan menampilkan ikon + `"Booking tersedia"` di atas latar lembut transparan `bg-[#F7F3EC]/90 backdrop-blur-sm px-3.5 py-1.5 rounded-full`.
+   - Hapus total embel-embel teks (*"privat cukur"*, *"Arsip galeri"*, *"Hemat kuota"*, *"1 blok (60 menit)"*, kata *"kasir"*, serta seluruh teks overlay di atas kartu foto/video galeri).
+   - Hapus tautan `/admin` (`"Akses Kasir"`) dari footer Landing Page.
+3. **Geometri v1.7:**
+   - **Floating Pill Dock 3 Segmen (`#layanan`):** Padding lega (`px-6 py-4 sm:px-8 sm:py-5`) berisi (1) Dropdown `Layanan & tarif` (sinkron sub-layanan Haircut ke `Haircut` di `#reservasi`), (2) `Jam operasional`, dan (3) `Location` ke Google Maps.
+   - **Galeri & Reels (`#galeri`):** Grid 2 panel seimbang (`md:grid-cols-2`, keduanya `aspect-[4/5] rounded-3xl`) murni visual tanpa teks overlay — Kiri **Instagram Reels** (lazy facade Play button + `< >` + dot pagination), Kanan **Carousel 4 Foto** dengan transisi CSS `translate3d` mulus (bebas jitter/patah) + touch swipe + `< >` + dot pagination.
+   - **Area Reservasi (`#reservasi`):** Kartu layanan menampilkan durasi saja (`~45 menit` / `~2 jam`); legenda status memakai **ikon kursi (`Armchair`)** untuk `Tersedia`, `Terisi`, `Dipilih`; **Live Booking Preview** memakai **Vertical Stepper** dengan teks jam terpilih `#303841` (`text-ink`), catatan keterlambatan lugas tanpa kata *"kasir"*, dan tanpa tombol lokasi.
+   - **Footer Minimalis 3 Kolom (`#lokasi`):** `rounded-t-[32px] bg-[#303841] text-[#F7F3EC]` — Kiri hanya logo `Madzhair.co`, Tengah `Jam operasional` + `Sungai Kunyit, Kalimantan Barat` + jam buka, Kanan alamat + 3 tautan bersih (`Google Maps`, `WhatsApp`, `Instagram`).
+4. **Placeholder Media Terpusat:** Seluruh aset & URL Instagram dikelola via `src/config/media.ts`.
 
 ## 3. Standar Paritas Android & iOS
 - `color-scheme: light`, `#EFE8DD`, `min-h-[100dvh]`, `overscroll-behavior-y: contain`.
 - `pt-safe`, `pb-safe`, `pb-safe-flush`, `px-safe` berbasis `env(safe-area-inset-*)`.
 - Touch target minimal `44px x 44px`; input `<input>`/`<select>` minimal `16px` (`text-base`) agar Safari iOS tidak auto-zoom.
-- Carousel foto & strip tanggal menggunakan `snap-x snap-mandatory scroll-smooth no-scrollbar` ditambah tombol panah `< >`.
+- Carousel foto & Instagram Reels mendukung klik `< >`, dot pagination, serta swipe sentuh mobile (`touchstart`/`touchend`).
 
 ## 4. Protokol Laporan & Pembaruan Skill
-- Audit seluruh komponen terhadap aturan nol `font-mono` di `/` & `/tiket/[code]`, nol tautan admin di footer, nol kotak mengambang hero, dan verifikasi viewport desktop + mobile sebelum diserahkan ke `madzhair-coordinator`.
+- Audit seluruh komponen terhadap tipografi `Poppins` + `Instrument Serif` (Hero), nol `font-mono` di `/` & `/tiket/[code]`, nol kabut putih hero, nol overlay teks galeri, ikon kursi legenda, footer 3 kolom tanpa `/admin`, serta verifikasi desktop & mobile sebelum diserahkan ke `madzhair-coordinator`.

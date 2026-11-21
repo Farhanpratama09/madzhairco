@@ -12,10 +12,10 @@
   --color-emerald-live: #2E6F56;
   --color-crimson-alert: #B83B3B;
 
-  /* Tipografi Editorial (Anti-AI-Slop: NO Inter/Roboto/Space Grotesk) */
+  /* Tipografi Editorial (Anti-AI-Slop: Poppins UI + Instrument Serif Hero) */
   --font-display: var(--font-syne), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
-  --font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 }
 

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import {
   Instrument_Serif,
   JetBrains_Mono,
-  Plus_Jakarta_Sans,
+  Poppins,
   Syne,
 } from "next/font/google";
 import "./globals.css";
@@ -22,9 +22,9 @@ const instrumentSerif = Instrument_Serif({
   display: "swap",
 });
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const poppins = Poppins({
   subsets: ["latin"],
-  variable: "--font-plus-jakarta",
+  variable: "--font-poppins",
   weight: ["400", "500", "600", "700"],
   display: "swap",
 });
@@ -112,7 +112,7 @@ export default function RootLayout({
   return (
     <html
       lang="id"
-      className={`${syne.variable} ${instrumentSerif.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable}`}
+      className={`${syne.variable} ${instrumentSerif.variable} ${poppins.variable} ${jetbrainsMono.variable}`}
     >
       <body className="bg-alabaster text-ink antialiased min-h-[100dvh]">
         {children}

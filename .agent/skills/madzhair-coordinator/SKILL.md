@@ -22,11 +22,11 @@ description: Ketua Koordinator dan Lead Architect proyek Madzhair.co. Mengelola 
 5. **Laporan ke Atasan Tertinggi:** Sajikan ringkasan progres yang padat, terverifikasi, dan siap diuji.
 
 ## 3. Checklist Gerbang Persetujuan (Acceptance Gate)
-- [x] Seluruh kriteria di `docs/PRD.md` v1.6 (`Approved`) terpenuhi tanpa penyimpangan logika slot (`Haircut` 45m/60m vs `Hair Chemicals` 120m/120m, `Asia/Pontianak`, lead time 30m, dan pembebasan slot saat status `COMPLETED`).
-- [x] Semua divisi terkait (`design`, `backend`, `customer`, `admin`, `security`, `ops`) selaras dengan pembaruan `SKILL.md` v1.6 (`Warm Alabaster #EFE8DD`, `Soft Ivory #F7F3EC`, `Deep Slate Charcoal #303841`, `Burnt Terracotta #C25934`, serta finalisasi Hero S-Curve Feathering, Floating Pill 3 Segmen Dropdown, Media Kiri-Kanan, Vertical Stepper, dan seragam `Plus Jakarta Sans tabular-nums` di `/` & `/tiket/[code]`).
+- [x] Seluruh kriteria di `docs/PRD.md` v1.7 (`Approved`) terpenuhi tanpa penyimpangan logika slot (`Haircut` 45m/60m vs `Hair Chemicals` 120m/120m, `Asia/Pontianak`, lead time 30m, dan pembebasan slot saat status `COMPLETED`).
+- [x] Semua divisi terkait (`design`, `backend`, `customer`, `admin`, `security`, `ops`) selaras dengan pembaruan `SKILL.md` v1.7 (`Poppins` UI + `Instrument Serif` Hero, Crisp S-Curve tanpa kabut, Navbar kanan `bg-[#F7F3EC]/90`, Floating Pill 3 Segmen Dropdown, Galeri & Reels murni visual + smooth `translate3d`, `#reservasi` ikon kursi + durasi ringkas + jam `#303841`, dan Footer 3 Kolom `rounded-t-[32px]`).
 - [x] Tidak ada *error* TypeScript (`npx tsc --noEmit`), ESLint (`npm run lint`), atau *warning* build (`npm run build` Next.js 16.4.6 + `src/proxy.ts`).
 - [x] Zero unintended edits pada backend (`slots.ts`, `supabase/`, `src/app/api/**`), keamanan Smart Ticket `/tiket/[code]`, maupun agenda/bottom sheet `/admin`.
-- [x] Audit Anti-AI-Slop & Finalisasi v1.6 (Navbar tengah + `"Booking tersedia"` ikon saja, Hero 1 CTA + S-curve feathering tanpa kotak putih mengambang, Floating Pill 3 segmen padding lega + dropdown pricelist, 0 `font-mono` di `/` & `/tiket/[code]`, 0 link `"Akses Kasir"` di footer, Media Kiri Video Embed + Kanan Carousel 4 Foto dot pagination, Kalender Slide 21 hari + tanggal lengkap + kartu layanan ber-padding presisi + Vertical Stepper Live Booking Preview tanpa tombol Lokasi) lulus desktop & mobile.
+- [x] Audit visual & HTML desktop (`1440px`, `1024px`) dan mobile (`390px`) lulus: 0 `font-mono` di `/` & `/tiket/[code]`, 0 `"Akses Kasir"`, 0 *"privat cukur"*, 0 TikTok di galeri, 0 teks overlay di kartu media, serta slide 1–4 mulus.
 - [x] Simulasi E2E produksi (`/`, `/admin` fail-closed, `/tiket/MDZ-8K4P`) berjalan mulus.
 
 ## 4. Protokol Pembaruan Skill Mandiri

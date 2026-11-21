@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type TouchEvent } from "react";
 import Image from "next/image";
 import {
   ArrowUpRight,
@@ -35,19 +35,21 @@ function buildDefaultFallbackItems(): GalleryItem[] {
 
 function resolveGalleryGroups(items: GalleryItem[]): {
   photoItems: GalleryItem[];
-  videoItems: GalleryItem[];
+  instagramReels: GalleryItem[];
 } {
   const activeDbItems = items.filter((item) => item.is_active);
   const fallbackAll = buildDefaultFallbackItems();
 
   const dbPhotos = activeDbItems.filter((item) => item.media_type === "photo");
-  const dbVideos = activeDbItems.filter(
-    (item) => item.media_type === "tiktok" || item.media_type === "instagram"
+  const dbInstagram = activeDbItems.filter(
+    (item) => item.media_type === "instagram"
   );
 
-  const fallbackPhotos = fallbackAll.filter((item) => item.media_type === "photo");
-  const fallbackVideos = fallbackAll.filter(
-    (item) => item.media_type === "tiktok" || item.media_type === "instagram"
+  const fallbackPhotos = fallbackAll.filter(
+    (item) => item.media_type === "photo"
+  );
+  const fallbackInstagram = fallbackAll.filter(
+    (item) => item.media_type === "instagram"
   );
 
   const photoItems: GalleryItem[] = [...dbPhotos];
@@ -64,227 +66,121 @@ function resolveGalleryGroups(items: GalleryItem[]): {
     }
   }
 
-  const videoItems: GalleryItem[] = [...dbVideos];
-  const seenVideoUrls = new Set(
-    videoItems.map((item) => item.media_url.trim())
+  const instagramReels: GalleryItem[] = [...dbInstagram];
+  const seenReelUrls = new Set(
+    instagramReels.map((item) => item.media_url.trim())
   );
 
-  for (const fallbackVideo of fallbackVideos) {
-    if (videoItems.length >= 2) break;
-    const urlKey = fallbackVideo.media_url.trim();
-    if (!seenVideoUrls.has(urlKey)) {
-      seenVideoUrls.add(urlKey);
-      videoItems.push(fallbackVideo);
+  for (const fallbackReel of fallbackInstagram) {
+    if (instagramReels.length >= 2) break;
+    const urlKey = fallbackReel.media_url.trim();
+    if (!seenReelUrls.has(urlKey)) {
+      seenReelUrls.add(urlKey);
+      instagramReels.push(fallbackReel);
     }
   }
 
-  return { photoItems, videoItems };
+  return { photoItems, instagramReels };
 }
 
-function buildSafeEmbedIframeUrl(
-  platform: "tiktok" | "instagram",
-  validatedUrl: string
-): string | null {
+function buildSafeInstagramEmbedUrl(validatedUrl: string): string | null {
   try {
     const parsed = new URL(validatedUrl);
-    if (platform === "tiktok") {
-      const match = parsed.pathname.match(/\/video\/(\d+)/);
-      if (match?.[1]) {
-        return `https://www.tiktok.com/embed/v2/${match[1]}`;
-      }
-      return null;
+    const match = parsed.pathname.match(/\/(reel|p)\/([A-Za-z0-9_-]+)/);
+    if (match?.[1] && match?.[2]) {
+      return `https://www.instagram.com/${match[1]}/${match[2]}/embed/`;
     }
-
-    if (platform === "instagram") {
-      const match = parsed.pathname.match(/\/(reel|p)\/([A-Za-z0-9_-]+)/);
-      if (match?.[1] && match?.[2]) {
-        return `https://www.instagram.com/${match[1]}/${match[2]}/embed/`;
-      }
-      return null;
-    }
-
     return null;
   } catch {
     return null;
   }
 }
 
-function VideoReelCard({ item }: { item: GalleryItem }) {
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  const validation = validateSocialEmbedUrl(item.media_url);
-  const platformLabel =
-    item.media_type === "tiktok" ? "TikTok Reel" : "Instagram Reels";
-  const thumbnailSrc =
-    item.thumbnail_url?.trim() ||
-    (item.media_type === "tiktok"
-      ? "/images/style-fade.webp"
-      : "/images/style-perm.webp");
-
-  const embedIframeUrl =
-    validation.valid && validation.platform && validation.url
-      ? buildSafeEmbedIframeUrl(validation.platform, validation.url)
-      : null;
-
+function InstagramIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <article className="group relative h-[430px] w-full overflow-hidden rounded-3xl bg-ink shadow-md sm:h-[490px] lg:h-[520px]">
-      {!isLoaded ? (
-        <>
-          <Image
-            src={thumbnailSrc}
-            alt={item.title}
-            fill
-            loading="eager"
-            sizes="(max-width: 1023px) 100vw, 42vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-          />
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-gradient-to-t from-[#1E2329]/90 via-[#303841]/50 to-transparent"
-          />
-
-          <div className="absolute inset-x-0 bottom-0 space-y-3.5 p-5 sm:p-6">
-            <div className="space-y-1">
-              <p className="font-sans text-xs font-medium text-[#F7F3EC]/85">
-                {platformLabel}
-              </p>
-              <h3 className="font-serif text-xl font-normal leading-snug text-[#F7F3EC] sm:text-2xl">
-                {item.title}
-              </h3>
-              {item.caption ? (
-                <p className="line-clamp-2 font-sans text-sm leading-relaxed text-[#F7F3EC]/85">
-                  {item.caption}
-                </p>
-              ) : null}
-            </div>
-
-            {validation.valid ? (
-              <button
-                type="button"
-                onClick={() => setIsLoaded(true)}
-                className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-[#F7F3EC] shadow-sm transition-colors hover:bg-terracotta/90 sm:text-sm"
-              >
-                <Play className="h-4 w-4 fill-[#F7F3EC]" />
-                <span>Putar Video</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 rounded-xl border border-crimson-alert/60 bg-[#1E2329]/90 px-3 py-2.5 font-sans text-xs text-[#F7F3EC]">
-                <ShieldAlert className="h-4 w-4 shrink-0 text-crimson-alert" />
-                <span>URL embed tidak lolos validasi keamanan.</span>
-              </div>
-            )}
-          </div>
-        </>
-      ) : (
-        <div className="relative h-full w-full">
-          <button
-            type="button"
-            onClick={() => setIsLoaded(false)}
-            aria-label={`Tutup pemutar ${item.title}`}
-            className="absolute top-3 right-3 z-20 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-[#1E2329]/85 text-[#F7F3EC] backdrop-blur-sm transition-colors hover:bg-terracotta"
-          >
-            <X className="h-4 w-4" />
-          </button>
-
-          {!validation.valid || !validation.url ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-5 text-center">
-              <ShieldAlert className="h-7 w-7 text-crimson-alert" />
-              <p className="font-sans text-sm font-semibold text-[#F7F3EC]">
-                Tautan video diblokir
-              </p>
-              <p className="font-sans text-xs text-[#F7F3EC]/80">
-                Hanya URL HTTPS resmi TikTok dan Instagram Reels yang diizinkan.
-              </p>
-            </div>
-          ) : embedIframeUrl ? (
-            <div className="flex h-full flex-col">
-              <iframe
-                src={embedIframeUrl}
-                title={item.title}
-                loading="lazy"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allow="encrypted-media; picture-in-picture"
-                sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
-                className="h-full w-full flex-1 border-0 bg-ink"
-              />
-              <a
-                href={validation.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 border-t border-hairline bg-surface px-4 py-2 font-sans text-xs font-semibold text-ink transition-colors hover:bg-surface-elevated hover:text-terracotta"
-              >
-                <span>
-                  Buka di {item.media_type === "tiktok" ? "TikTok" : "Instagram"}
-                </span>
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </a>
-            </div>
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-4 p-5 text-center">
-              <p className="font-sans text-xs font-medium text-terracotta">
-                {platformLabel}
-              </p>
-              <h3 className="font-serif text-xl font-normal text-[#F7F3EC] sm:text-2xl">
-                {item.title}
-              </h3>
-              <p className="font-sans text-sm leading-relaxed text-[#F7F3EC]/80">
-                Tautan pendek terdeteksi. Buka langsung di aplikasi resmi untuk
-                pemutaran penuh.
-              </p>
-              <a
-                href={validation.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-[#F7F3EC] transition-colors hover:bg-terracotta/90 sm:text-sm"
-              >
-                <span>Tonton Sekarang</span>
-                <ArrowUpRight className="h-4 w-4" />
-              </a>
-            </div>
-          )}
-        </div>
-      )}
-    </article>
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
   );
 }
 
 export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
-  const { photoItems, videoItems } = resolveGalleryGroups(items);
+  const { photoItems, instagramReels } = resolveGalleryGroups(items);
+
+  const [activeReelIndex, setActiveReelIndex] = useState<number>(0);
+  const [playingReelId, setPlayingReelId] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState<number>(0);
-  const [activeVideoIndex, setActiveVideoIndex] = useState<number>(0);
-  const photoTrackRef = useRef<HTMLDivElement | null>(null);
 
-  const safePhotoIndex =
-    photoItems.length > 0 ? activePhotoIndex % photoItems.length : 0;
-  const safeVideoIndex =
-    videoItems.length > 0 ? activeVideoIndex % videoItems.length : 0;
+  const reelTouchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const photoTouchStartRef = useRef<{ x: number; y: number } | null>(null);
 
+  const reelCount = instagramReels.length;
   const photoCount = photoItems.length;
 
-  const scrollToPhoto = (targetIndex: number) => {
+  const safeReelIndex = reelCount > 0 ? activeReelIndex % reelCount : 0;
+  const safePhotoIndex = photoCount > 0 ? activePhotoIndex % photoCount : 0;
+
+  const goToReel = (targetIndex: number) => {
+    if (reelCount === 0) return;
+    const normalized = ((targetIndex % reelCount) + reelCount) % reelCount;
+    setActiveReelIndex(normalized);
+    setPlayingReelId(null);
+  };
+
+  const goToPhoto = (targetIndex: number) => {
     if (photoCount === 0) return;
     const normalized = ((targetIndex % photoCount) + photoCount) % photoCount;
     setActivePhotoIndex(normalized);
+  };
 
-    const track = photoTrackRef.current;
-    if (track) {
-      track.scrollTo({
-        left: normalized * track.clientWidth,
-        behavior: "smooth",
-      });
+  const handleReelTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    reelTouchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleReelTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = reelTouchStartRef.current;
+    const touch = event.changedTouches[0];
+    reelTouchStartRef.current = null;
+    if (!start || !touch || reelCount <= 1 || playingReelId) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      goToReel(deltaX < 0 ? safeReelIndex + 1 : safeReelIndex - 1);
     }
   };
 
-  const handlePhotoScroll = () => {
-    const track = photoTrackRef.current;
-    if (!track || track.clientWidth <= 0) return;
-    const nextIdx = Math.round(track.scrollLeft / track.clientWidth);
-    if (nextIdx >= 0 && nextIdx < photoCount && nextIdx !== activePhotoIndex) {
-      setActivePhotoIndex(nextIdx);
-    }
+  const handlePhotoTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    photoTouchStartRef.current = { x: touch.clientX, y: touch.clientY };
   };
 
-  const activeVideo = videoItems[safeVideoIndex] ?? null;
+  const handlePhotoTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = photoTouchStartRef.current;
+    const touch = event.changedTouches[0];
+    photoTouchStartRef.current = null;
+    if (!start || !touch || photoCount <= 1) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      goToPhoto(deltaX < 0 ? safePhotoIndex + 1 : safePhotoIndex - 1);
+    }
+  };
 
   return (
     <section
@@ -293,57 +189,182 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
       className="scroll-mt-24 border-t border-hairline bg-alabaster px-safe py-10 sm:py-16"
     >
       <div className="mx-auto max-w-6xl space-y-8 sm:space-y-10">
-        <EditorialSectionHeader
-          label="Galeri & lookbook"
-          title="Hasil Cukur"
-          accentTitle="& Transformasi"
-          description="Arsip gaya rambut dari satu kursi Madzhair.co. Video TikTok & Reels dimuat hanya saat Anda tekan agar hemat kuota seluler."
-        />
+        <EditorialSectionHeader title="Galeri & Reels" />
 
-        {/* Sesi Media Kiri-Kanan (Desktop berdampingan, Mobile bertumpuk rapi) */}
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-start lg:gap-8">
-          {/* KIRI: Wadah Video Embed (Lazy-load Facade TikTok / IG Reels) */}
-          {activeVideo ? (
-            <div className="min-w-0 lg:col-span-5">
+        {/* Dua Panel Proporsional Seimbang (aspect-[4/5] di Kiri & Kanan) */}
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:gap-10">
+          {/* PANEL KIRI: Khusus Instagram Reels (Murni Visual + < > + Dot Pagination) */}
+          {reelCount > 0 ? (
+            <div className="min-w-0">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="font-sans text-sm font-semibold text-ink">
-                  Video transformasi &amp; reels
-                </p>
-                {videoItems.length > 1 ? (
-                  <span className="font-sans text-xs font-medium text-muted tabular-nums">
-                    {safeVideoIndex + 1} / {videoItems.length}
-                  </span>
+                <span className="inline-flex items-center gap-2 font-sans text-sm font-semibold text-ink">
+                  <InstagramIcon className="h-4 w-4 text-terracotta" />
+                  <span>Instagram Reels</span>
+                </span>
+                <span className="font-sans text-xs font-medium text-muted tabular-nums">
+                  {safeReelIndex + 1} / {reelCount}
+                </span>
+              </div>
+
+              <div
+                onTouchStart={handleReelTouchStart}
+                onTouchEnd={handleReelTouchEnd}
+                className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl bg-ink shadow-md select-none"
+              >
+                <div
+                  style={{
+                    transform: `translate3d(-${safeReelIndex * 100}%, 0, 0)`,
+                  }}
+                  className="flex h-full w-full transition-transform duration-500 ease-out will-change-transform"
+                >
+                  {instagramReels.map((item, idx) => {
+                    const isPlaying = playingReelId === item.id;
+                    const validation = validateSocialEmbedUrl(item.media_url);
+                    const embedIframeUrl =
+                      validation.valid &&
+                      validation.platform === "instagram" &&
+                      validation.url
+                        ? buildSafeInstagramEmbedUrl(validation.url)
+                        : null;
+                    const thumbnailSrc =
+                      item.thumbnail_url?.trim() || "/images/style-perm.webp";
+
+                    return (
+                      <div
+                        key={`${item.id}-${idx}`}
+                        className="relative h-full w-full shrink-0"
+                      >
+                        {!isPlaying ? (
+                          <>
+                            <Image
+                              src={thumbnailSrc}
+                              alt={item.title}
+                              fill
+                              loading={idx === 0 ? "eager" : "lazy"}
+                              sizes="(max-width: 767px) 100vw, 50vw"
+                              className="object-cover"
+                            />
+
+                            {/* Tombol Putar Murni di Tengah Tanpa Teks Overlay */}
+                            {validation.valid ? (
+                              <button
+                                type="button"
+                                onClick={() => setPlayingReelId(item.id)}
+                                aria-label={`Putar Instagram Reel ${idx + 1}`}
+                                className="absolute top-1/2 left-1/2 z-10 inline-flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#F7F3EC]/92 text-terracotta shadow-xl backdrop-blur-xs transition-all hover:scale-105 hover:bg-terracotta hover:text-[#F7F3EC]"
+                              >
+                                <Play className="ml-0.5 h-6 w-6 fill-current" />
+                              </button>
+                            ) : (
+                              <div className="absolute inset-x-4 bottom-4 flex items-center justify-center gap-2 rounded-2xl bg-[#1E2329]/85 px-3 py-2.5 font-sans text-xs text-[#F7F3EC]">
+                                <ShieldAlert className="h-4 w-4 shrink-0 text-crimson-alert" />
+                                <span>URL Instagram tidak valid.</span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="relative flex h-full w-full flex-col bg-ink">
+                            <button
+                              type="button"
+                              onClick={() => setPlayingReelId(null)}
+                              aria-label="Tutup pemutar Instagram Reels"
+                              className="absolute top-3 right-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#1E2329]/85 text-[#F7F3EC] backdrop-blur-sm transition-colors hover:bg-terracotta"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+
+                            {embedIframeUrl && validation.url ? (
+                              <>
+                                <iframe
+                                  src={embedIframeUrl}
+                                  title={item.title}
+                                  loading="lazy"
+                                  referrerPolicy="strict-origin-when-cross-origin"
+                                  allow="encrypted-media; picture-in-picture"
+                                  sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
+                                  className="h-full w-full flex-1 border-0 bg-ink"
+                                />
+                                <a
+                                  href={validation.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex min-h-[44px] items-center justify-center gap-2 border-t border-hairline bg-surface px-4 py-2 font-sans text-xs font-semibold text-ink transition-colors hover:bg-surface-elevated hover:text-terracotta"
+                                >
+                                  <span>Buka di Instagram</span>
+                                  <ArrowUpRight className="h-3.5 w-3.5" />
+                                </a>
+                              </>
+                            ) : validation.url ? (
+                              <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+                                <InstagramIcon className="h-8 w-8 text-[#F7F3EC]" />
+                                <a
+                                  href={validation.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-[#F7F3EC] transition-colors hover:bg-terracotta/90"
+                                >
+                                  <span>Buka di Instagram</span>
+                                  <ArrowUpRight className="h-4 w-4" />
+                                </a>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Tombol Geser < > Instagram Reels */}
+                {reelCount > 1 && !playingReelId ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => goToReel(safeReelIndex - 1)}
+                      aria-label="Reel sebelumnya"
+                      className="absolute top-1/2 left-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#F7F3EC]/90 text-ink shadow-md backdrop-blur-xs transition-colors hover:bg-terracotta hover:text-[#F7F3EC] sm:left-4"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => goToReel(safeReelIndex + 1)}
+                      aria-label="Reel berikutnya"
+                      className="absolute top-1/2 right-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#F7F3EC]/90 text-ink shadow-md backdrop-blur-xs transition-colors hover:bg-terracotta hover:text-[#F7F3EC] sm:right-4"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </>
                 ) : null}
               </div>
 
-              <VideoReelCard key={activeVideo.id} item={activeVideo} />
-
-              {videoItems.length > 1 ? (
-                <div className="mt-4 flex items-center justify-center gap-2">
-                  {videoItems.map((video, idx) => {
-                    const isActive = idx === safeVideoIndex;
-                    const shortPlatform =
-                      video.media_type === "tiktok" ? "TikTok" : "IG Reels";
+              {/* Indikator Titik (Dot Pagination) Instagram Reels */}
+              {reelCount > 1 ? (
+                <div
+                  role="tablist"
+                  aria-label="Navigasi slide Instagram Reels"
+                  className="mt-4 flex items-center justify-center gap-1.5"
+                >
+                  {instagramReels.map((item, idx) => {
+                    const isActive = idx === safeReelIndex;
                     return (
                       <button
-                        key={`${video.id}-${idx}`}
+                        key={`reel-dot-${item.id}-${idx}`}
                         type="button"
-                        onClick={() => setActiveVideoIndex(idx)}
-                        aria-label={`Tampilkan video ${idx + 1}: ${video.title}`}
-                        aria-pressed={isActive}
-                        className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-3.5 py-1.5 font-sans text-xs font-medium transition-colors ${
-                          isActive
-                            ? "bg-ink text-surface shadow-xs"
-                            : "bg-surface text-muted hover:text-ink"
-                        }`}
+                        role="tab"
+                        aria-selected={isActive}
+                        aria-label={`Lihat Instagram Reel ${idx + 1}`}
+                        onClick={() => goToReel(idx)}
+                        className="inline-flex h-9 items-center justify-center px-1"
                       >
                         <span
-                          aria-hidden="true"
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            isActive ? "bg-terracotta" : "bg-ink/30"
+                          className={`block h-2 rounded-full transition-all duration-300 ${
+                            isActive
+                              ? "w-7 bg-terracotta"
+                              : "w-2 bg-ink/25 hover:bg-ink/50"
                           }`}
                         />
-                        <span>{shortPlatform}</span>
                       </button>
                     );
                   })}
@@ -352,75 +373,58 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
             </div>
           ) : null}
 
-          {/* KANAN: Carousel Foto 4 Sample Gaya Rambut (< > + Swipe + Dot Pagination) */}
-          {photoItems.length > 0 ? (
-            <div
-              className={`min-w-0 ${
-                activeVideo ? "lg:col-span-7" : "lg:col-span-12"
-              }`}
-            >
+          {/* PANEL KANAN: Carousel 4 Foto Murni Visual (Transisi CSS translateX Mulus) */}
+          {photoCount > 0 ? (
+            <div className="min-w-0">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="font-sans text-sm font-semibold text-ink">
-                  Koleksi gaya rambut
-                </p>
+                <span className="font-sans text-sm font-semibold text-ink">
+                  Galeri Foto
+                </span>
                 <span className="font-sans text-xs font-medium text-muted tabular-nums">
-                  {safePhotoIndex + 1} / {photoItems.length}
+                  {safePhotoIndex + 1} / {photoCount}
                 </span>
               </div>
 
-              <div className="relative h-[430px] w-full overflow-hidden rounded-3xl bg-ink shadow-md sm:h-[490px] lg:h-[520px]">
+              <div
+                onTouchStart={handlePhotoTouchStart}
+                onTouchEnd={handlePhotoTouchEnd}
+                aria-label="Carousel foto gaya rambut"
+                className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl bg-ink shadow-md select-none"
+              >
                 <div
-                  ref={photoTrackRef}
-                  onScroll={handlePhotoScroll}
-                  aria-label="Carousel sampel gaya rambut"
-                  className="flex h-full w-full snap-x snap-mandatory overflow-x-auto scroll-smooth no-scrollbar"
+                  style={{
+                    transform: `translate3d(-${safePhotoIndex * 100}%, 0, 0)`,
+                  }}
+                  className="flex h-full w-full transition-transform duration-500 ease-out will-change-transform"
                 >
                   {photoItems.map((item, index) => {
                     const photoSrc =
                       item.media_url?.trim() || "/images/style-fade.webp";
 
                     return (
-                      <article
+                      <div
                         key={`${item.id}-${index}`}
-                        className="relative h-full w-full shrink-0 snap-center"
+                        className="relative h-full w-full shrink-0"
                       >
                         <Image
                           src={photoSrc}
                           alt={item.title}
                           fill
-                          loading={index === 0 ? "eager" : "lazy"}
-                          sizes="(max-width: 1023px) 100vw, 58vw"
+                          loading={index <= 1 ? "eager" : "lazy"}
+                          sizes="(max-width: 767px) 100vw, 50vw"
                           className="object-cover"
                         />
-                        <div
-                          aria-hidden="true"
-                          className="absolute inset-0 bg-gradient-to-t from-[#1E2329]/90 via-[#303841]/40 to-transparent"
-                        />
-
-                        <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
-                          <p className="font-sans text-xs font-medium text-[#F7F3EC]/80">
-                            Gaya studio
-                          </p>
-                          <h3 className="mt-1 font-serif text-2xl font-normal leading-snug text-[#F7F3EC] sm:text-3xl">
-                            {item.title}
-                          </h3>
-                          {item.caption ? (
-                            <p className="mt-1.5 max-w-lg font-sans text-sm leading-relaxed text-[#F7F3EC]/85">
-                              {item.caption}
-                            </p>
-                          ) : null}
-                        </div>
-                      </article>
+                      </div>
                     );
                   })}
                 </div>
 
-                {/* Tombol Geser < > (Desktop & Mobile Tap) */}
-                {photoItems.length > 1 ? (
+                {/* Tombol Geser < > Foto */}
+                {photoCount > 1 ? (
                   <>
                     <button
                       type="button"
-                      onClick={() => scrollToPhoto(safePhotoIndex - 1)}
+                      onClick={() => goToPhoto(safePhotoIndex - 1)}
                       aria-label="Foto sebelumnya"
                       className="absolute top-1/2 left-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#F7F3EC]/90 text-ink shadow-md backdrop-blur-xs transition-colors hover:bg-terracotta hover:text-[#F7F3EC] sm:left-4"
                     >
@@ -429,7 +433,7 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
 
                     <button
                       type="button"
-                      onClick={() => scrollToPhoto(safePhotoIndex + 1)}
+                      onClick={() => goToPhoto(safePhotoIndex + 1)}
                       aria-label="Foto berikutnya"
                       className="absolute top-1/2 right-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#F7F3EC]/90 text-ink shadow-md backdrop-blur-xs transition-colors hover:bg-terracotta hover:text-[#F7F3EC] sm:right-4"
                     >
@@ -439,8 +443,8 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                 ) : null}
               </div>
 
-              {/* Indikator Titik (Dot Pagination) */}
-              {photoItems.length > 1 ? (
+              {/* Indikator Titik (Dot Pagination) Foto */}
+              {photoCount > 1 ? (
                 <div
                   role="tablist"
                   aria-label="Navigasi slide foto"
@@ -450,16 +454,16 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                     const isActive = idx === safePhotoIndex;
                     return (
                       <button
-                        key={`dot-${item.id}-${idx}`}
+                        key={`photo-dot-${item.id}-${idx}`}
                         type="button"
                         role="tab"
                         aria-selected={isActive}
-                        aria-label={`Lihat foto ${idx + 1}: ${item.title}`}
-                        onClick={() => scrollToPhoto(idx)}
+                        aria-label={`Lihat foto ${idx + 1}`}
+                        onClick={() => goToPhoto(idx)}
                         className="inline-flex h-9 items-center justify-center px-1"
                       >
                         <span
-                          className={`block h-2 rounded-full transition-all duration-200 ${
+                          className={`block h-2 rounded-full transition-all duration-300 ${
                             isActive
                               ? "w-7 bg-terracotta"
                               : "w-2 bg-ink/25 hover:bg-ink/50"

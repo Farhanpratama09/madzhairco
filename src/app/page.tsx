@@ -1,10 +1,10 @@
 import Image from "next/image";
 import {
   ArrowDownRight,
-  ArrowUpRight,
   CalendarCheck,
   Clock,
   MapPin,
+  MessageCircle,
 } from "lucide-react";
 import { BookingExperience } from "@/components/customer/BookingExperience";
 import { SocialGalleryFacade } from "@/components/customer/SocialGalleryFacade";
@@ -30,16 +30,6 @@ import type {
 } from "@/types/database";
 
 export const dynamic = "force-dynamic";
-
-const DAY_LABELS = [
-  "Minggu",
-  "Senin",
-  "Selasa",
-  "Rabu",
-  "Kamis",
-  "Jumat",
-  "Sabtu",
-] as const;
 
 const NAV_LINKS = [
   { label: "Layanan", href: "#layanan" },
@@ -189,16 +179,37 @@ export default async function HomePage() {
   } = await loadLandingData();
 
   const heroImageUrl = settings.hero_image_url?.trim() || brand.heroImage;
+  const nowParts = getStoreNowParts(settings.timezone);
+  const todaySchedule =
+    schedules.find((s) => s.day_of_week === nowParts.dayOfWeek) ?? null;
+  const todayClosedEntry =
+    closedDates.find((c) => c.closed_date === nowParts.dateStr) ?? null;
+
+  const footerHoursLabel = settings.is_force_closed
+    ? "Tutup sementara"
+    : todayClosedEntry
+      ? todayClosedEntry.reason?.trim() || "Libur khusus"
+      : todaySchedule && todaySchedule.is_open
+        ? `${formatTimeHHMM(todaySchedule.open_time)} – ${formatTimeHHMM(
+            todaySchedule.close_time
+          )} WIB`
+        : "Hari ini libur";
+
+  const footerAddress = settings.short_address.replace(/^Jalan\b/i, "Jl.");
+  const cleanWhatsappNumber = (
+    settings.whatsapp_number || "62895701807228"
+  ).replace(/\D/g, "");
+  const whatsappDirectUrl = `https://wa.me/${cleanWhatsappNumber}`;
 
   return (
     <div className="min-h-[100dvh] bg-alabaster text-ink">
       <HairSalonJsonLd schedules={schedules} storeSettings={settings} />
 
       {/* =====================================================================
-          WRAPPER HERO & NAVBAR TRANSPARAN (S-CURVE + GRADIENT EDGE FEATHERING)
+          WRAPPER HERO & NAVBAR TRANSPARAN (CRISP S-CURVE TANPA KABUT SILAU)
       ===================================================================== */}
       <div className="relative w-full overflow-hidden">
-        {/* Top Navbar: Logo kiri, tautan navigasi di tengah, status bersih di kanan */}
+        {/* Top Navbar: Logo kiri, tautan navigasi di tengah, status berlatar lembut di kanan */}
         <header className="relative z-30 bg-transparent pt-safe lg:absolute lg:inset-x-0 lg:top-0">
           <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto] items-center gap-3 px-safe py-3.5 md:grid-cols-[1fr_auto_1fr] lg:py-5">
             {/* Kiri: BrandMark */}
@@ -227,26 +238,24 @@ export default async function HomePage() {
               ))}
             </nav>
 
-            {/* Kanan: Ikon kalender/jam kecil + teks bersih tanpa border/titik kotak/jam */}
+            {/* Kanan: Ikon + 'Booking tersedia' dengan latar lembut transparan */}
             <div className="justify-self-end">
               <div
                 role="status"
                 aria-live="polite"
-                className={`inline-flex items-center gap-2 font-sans text-xs font-medium whitespace-nowrap sm:text-sm ${
-                  settings.is_force_closed
-                    ? "text-crimson-alert lg:text-[#FECACA]"
-                    : "text-ink lg:text-[#F7F3EC]"
+                className={`inline-flex items-center gap-2 rounded-full bg-[#F7F3EC]/90 px-3.5 py-1.5 font-sans text-xs font-medium whitespace-nowrap shadow-xs backdrop-blur-sm sm:text-sm ${
+                  settings.is_force_closed ? "text-crimson-alert" : "text-ink"
                 }`}
               >
                 {settings.is_force_closed ? (
                   <Clock
                     aria-hidden="true"
-                    className="h-4 w-4 shrink-0 text-crimson-alert lg:text-[#FECACA]"
+                    className="h-4 w-4 shrink-0 text-crimson-alert"
                   />
                 ) : (
                   <CalendarCheck
                     aria-hidden="true"
-                    className="h-4 w-4 shrink-0 text-terracotta lg:text-[#F7F3EC]"
+                    className="h-4 w-4 shrink-0 text-terracotta"
                   />
                 )}
                 <span>
@@ -259,32 +268,31 @@ export default async function HomePage() {
           </div>
         </header>
 
-        {/* Split Hero Full-Bleed Top-Right dengan Organic S-Curve & Edge Feathering */}
+        {/* Split Hero Full-Bleed Top-Right dengan Lengkungan S-Curve Bersih & Tajam */}
         <section
           aria-labelledby="hero-heading"
-          className="relative w-full lg:min-h-[630px]"
+          className="relative w-full lg:min-h-[620px]"
         >
-          {/* Kolom Kiri: Eyebrow singkat, Judul Instrument Serif, Subjudul, 1 CTA utama */}
-          <div className="relative z-10 mx-auto max-w-6xl px-safe pt-3 pb-6 lg:flex lg:min-h-[630px] lg:items-center lg:pt-24 lg:pb-24">
+          {/* Kolom Kiri: Eyebrow, Judul Instrument Serif, Subjudul lugas, 1 CTA utama */}
+          <div className="relative z-10 mx-auto max-w-6xl px-safe pt-3 pb-6 lg:flex lg:min-h-[620px] lg:items-center lg:pt-24 lg:pb-24">
             <div className="lg:w-[46%] lg:pr-12 xl:pr-16">
               <p className="font-sans text-xs font-medium text-terracotta sm:text-sm">
-                Studio cukur satu kursi
+                Madzhair Barber &amp; Co
               </p>
 
               <h1
                 id="hero-heading"
                 className="mt-3 font-serif text-4xl leading-[1.06] font-normal tracking-tight text-ink sm:text-5xl lg:text-[62px]"
               >
-                Presisi Satu Kursi,{" "}
+                Atur Jadwal Cukur,{" "}
                 <span className="block italic text-terracotta">
-                  Tanpa Antre di Tempat.
+                  Datang Tanpa Antre.
                 </span>
               </h1>
 
               <p className="mt-4 max-w-md font-sans text-sm leading-relaxed text-muted sm:text-base">
-                Sesi cukur privat satu barber di {settings.brand_tagline}. Pilih
-                layanan, kunci slot jam bulat secara real-time, dan konfirmasi
-                langsung via WhatsApp tanpa daftar akun.
+                Pilih layanan dan jam yang tersedia, kunci jadwalmu, lalu
+                konfirmasi lewat WhatsApp.
               </p>
 
               {/* 1 Tombol CTA Utama Kapsul Terracotta */}
@@ -305,9 +313,9 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Kanan (Desktop) / Bawah CTA (Mobile): Visual Barbershop + Deep S-Curve + Edge Feathering */}
-          <div className="relative mx-4 sm:mx-6 lg:absolute lg:top-0 lg:right-0 lg:mx-0 lg:h-full lg:min-h-[630px] lg:w-[56%]">
-            <div className="relative h-[290px] w-full overflow-hidden rounded-3xl bg-ink sm:h-[360px] lg:h-full lg:min-h-[630px] lg:rounded-none">
+          {/* Kanan (Desktop) / Bawah CTA (Mobile): Foto Barbershop + S-Curve Tajam Tanpa Kabut */}
+          <div className="relative mx-4 sm:mx-6 lg:absolute lg:top-0 lg:right-0 lg:mx-0 lg:h-full lg:min-h-[620px] lg:w-[56%]">
+            <div className="relative h-[290px] w-full overflow-hidden rounded-3xl bg-ink sm:h-[360px] lg:h-full lg:min-h-[620px] lg:rounded-none">
               <Image
                 src={heroImageUrl}
                 alt={brand.heroAlt}
@@ -317,70 +325,18 @@ export default async function HomePage() {
                 className="object-cover object-center"
               />
 
-              {/* Scrim atas-kanan halus khusus desktop agar 'Booking tersedia' tetap tajam terbaca */}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute top-0 right-0 hidden h-28 w-72 bg-gradient-to-bl from-[#1E2329]/75 via-[#1E2329]/30 to-transparent lg:block"
-              />
-
-              {/* Deep Organic S-Curve + Soft Left Edge Feathering (Desktop lg:) */}
+              {/* Lengkungan S-Curve Bersih & Tajam menyatu langsung dengan Warm Alabaster (#EFE8DD) */}
               <svg
                 aria-hidden="true"
                 viewBox="0 0 100 100"
                 preserveAspectRatio="none"
                 className="pointer-events-none absolute inset-y-0 left-0 hidden h-full w-full lg:block"
               >
-                <defs>
-                  <filter
-                    id="hero-scurve-feather"
-                    x="-20%"
-                    y="-20%"
-                    width="150%"
-                    height="140%"
-                  >
-                    <feGaussianBlur stdDeviation="4.5" />
-                  </filter>
-                  <linearGradient
-                    id="hero-left-feather-grad"
-                    x1="0%"
-                    y1="0%"
-                    x2="100%"
-                    y2="0%"
-                  >
-                    <stop offset="0%" stopColor="#EFE8DD" stopOpacity="1" />
-                    <stop offset="55%" stopColor="#EFE8DD" stopOpacity="0.82" />
-                    <stop offset="100%" stopColor="#EFE8DD" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-
-                {/* Lapisan feather halus mengikuti kontur S-curve agar foto memudar ke #EFE8DD */}
                 <path
-                  d="M -10 -10 L 48 -10 C 44 14, 14 26, 12 52 C 10 76, 26 89, 38 110 L -10 110 Z"
+                  d="M -1 -1 L 41 -1 C 36 20, 6 32, 6 56 C 6 79, 21 91, 34 101 L -1 101 Z"
                   fill="#EFE8DD"
-                  filter="url(#hero-scurve-feather)"
-                />
-
-                {/* Lapisan S-curve solid Warm Alabaster menjaga sisi kiri & tengah navbar 100% bersih */}
-                <path
-                  d="M -2 -2 L 42 -2 C 38 16, 7 28, 6 53 C 5 76, 19 89, 31 102 L -2 102 Z"
-                  fill="#EFE8DD"
-                />
-
-                {/* Gradasi tipis ekstra sepanjang tepi kiri paling ujung */}
-                <rect
-                  x="0"
-                  y="0"
-                  width="12"
-                  height="100"
-                  fill="url(#hero-left-feather-grad)"
                 />
               </svg>
-
-              {/* Edge Feathering Tepi Bawah: memudar menyatu ke Warm Alabaster #EFE8DD */}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#EFE8DD] via-[#EFE8DD]/60 to-transparent sm:h-32 lg:h-44"
-              />
             </div>
           </div>
         </section>
@@ -388,7 +344,7 @@ export default async function HomePage() {
 
       <main>
         {/* ===================================================================
-            FLOATING PILL DOCK 3 SEGMEN + GALERI + RESERVASI
+            FLOATING PILL DOCK 3 SEGMEN + GALERI & REELS + RESERVASI
         =================================================================== */}
         <BookingExperience
           initialSettings={settings}
@@ -402,75 +358,89 @@ export default async function HomePage() {
       </main>
 
       {/* =====================================================================
-          FOOTER ARSITEKTURAL — DEEP SLATE CHARCOAL (#303841)
+          FOOTER MINIMALIS 3 KOLOM — DEEP SLATE CHARCOAL (#303841)
       ===================================================================== */}
       <footer
         id="lokasi"
-        className="scroll-mt-24 border-t border-hairline bg-ink px-safe pt-12 pb-safe text-surface sm:pt-14"
+        className="scroll-mt-24 rounded-t-[32px] bg-[#303841] px-safe pt-12 pb-safe text-[#F7F3EC] sm:pt-14"
       >
         <div className="mx-auto max-w-6xl space-y-10 pb-6">
-          <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
-            {/* Identitas & Alamat */}
-            <div className="space-y-5 lg:col-span-5">
-              <div className="inline-flex rounded-2xl bg-surface px-4 py-2.5 shadow-sm">
-                <BrandMark variant="full" size="md" href="/" />
-              </div>
-
-              <p className="max-w-sm font-sans text-sm leading-relaxed text-surface/80">
-                Barbershop berkapasitas 1 kursi di Sungai Kunyit. Fokus pada
-                detail potongan dan kenyamanan sesi konsultasi tanpa antre.
-              </p>
-
-              <div className="border-l-2 border-terracotta pl-4">
-                <p className="font-sans text-xs font-medium text-surface/70">
-                  Alamat studio
-                </p>
-                <p className="mt-1 font-sans text-sm font-medium text-surface">
-                  {settings.short_address}
-                </p>
-              </div>
-
-              <a
-                href={settings.google_maps_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-surface transition-colors hover:bg-terracotta/90 sm:text-sm"
-              >
-                <MapPin className="h-4 w-4" />
-                <span>Buka Rute Google Maps</span>
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </a>
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-3 md:items-start lg:gap-12">
+            {/* Kolom Kiri: HANYA Logo Madzhair.co */}
+            <div>
+              <BrandMark variant="full" size="md" tone="onDark" href="/" />
             </div>
 
-            {/* Jadwal Operasional Mingguan */}
-            <div className="lg:col-span-7">
-              <p className="font-sans text-sm font-semibold text-surface">
-                Jam operasional studio ({settings.timezone})
+            {/* Kolom Tengah: Jam Operasional & Wilayah */}
+            <div className="space-y-1.5">
+              <h2 className="font-sans text-sm font-semibold text-[#F7F3EC]">
+                Jam operasional
+              </h2>
+              <p className="font-sans text-sm text-[#F7F3EC]/75">
+                Sungai Kunyit, Kalimantan Barat
               </p>
-              <dl className="mt-4 divide-y divide-surface/15 border-y border-surface/15">
-                {schedules.map((item) => (
-                  <div
-                    key={item.day_of_week}
-                    className="flex items-center justify-between py-2.5 text-sm"
+              <p className="pt-1 font-sans text-sm font-semibold text-[#F7F3EC] tabular-nums">
+                {footerHoursLabel}
+              </p>
+            </div>
+
+            {/* Kolom Kanan: Alamat + 3 Tautan Pintas Bersih (Google Maps, WhatsApp, Instagram) */}
+            <div className="space-y-3.5">
+              <div>
+                <p className="font-sans text-sm font-semibold text-[#F7F3EC]">
+                  {footerAddress}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <a
+                  href={settings.google_maps_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#F7F3EC]/10 px-4 py-2 font-sans text-xs font-medium text-[#F7F3EC] transition-colors hover:bg-terracotta"
+                >
+                  <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
+                  <span>Google Maps</span>
+                </a>
+
+                <a
+                  href={whatsappDirectUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#F7F3EC]/10 px-4 py-2 font-sans text-xs font-medium text-[#F7F3EC] transition-colors hover:bg-terracotta"
+                >
+                  <MessageCircle aria-hidden="true" className="h-3.5 w-3.5" />
+                  <span>WhatsApp</span>
+                </a>
+
+                <a
+                  href={brand.instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#F7F3EC]/10 px-4 py-2 font-sans text-xs font-medium text-[#F7F3EC] transition-colors hover:bg-terracotta"
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-3.5 w-3.5"
                   >
-                    <dt className="font-sans font-medium text-surface">
-                      {DAY_LABELS[item.day_of_week] ?? `Hari ${item.day_of_week}`}
-                    </dt>
-                    <dd className="font-sans text-xs text-surface/80 tabular-nums sm:text-sm">
-                      {item.is_open
-                        ? `${formatTimeHHMM(item.open_time)} – ${formatTimeHHMM(
-                            item.close_time
-                          )} WIB`
-                        : "Tutup"}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+                    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+                  </svg>
+                  <span>Instagram</span>
+                </a>
+              </div>
             </div>
           </div>
 
-          <div className="border-t border-surface/15 pt-6">
-            <p className="font-sans text-xs text-surface/75">
+          <div className="border-t border-[#F7F3EC]/12 pt-5">
+            <p className="font-sans text-xs text-[#F7F3EC]/65">
               © {new Date().getFullYear()} {settings.store_name} ·{" "}
               {settings.brand_tagline}
             </p>

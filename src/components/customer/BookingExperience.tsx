@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import {
   AlertCircle,
+  Armchair,
   ArrowRight,
   ArrowUpRight,
   Calendar,
@@ -102,9 +103,9 @@ function formatIndonesianDateFull(dateStr: string): string {
 
 function formatServiceDuration(displayMinutes: number): string {
   if (displayMinutes >= 120 && displayMinutes % 60 === 0) {
-    return `~${displayMinutes / 60} Jam`;
+    return `~${displayMinutes / 60} jam`;
   }
-  return `~${displayMinutes} Menit`;
+  return `~${displayMinutes} menit`;
 }
 
 function readDemoSessionBookings(): Booking[] {
@@ -736,13 +737,8 @@ export function BookingExperience({
       label: "Layanan & tarif",
       done: Boolean(selectedService),
       value: selectedService
-        ? selectedVariantNote &&
-          selectedVariantNote.serviceId === selectedService.id &&
-          selectedService.price_variants.length > 1
-          ? `${selectedService.name} (${selectedVariantNote.label}) · Rp ${selectedVariantNote.display}`
-          : `${selectedService.name} · ${selectedService.price_display}`
+        ? `${selectedService.name} · ${selectedService.price_display}`
         : "Belum dipilih",
-      accent: false,
     },
     {
       stepNumber: 2,
@@ -751,7 +747,6 @@ export function BookingExperience({
       value: selectedDate
         ? formatIndonesianDateFull(selectedDate)
         : "Belum dipilih",
-      accent: false,
     },
     {
       stepNumber: 3,
@@ -760,7 +755,6 @@ export function BookingExperience({
       value: selectedSlotObj
         ? `${selectedSlotObj.time} – ${selectedSlotObj.endTime} WIB`
         : "Pilih jam di grid",
-      accent: Boolean(selectedSlotObj),
     },
     {
       stepNumber: 4,
@@ -771,7 +765,6 @@ export function BookingExperience({
         : trimmedCustomerName
           ? `${trimmedCustomerName} (min. 2 huruf)`
           : "Isi nama di bawah",
-      accent: false,
     },
   ] as const;
 
@@ -785,10 +778,10 @@ export function BookingExperience({
       <section
         id="layanan"
         aria-label="Layanan, Tarif, Jam Operasional, dan Lokasi Studio"
-        className="relative z-30 -mt-8 mx-4 scroll-mt-24 pb-10 sm:mx-6 sm:pb-12 lg:mx-auto lg:-mt-12 lg:max-w-4xl lg:pb-14"
+        className="relative z-30 -mt-8 mx-4 scroll-mt-24 pb-10 sm:mx-6 sm:pb-12 lg:mx-auto lg:-mt-12 lg:max-w-5xl lg:pb-14"
       >
         <div className="relative rounded-3xl bg-[#F7F3EC] px-6 py-4 shadow-[0_20px_50px_-14px_rgba(48,56,65,0.13)] sm:px-8 sm:py-5 lg:rounded-full">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.2fr_auto_1fr_auto_1.2fr] md:items-center md:gap-5 lg:gap-7">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.1fr_auto_0.9fr_auto_1.45fr] md:items-center md:gap-5 lg:gap-7">
             {/* 1) Segmen Layanan & Tarif (Dropdown Interaktif) */}
             <div
               ref={pricelistMenuRef}
@@ -1004,10 +997,8 @@ export function BookingExperience({
       >
         <div className="mx-auto max-w-6xl space-y-6 sm:space-y-8">
           <EditorialSectionHeader
-            label="Reservasi kursi"
             title="Pilih Jadwal"
-            accentTitle="Satu Kursi"
-            description="Pilih tanggal, layanan, dan jam bulat yang tersedia. Slot langsung terkunci permanen setelah Anda konfirmasi."
+            description="Pilih tanggal, layanan, dan jam yang tersedia."
             action={
               <LiveStatusTag
                 isOpen={liveStatus.isOpen}
@@ -1221,25 +1212,18 @@ export function BookingExperience({
                   </div>
                 </fieldset>
 
-                {/* 2. Pilihan Layanan dengan Padding Internal Presisi */}
+                {/* 2. Pilihan Layanan dengan Durasi Ringkas (~45 menit / ~2 jam) */}
                 <fieldset className="min-w-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
                   <legend className="sr-only">Pilih layanan</legend>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
                       Pilih layanan
                     </span>
-                    <span className="font-sans text-xs text-muted">
-                      1 kursi privat
-                    </span>
                   </div>
 
                   <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {activeServices.map((service) => {
                       const active = selectedService?.id === service.id;
-                      const blocks = Math.max(
-                        1,
-                        Math.round(service.slot_duration_minutes / 60)
-                      );
                       return (
                         <button
                           key={service.id}
@@ -1266,8 +1250,7 @@ export function BookingExperience({
                           <span className="block w-full font-sans text-xs leading-relaxed text-muted tabular-nums">
                             {formatServiceDuration(
                               service.display_duration_minutes
-                            )}{" "}
-                            · {blocks} blok ({blocks * 60} menit)
+                            )}
                           </span>
                         </button>
                       );
@@ -1275,7 +1258,7 @@ export function BookingExperience({
                   </div>
                 </fieldset>
 
-                {/* 3. Grid Slot Jam Minimalis */}
+                {/* 3. Grid Slot Jam Minimalis + Legenda Ikon Kursi */}
                 <fieldset className="min-w-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
                   <legend className="sr-only">
                     Pilih jam ({settings.timezone})
@@ -1352,15 +1335,24 @@ export function BookingExperience({
 
                       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-hairline pt-3 font-sans text-xs text-muted">
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-full border border-hairline bg-alabaster" />
+                          <Armchair
+                            aria-hidden="true"
+                            className="h-4 w-4 text-ink/70"
+                          />
                           <span>Tersedia</span>
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-full bg-crimson-alert/70" />
+                          <Armchair
+                            aria-hidden="true"
+                            className="h-4 w-4 text-crimson-alert"
+                          />
                           <span>Terisi</span>
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-full bg-terracotta" />
+                          <Armchair
+                            aria-hidden="true"
+                            className="h-4 w-4 text-terracotta"
+                          />
                           <span>Dipilih</span>
                         </span>
                       </div>
@@ -1434,9 +1426,7 @@ export function BookingExperience({
                             <p
                               className={`mt-0.5 truncate font-sans text-sm tabular-nums ${
                                 step.done
-                                  ? step.accent
-                                    ? "font-semibold text-emerald-live"
-                                    : "font-semibold text-ink"
+                                  ? "font-semibold text-ink"
                                   : "font-normal text-muted"
                               }`}
                             >
@@ -1508,8 +1498,8 @@ export function BookingExperience({
                     <Clock className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
                     <span>
                       Toleransi keterlambatan maksimal{" "}
-                      <strong className="text-ink">15 menit</strong> dari jam
-                      reservasi. Konfirmasi dikirim langsung ke WhatsApp kasir.
+                      <strong className="text-ink">15 menit</strong>. Konfirmasi
+                      dikirim langsung ke WhatsApp.
                     </span>
                   </div>
 
@@ -1563,7 +1553,7 @@ export function BookingExperience({
 
             <h3
               id="prebooking-confirm-title"
-              className="mt-4 font-serif text-2xl font-normal text-ink"
+              className="mt-4 font-sans text-xl font-semibold tracking-tight text-ink"
             >
               Pastikan Jadwal Sudah Sesuai
             </h3>

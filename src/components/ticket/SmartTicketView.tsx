@@ -332,7 +332,7 @@ export function SmartTicketView({
             <p className="font-sans text-xs font-semibold text-crimson-alert">
               Kode tidak valid
             </p>
-            <h1 className="mt-2 font-serif text-2xl font-normal text-ink sm:text-3xl">
+            <h1 className="mt-2 font-sans text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
               Format Kode Tiket Tidak Dikenali
             </h1>
             <p className="mt-2 font-sans text-sm leading-relaxed text-muted">
@@ -368,7 +368,7 @@ export function SmartTicketView({
                 {ticketCode}
               </span>
             </p>
-            <h1 className="mt-2 font-serif text-2xl font-normal text-ink sm:text-3xl">
+            <h1 className="mt-2 font-sans text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
               Tiket Tidak Ditemukan
             </h1>
             <p className="mt-2 font-sans text-sm leading-relaxed text-muted">

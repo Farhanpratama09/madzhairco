@@ -4,6 +4,8 @@ export interface BrandMarkProps {
   /** 'full': monogram + wordmark + subtitle; 'compact': monogram + wordmark; 'monogram': monogram saja */
   variant?: "full" | "compact" | "monogram";
   size?: "sm" | "md" | "lg";
+  /** 'onDark': warna terang #F7F3EC untuk footer gelap #303841 */
+  tone?: "default" | "onDark";
   href?: string;
   className?: string;
 }
@@ -35,17 +37,23 @@ const SIZE_STYLES = {
 export function BrandMark({
   variant = "full",
   size = "md",
+  tone = "default",
   href,
   className = "",
 }: BrandMarkProps) {
   const styles = SIZE_STYLES[size];
+  const isOnDark = tone === "onDark";
 
   const content = (
     <span className={`inline-flex items-center ${styles.gap} select-none ${className}`}>
       {/* Monogram Soft-Editorial rounded-xl — tanpa pill rounded-full */}
       <span
         aria-hidden="true"
-        className={`relative inline-flex shrink-0 items-center justify-center rounded-xl border border-ink bg-ink ${styles.box}`}
+        className={`relative inline-flex shrink-0 items-center justify-center rounded-xl border ${
+          isOnDark
+            ? "border-[#F7F3EC]/25 bg-[#F7F3EC]/10"
+            : "border-ink bg-ink"
+        } ${styles.box}`}
       >
         <svg
           viewBox="0 0 28 28"
@@ -74,7 +82,9 @@ export function BrandMark({
       {variant !== "monogram" && (
         <span className="flex flex-col leading-none">
           <span
-            className={`font-display font-bold tracking-tight text-ink ${
+            className={`font-display font-bold tracking-tight ${
+              isOnDark ? "text-[#F7F3EC]" : "text-ink"
+            } ${
               size === "lg"
                 ? "text-xl"
                 : size === "md"
@@ -86,7 +96,11 @@ export function BrandMark({
           </span>
 
           {variant === "full" && (
-            <span className="mt-1 font-sans text-[11px] font-medium text-muted">
+            <span
+              className={`mt-1 font-sans text-[11px] font-medium ${
+                isOnDark ? "text-[#F7F3EC]/70" : "text-muted"
+              }`}
+            >
               Barber &amp; Co
             </span>
           )}
