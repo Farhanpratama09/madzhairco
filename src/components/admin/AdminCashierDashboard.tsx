@@ -225,7 +225,6 @@ async function compressImageToWebP(
 }
 
 export function AdminCashierDashboard({
-  userEmail,
   initialSettings,
   initialSchedules,
   initialClosedDates,
@@ -356,16 +355,14 @@ export function AdminCashierDashboard({
   const [serviceDrafts, setServiceDrafts] = useState<Service[]>(initialServices);
   const [savingServiceId, setSavingServiceId] = useState<string | null>(null);
 
-  // CMS States: Gallery Social Embed
+  // CMS States: Gallery Instagram Reels Embed
   const [socialTitle, setSocialTitle] = useState("");
   const [socialUrl, setSocialUrl] = useState("");
-  const [socialCaption, setSocialCaption] = useState("");
   const [savingSocial, setSavingSocial] = useState(false);
 
   // CMS States: Gallery Photo Upload (Client-side WebP Compression)
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [photoTitle, setPhotoTitle] = useState("");
-  const [photoCaption, setPhotoCaption] = useState("");
   const [compressedPhoto, setCompressedPhoto] = useState<{
     blob: Blob;
     originalSize: number;
@@ -1072,27 +1069,43 @@ export function AdminCashierDashboard({
     }
   };
 
-  // CMS Handlers: Gallery Social Embed (Strict Whitelist)
+  // CMS Handlers: Instagram Reels Embed (Strict Instagram Whitelist)
   const socialValidation = useMemo(() => {
-    if (!socialUrl.trim()) return null;
-    return validateSocialEmbedUrl(socialUrl);
+    const trimmed = socialUrl.trim();
+    if (!trimmed) return null;
+    const base = validateSocialEmbedUrl(trimmed);
+    if (!base.valid || !base.url) {
+      return {
+        valid: false,
+        error: "Masukkan tautan resmi https://www.instagram.com/reel/...",
+      };
+    }
+    if (base.platform !== "instagram") {
+      return {
+        valid: false,
+        error: "Hanya tautan Instagram Reels (instagram.com/reel/...) yang didukung.",
+      };
+    }
+    return {
+      valid: true,
+      url: base.url,
+    };
   }, [socialUrl]);
 
   const handleAddSocialEmbed = async (event: FormEvent) => {
     event.preventDefault();
     if (!db) return;
 
-    const validation = validateSocialEmbedUrl(socialUrl);
-    if (!validation.valid || !validation.platform || !validation.url) {
-      showToast("error", validation.error || "URL video tidak valid.");
+    if (!socialValidation?.valid || !socialValidation.url) {
+      showToast(
+        "error",
+        socialValidation?.error ||
+          "Masukkan tautan resmi https://www.instagram.com/reel/..."
+      );
       return;
     }
 
-    const title =
-      socialTitle.trim() ||
-      (validation.platform === "tiktok"
-        ? "Reel TikTok Madzhair"
-        : "Instagram Reel Madzhair");
+    const title = socialTitle.trim() || "Instagram Reel Madzhair";
 
     setSavingSocial(true);
     try {
@@ -1103,10 +1116,10 @@ export function AdminCashierDashboard({
         .from("gallery_items")
         .insert({
           title,
-          media_type: validation.platform,
-          media_url: validation.url,
+          media_type: "instagram",
+          media_url: socialValidation.url,
           thumbnail_url: null,
-          caption: socialCaption.trim() || null,
+          caption: null,
           sort_order: nextOrder,
           is_active: true,
         })
@@ -1114,15 +1127,17 @@ export function AdminCashierDashboard({
         .single();
 
       if (error || !data) {
-        showToast("error", error?.message || "Gagal menyimpan embed video.");
+        showToast(
+          "error",
+          error?.message || "Gagal menyimpan link Instagram Reels."
+        );
         return;
       }
 
       setGalleryItems((prev) => [data as GalleryItem, ...prev]);
       setSocialTitle("");
       setSocialUrl("");
-      setSocialCaption("");
-      showToast("success", `Embed ${validation.platform} ditambahkan ke galeri.`);
+      showToast("success", "Link Instagram Reels ditambahkan ke galeri.");
     } finally {
       setSavingSocial(false);
     }
@@ -1208,7 +1223,7 @@ export function AdminCashierDashboard({
           media_type: "photo",
           media_url: publicUrl,
           thumbnail_url: publicUrl,
-          caption: photoCaption.trim() || null,
+          caption: null,
           sort_order: nextOrder,
           is_active: true,
         })
@@ -1225,7 +1240,6 @@ export function AdminCashierDashboard({
 
       setGalleryItems((prev) => [inserted as GalleryItem, ...prev]);
       setPhotoTitle("");
-      setPhotoCaption("");
       setCompressedPhoto((prev) => {
         if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
         return null;
@@ -1293,7 +1307,7 @@ export function AdminCashierDashboard({
 
   return (
     <div
-      className={`min-h-[100dvh] bg-alabaster text-ink pt-safe ${
+      className={`min-h-[100dvh] bg-alabaster font-sans text-ink pt-safe ${
         isQueueTab
           ? hasActiveBottomDrawer
             ? "pb-60 sm:pb-52"
@@ -1301,14 +1315,23 @@ export function AdminCashierDashboard({
           : "pb-safe"
       }`}
     >
-      {/* Top Bar Kasir */}
+      {/* Header Ringkas Satu Baris: Logo Kiri, Status Studio + Refresh & Keluar di Kanan */}
       <header className="sticky top-0 z-30 border-b border-hairline bg-alabaster/95 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0">
             <BrandMark variant="compact" size="sm" href="/" />
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+            <div className="hidden rounded-full bg-surface px-3 py-1.5 sm:inline-flex">
+              <LiveStatusTag
+                isOpen={liveStatus.isOpen}
+                isForceClosed={settings.is_force_closed}
+                reason={liveStatus.reason}
+                compact
+              />
+            </div>
+
             <button
               type="button"
               onClick={() => void refreshAllData()}
@@ -1322,14 +1345,6 @@ export function AdminCashierDashboard({
               />
             </button>
 
-            <Link
-              href="/"
-              className="hidden min-h-[44px] items-center gap-1.5 rounded-xl border border-hairline bg-surface px-3 font-sans text-xs font-medium text-muted transition-colors hover:border-terracotta hover:text-terracotta sm:inline-flex"
-            >
-              <span>Web</span>
-              <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
-            </Link>
-
             <button
               type="button"
               onClick={() => void handleSignOut()}
@@ -1341,110 +1356,49 @@ export function AdminCashierDashboard({
             </button>
           </div>
         </div>
-
-        {/* Status Strip + Saklar Tutup Darurat (1-Tap Arm -> 1-Tap Confirm) */}
-        <div className="border-t border-hairline bg-surface/80">
-          <div className="mx-auto flex w-full max-w-4xl flex-col gap-2.5 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-start">
-              <LiveStatusTag
-                isOpen={liveStatus.isOpen}
-                isForceClosed={settings.is_force_closed}
-                reason={liveStatus.reason}
-                scheduleNote={
-                  liveStatus.reason === "BEFORE_OPEN" &&
-                  liveStatus.openTime &&
-                  liveStatus.closeTime
-                    ? `Buka ${liveStatus.openTime}–${liveStatus.closeTime} WIB`
-                    : liveStatus.openTime && liveStatus.closeTime
-                      ? `${liveStatus.openTime}–${liveStatus.closeTime} WIB`
-                      : liveStatus.closedReason ?? undefined
-                }
-                compact
-              />
-              <span className="truncate font-sans text-xs text-muted">
-                {userEmail}
-              </span>
-            </div>
-
-            {forceCloseConfirmOpen ? (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-hairline bg-surface px-3 py-1.5">
-                <span className="font-sans text-xs font-medium text-ink">
-                  {settings.is_force_closed
-                    ? "Buka kembali toko?"
-                    : "Aktifkan Tutup Darurat?"}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => void handleToggleForceClose()}
-                    disabled={updatingForceClose}
-                    className={`inline-flex min-h-[44px] items-center rounded-xl px-3 font-sans text-xs font-semibold transition-opacity disabled:opacity-50 ${
-                      settings.is_force_closed
-                        ? "bg-emerald-live text-surface"
-                        : "bg-crimson-alert text-surface"
-                    }`}
-                  >
-                    {updatingForceClose
-                      ? "Menyimpan..."
-                      : settings.is_force_closed
-                        ? "Ya, Buka"
-                        : "Ya, Tutup"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setForceCloseConfirmOpen(false)}
-                    disabled={updatingForceClose}
-                    className="inline-flex min-h-[44px] items-center rounded-xl border border-hairline bg-alabaster px-3 font-sans text-xs font-medium text-muted hover:text-ink"
-                  >
-                    Batal
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setForceCloseConfirmOpen(true)}
-                className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border px-3.5 font-sans text-xs font-semibold transition-colors ${
-                  settings.is_force_closed
-                    ? "border-emerald-live/60 bg-emerald-live/12 text-emerald-live hover:bg-emerald-live/20"
-                    : "border-crimson-alert/60 bg-crimson-alert/10 text-crimson-alert hover:bg-crimson-alert/20"
-                }`}
-              >
-                <Power aria-hidden="true" className="h-3.5 w-3.5" />
-                <span>
-                  {settings.is_force_closed
-                    ? "Buka Toko Kembali"
-                    : "Tutup Darurat"}
-                </span>
-              </button>
-            )}
-          </div>
-        </div>
       </header>
 
       <main className="mx-auto w-full max-w-4xl px-4 pt-4 font-sans sm:px-6">
         <InstallPwaBanner className="mb-4" />
 
-        {/* Toast Notifikasi Aksi */}
+        {/* Status Studio Mobile Ringkas (Tampil di < sm karena header mobile tetap 1 baris lega) */}
+        <div className="mb-3 flex items-center justify-between gap-2 sm:hidden">
+          <LiveStatusTag
+            isOpen={liveStatus.isOpen}
+            isForceClosed={settings.is_force_closed}
+            reason={liveStatus.reason}
+            compact
+          />
+          {liveStatus.openTime && liveStatus.closeTime && !settings.is_force_closed ? (
+            <span className="font-sans text-xs font-medium text-muted tabular-nums">
+              {liveStatus.openTime} – {liveStatus.closeTime} WIB
+            </span>
+          ) : null}
+        </div>
+
+        {/* Toast Notifikasi Aksi (Tanpa titik bulat, selaras palet #303841 & #C25934) */}
         {toast ? (
           <div
             role="status"
             aria-live="polite"
-            className={`mb-4 flex items-center justify-between gap-3 rounded-xl border bg-surface px-3.5 py-3 text-sm text-ink ${
+            className={`mb-4 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-sm text-ink ${
               toast.type === "success"
-                ? "border-emerald-live/50 bg-emerald-live/10"
+                ? "border-ink/25 bg-surface"
                 : "border-crimson-alert/50 bg-crimson-alert/10"
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <span
-                aria-hidden="true"
-                className={`h-2 w-2 shrink-0 rounded-full ${
-                  toast.type === "success"
-                    ? "bg-emerald-live"
-                    : "bg-crimson-alert"
-                }`}
-              />
+              {toast.type === "success" ? (
+                <Check
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0 text-terracotta"
+                />
+              ) : (
+                <AlertTriangle
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0 text-crimson-alert"
+                />
+              )}
               <span>{toast.text}</span>
             </div>
             <button
@@ -1461,7 +1415,7 @@ export function AdminCashierDashboard({
         {/* Navigasi Mode Utama */}
         <nav
           aria-label="Navigasi Dashboard Kasir"
-          className="mb-5 grid grid-cols-2 gap-1.5 rounded-2xl border border-hairline bg-surface p-1.5"
+          className="mb-4 grid grid-cols-2 gap-1.5 rounded-2xl border border-hairline bg-surface p-1.5"
         >
           <button
             type="button"
@@ -1490,26 +1444,68 @@ export function AdminCashierDashboard({
         </nav>
 
         {/* ================================================================ */}
-        {/* TAB 1: ANTREAN & KASIR REAL-TIME (VISUAL TIME-BLOCK TIMELINE)    */}
+        {/* TAB 1: KASIR & ANTREAN REAL-TIME (VISUAL TIME-BLOCK TIMELINE)    */}
         {/* ================================================================ */}
         {activeTab === "queue" ? (
           <section aria-label="Antrean Real-time">
             {/* Peringatan jika Tutup Darurat aktif */}
             {settings.is_force_closed ? (
-              <div className="mb-5 flex items-start gap-3 rounded-2xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 text-sm text-ink">
-                <AlertTriangle
-                  aria-hidden="true"
-                  className="mt-0.5 h-4 w-4 shrink-0 text-crimson-alert"
-                />
-                <p>
-                  <strong className="font-semibold">
-                    Tutup darurat sedang aktif.
-                  </strong>{" "}
-                  Walk-in maupun booking online dinonaktifkan sementara hingga
-                  saklar dibuka kembali.
-                </p>
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-crimson-alert/45 bg-crimson-alert/10 p-3.5 text-sm text-ink">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle
+                    aria-hidden="true"
+                    className="mt-0.5 h-4 w-4 shrink-0 text-crimson-alert"
+                  />
+                  <p className="text-xs sm:text-sm">
+                    <strong className="font-semibold">
+                      Studio ditutup sementara.
+                    </strong>{" "}
+                    Buka kembali lewat tab Operasional &amp; CMS.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("cms")}
+                  className="inline-flex min-h-[40px] shrink-0 items-center rounded-xl border border-crimson-alert/40 bg-surface px-3 font-sans text-xs font-semibold text-crimson-alert transition-colors hover:bg-crimson-alert hover:text-surface"
+                >
+                  Atur
+                </button>
               </div>
             ) : null}
+
+            {/* Indikator Ringkas 1 Baris (Menunggu · Selesai · Batal) di Atas Strip Tanggal */}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-hairline bg-surface px-3.5 py-2.5 text-xs sm:text-sm">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="inline-flex items-center gap-1.5 text-muted">
+                  <span>Menunggu</span>
+                  <strong className="font-semibold text-terracotta tabular-nums">
+                    {dayCounts.booked}
+                  </strong>
+                </span>
+                <span aria-hidden="true" className="text-hairline">
+                  ·
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-muted">
+                  <span>Selesai</span>
+                  <strong className="font-semibold text-ink tabular-nums">
+                    {dayCounts.completed}
+                  </strong>
+                </span>
+                <span aria-hidden="true" className="text-hairline">
+                  ·
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-muted">
+                  <span>Batal</span>
+                  <strong className="font-semibold text-muted tabular-nums">
+                    {dayCounts.cancelled}
+                  </strong>
+                </span>
+              </div>
+
+              <span className="font-sans text-xs font-medium text-muted tabular-nums">
+                {formatIndonesianDateShort(selectedDate)}
+              </span>
+            </div>
 
             {/* Horizontal Date Scrubber (Hari Ini + 7 Hari ke Depan) */}
             <div className="mb-4 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 no-scrollbar">
@@ -1544,7 +1540,7 @@ export function AdminCashierDashboard({
                     </div>
                     {count > 0 ? (
                       <span
-                        className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1.5 font-mono text-[11px] font-bold tabular-nums ${
+                        className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1.5 font-sans text-[11px] font-semibold tabular-nums ${
                           isSelected
                             ? "bg-surface text-terracotta"
                             : "bg-surface-elevated text-ink"
@@ -1558,34 +1554,12 @@ export function AdminCashierDashboard({
               })}
             </div>
 
-            {/* Ringkasan Statistik Hari Terpilih */}
-            <div className="mb-4 grid grid-cols-3 divide-x divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
-              <div className="px-3 py-2.5 sm:px-4">
-                <p className="font-sans text-xs text-muted">Menunggu</p>
-                <p className="mt-0.5 font-mono text-sm font-bold text-terracotta tabular-nums sm:text-base">
-                  {dayCounts.booked}
-                </p>
-              </div>
-              <div className="px-3 py-2.5 sm:px-4">
-                <p className="font-sans text-xs text-muted">Selesai</p>
-                <p className="mt-0.5 font-mono text-sm font-bold text-emerald-live tabular-nums sm:text-base">
-                  {dayCounts.completed}
-                </p>
-              </div>
-              <div className="px-3 py-2.5 sm:px-4">
-                <p className="font-sans text-xs text-muted">Batal</p>
-                <p className="mt-0.5 font-mono text-sm font-bold text-muted tabular-nums sm:text-base">
-                  {dayCounts.cancelled}
-                </p>
-              </div>
-            </div>
-
-            {/* Header & Legenda Visual Time-Block Timeline */}
+            {/* Header & Tag Legenda Timeline (Tanpa Titik Bulat) */}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-0.5">
               <p className="font-sans text-xs font-semibold text-ink sm:text-sm">
                 Timeline kursi{" "}
                 {timelineRange ? (
-                  <span className="font-mono font-medium text-muted tabular-nums">
+                  <span className="font-sans font-medium text-muted tabular-nums">
                     · {minutesToTime(timelineRange.startMinutes)}–
                     {minutesToTime(timelineRange.endMinutes)} WIB
                   </span>
@@ -1594,20 +1568,12 @@ export function AdminCashierDashboard({
                 )}
               </p>
 
-              <div className="flex flex-wrap items-center gap-3 font-sans text-xs text-muted">
-                <span className="inline-flex items-center gap-1.5">
-                  <span
-                    aria-hidden="true"
-                    className="h-2.5 w-2.5 rounded-full bg-terracotta"
-                  />
-                  <span>Online</span>
+              <div className="flex items-center gap-2 font-sans text-[11px] font-semibold">
+                <span className="rounded-md border border-terracotta/35 bg-terracotta/12 px-2 py-0.5 text-terracotta">
+                  Online
                 </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span
-                    aria-hidden="true"
-                    className="h-2.5 w-2.5 rounded-full bg-ink"
-                  />
-                  <span>Walk-in</span>
+                <span className="rounded-md bg-ink px-2 py-0.5 text-surface">
+                  Walk-in
                 </span>
               </div>
             </div>
@@ -1641,7 +1607,7 @@ export function AdminCashierDashboard({
                     ? "Libur khusus"
                     : "Hari libur rutin"}
                 </p>
-                <p className="mt-1.5 font-serif text-xl font-normal text-ink">
+                <p className="mt-1.5 font-sans text-lg font-semibold text-ink">
                   Toko Tidak Beroperasi
                 </p>
                 <p className="mt-1.5 text-sm text-muted">
@@ -1652,12 +1618,10 @@ export function AdminCashierDashboard({
             ) : (
               <div className="rounded-2xl border border-hairline bg-surface p-2.5 sm:p-4">
                 {timelineBookings.length === 0 ? (
-                  <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-hairline bg-alabaster/70 px-3.5 py-2.5 text-xs text-muted">
-                    <span>
-                      {selectedDate === nowParts.dateStr
-                        ? "Belum ada antrean aktif hari ini — gunakan tombol + Walk-in di bawah untuk mengunci kursi."
-                        : "Belum ada reservasi aktif pada tanggal ini."}
-                    </span>
+                  <div className="mb-3 rounded-xl border border-hairline bg-alabaster/70 px-3.5 py-2.5 text-xs text-muted">
+                    {selectedDate === nowParts.dateStr
+                      ? "Belum ada antrean aktif hari ini — gunakan tombol + Walk-in di bawah untuk mengunci kursi."
+                      : "Belum ada reservasi aktif pada tanggal ini."}
                   </div>
                 ) : null}
 
@@ -1677,7 +1641,7 @@ export function AdminCashierDashboard({
                               ? "4px"
                               : `${idx * HOUR_ROW_HEIGHT_PX}px`,
                         }}
-                        className={`absolute right-1 font-mono text-[11px] font-medium text-muted tabular-nums sm:right-2 sm:text-xs ${
+                        className={`absolute right-1 font-sans text-[11px] font-medium text-muted tabular-nums sm:right-2 sm:text-xs ${
                           idx === 0 ? "translate-y-0" : "-translate-y-1/2"
                         }`}
                       >
@@ -1685,7 +1649,7 @@ export function AdminCashierDashboard({
                       </span>
                     ))}
 
-                    <span className="absolute right-1 bottom-0 font-mono text-[11px] font-medium text-muted/75 tabular-nums sm:right-2 sm:text-xs">
+                    <span className="absolute right-1 bottom-0 font-sans text-[11px] font-medium text-muted/75 tabular-nums sm:right-2 sm:text-xs">
                       {minutesToTime(timelineRange.endMinutes)}
                     </span>
 
@@ -1693,7 +1657,7 @@ export function AdminCashierDashboard({
                     {showCurrentTimeLine ? (
                       <div
                         style={{ top: `${currentTimeTopPx}px` }}
-                        className="pointer-events-none absolute right-0.5 z-30 -translate-y-1/2 rounded-md bg-terracotta px-1.5 py-0.5 font-mono text-[10px] font-bold text-surface tabular-nums shadow-xs sm:right-1"
+                        className="pointer-events-none absolute right-0.5 z-30 -translate-y-1/2 rounded-md bg-terracotta px-1.5 py-0.5 font-sans text-[10px] font-semibold text-surface tabular-nums shadow-xs sm:right-1"
                       >
                         {nowParts.timeStr}
                       </div>
@@ -1726,7 +1690,7 @@ export function AdminCashierDashboard({
                         >
                           {!isHourOccupied ? (
                             <div className="flex h-full items-center justify-between gap-2 rounded-xl border border-dashed border-hairline bg-alabaster/50 px-3 py-2">
-                              <span className="font-mono text-xs font-medium text-muted tabular-nums">
+                              <span className="font-sans text-xs font-medium text-muted tabular-nums">
                                 {minutesToTime(hourStart)} –{" "}
                                 {minutesToTime(hourStart + 60)}
                               </span>
@@ -1752,7 +1716,7 @@ export function AdminCashierDashboard({
                       className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-hairline"
                     />
 
-                    {/* Layer 2: Blok Booking Aktif Proporsional (60m ~80px, 120m ~168px) */}
+                    {/* Layer 2: Blok Booking Aktif Bersih (Tap -> Bottom Sheet Detail) */}
                     {timelineBookings.map((booking) => {
                       const startMin = parseTimeToMinutes(booking.start_time);
                       const endMin = parseTimeToMinutes(booking.end_time);
@@ -1799,7 +1763,7 @@ export function AdminCashierDashboard({
                           <div className="flex h-full flex-col justify-between px-3 py-2 pl-3.5 sm:px-3.5 sm:py-2.5 sm:pl-4">
                             {/* Baris Atas: Jam + Tag Online/Walk-in + Detail */}
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-mono text-xs font-semibold tracking-tight text-ink tabular-nums">
+                              <span className="font-sans text-xs font-semibold text-ink tabular-nums">
                                 {formatTimeHHMM(booking.start_time)}–
                                 {formatTimeHHMM(booking.end_time)}
                               </span>
@@ -1815,13 +1779,10 @@ export function AdminCashierDashboard({
                                   {isWalkin ? "Walk-in" : "Online"}
                                 </span>
 
-                                <span className="inline-flex items-center gap-0.5 font-sans text-[11px] font-medium text-muted group-hover:text-terracotta">
-                                  <span>Detail</span>
-                                  <ChevronRight
-                                    aria-hidden="true"
-                                    className="h-3 w-3"
-                                  />
-                                </span>
+                                <ChevronRight
+                                  aria-hidden="true"
+                                  className="h-3.5 w-3.5 text-muted transition-colors group-hover:text-terracotta"
+                                />
                               </div>
                             </div>
 
@@ -1838,17 +1799,15 @@ export function AdminCashierDashboard({
                             {/* Indikator Blok 2 Jam (Hair Chemicals 120 Menit) */}
                             {isMultiBlock ? (
                               <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-hairline/80 bg-alabaster/70 px-2.5 py-1.5">
-                                <span className="inline-flex items-center gap-1.5 font-sans text-[11px] font-medium text-ink">
+                                <span className="inline-flex items-center gap-1.5 font-sans text-[11px] font-medium text-ink tabular-nums">
                                   <Sparkles
                                     aria-hidden="true"
                                     className="h-3 w-3 shrink-0 text-terracotta"
                                   />
-                                  <span>
-                                    {blockCount} blok · {durationMin} menit
-                                  </span>
+                                  <span>{durationMin} menit</span>
                                 </span>
-                                <span className="font-sans text-[11px] text-muted">
-                                  {blockCount}x durasi
+                                <span className="font-sans text-[11px] text-muted tabular-nums">
+                                  {blockCount} jam
                                 </span>
                               </div>
                             ) : null}
@@ -1864,7 +1823,6 @@ export function AdminCashierDashboard({
                         style={{ top: `${currentTimeTopPx}px` }}
                         className="pointer-events-none absolute inset-x-0 z-20 flex -translate-y-1/2 items-center"
                       >
-                        <span className="-ml-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-terracotta" />
                         <span className="h-[2px] w-full bg-terracotta" />
                       </div>
                     ) : null}
@@ -1873,21 +1831,15 @@ export function AdminCashierDashboard({
               </div>
             )}
 
-            {/* Daftar Ringkas Riwayat Selesai (Terpisah agar slot timeline bisa terisi ulang bersih) */}
+            {/* Daftar Ringkas Riwayat Selesai (Tanpa titik bulat, warna #303841) */}
             {completedBookings.length > 0 ? (
               <div className="mt-6 rounded-2xl border border-hairline bg-surface p-4">
                 <div className="mb-3 flex items-center justify-between border-b border-hairline pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="h-2 w-2 rounded-full bg-emerald-live"
-                    />
-                    <h3 className="font-sans text-sm font-semibold text-ink">
-                      Riwayat selesai
-                    </h3>
-                  </div>
-                  <span className="font-sans text-xs font-medium text-muted">
-                    {completedBookings.length} jadwal · slot dibuka
+                  <h3 className="font-sans text-sm font-semibold text-ink">
+                    Riwayat selesai
+                  </h3>
+                  <span className="font-sans text-xs font-medium text-muted tabular-nums">
+                    {completedBookings.length} jadwal
                   </span>
                 </div>
 
@@ -1901,14 +1853,14 @@ export function AdminCashierDashboard({
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-xs font-semibold text-ink tabular-nums">
+                          <span className="font-sans text-xs font-semibold text-ink tabular-nums">
                             {formatTimeHHMM(booking.start_time)}–
                             {formatTimeHHMM(booking.end_time)}
                           </span>
                           <span className="truncate font-sans text-sm font-semibold text-ink">
                             {booking.customer_name}
                           </span>
-                          <span className="rounded-md border border-emerald-live/35 bg-emerald-live/10 px-1.5 py-0.5 font-sans text-[11px] font-medium text-emerald-live">
+                          <span className="rounded-md border border-ink/20 bg-surface-elevated px-1.5 py-0.5 font-sans text-[11px] font-medium text-ink">
                             Selesai
                           </span>
                         </div>
@@ -1918,7 +1870,7 @@ export function AdminCashierDashboard({
                         </p>
                       </div>
 
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-2.5 py-1.5 font-mono text-xs font-medium text-muted tabular-nums">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-2.5 py-1.5 font-sans text-xs font-medium text-muted tabular-nums">
                         <span>{booking.ticket_code}</span>
                         <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
                       </span>
@@ -1928,20 +1880,14 @@ export function AdminCashierDashboard({
               </div>
             ) : null}
 
-            {/* Daftar Ringkas Riwayat Dibatalkan (Terpisah dari Timeline Aktif) */}
+            {/* Daftar Ringkas Riwayat Dibatalkan (Tanpa titik bulat) */}
             {cancelledBookings.length > 0 ? (
               <div className="mt-6 rounded-2xl border border-hairline bg-surface p-4">
                 <div className="mb-3 flex items-center justify-between border-b border-hairline pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="h-2 w-2 rounded-full bg-crimson-alert"
-                    />
-                    <h3 className="font-sans text-sm font-semibold text-ink">
-                      Riwayat dibatalkan
-                    </h3>
-                  </div>
-                  <span className="font-sans text-xs font-medium text-muted">
+                  <h3 className="font-sans text-sm font-semibold text-ink">
+                    Riwayat dibatalkan
+                  </h3>
+                  <span className="font-sans text-xs font-medium text-muted tabular-nums">
                     {cancelledBookings.length} jadwal
                   </span>
                 </div>
@@ -1956,7 +1902,7 @@ export function AdminCashierDashboard({
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-xs font-semibold text-ink tabular-nums">
+                          <span className="font-sans text-xs font-semibold text-ink tabular-nums">
                             {formatTimeHHMM(booking.start_time)}–
                             {formatTimeHHMM(booking.end_time)}
                           </span>
@@ -1968,11 +1914,11 @@ export function AdminCashierDashboard({
                           </span>
                         </div>
                         <p className="mt-0.5 text-xs text-muted">
-                          {booking.service_name} · Slot telah dibebaskan
+                          {booking.service_name} · Slot dibebaskan
                         </p>
                       </div>
 
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-2.5 py-1.5 font-mono text-xs font-medium text-muted tabular-nums">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-2.5 py-1.5 font-sans text-xs font-medium text-muted tabular-nums">
                         <span>{booking.ticket_code}</span>
                         <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
                       </span>
@@ -1986,17 +1932,85 @@ export function AdminCashierDashboard({
           /* ================================================================ */
           /* TAB 2: OPERASIONAL & CMS RINGAN                                  */
           /* ================================================================ */
-          <div className="space-y-10 pb-10">
-            {/* JAM BUKA MINGGUAN */}
-            <section aria-label="Editor Jam Buka Mingguan">
+          <div className="space-y-8 pb-10">
+            {/* STATUS STUDIO & SAKELAR TUTUP STUDIO + JAM OPERASIONAL */}
+            <section aria-label="Pengaturan Jam Operasional dan Status Studio">
               <EditorialSectionHeader
-                label="Operasional"
-                title="Jam Buka"
-                accentTitle="Mingguan"
-                description="Atur jam buka dan tutup rutin harian. Perubahan langsung memengaruhi slot publik."
+                title="Jam Operasional"
+                description="Kelola status buka studio dan jam operasional rutin harian."
                 className="mb-4"
               />
 
+              {/* Kartu Sakelar Tutup Studio (Pindahan dari Header agar Atas Kasir Ringkas) */}
+              <div className="mb-4 rounded-2xl border border-hairline bg-surface p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-sans text-sm font-semibold text-ink">
+                      Status buka studio
+                    </p>
+                    <p className="mt-0.5 font-sans text-xs text-muted">
+                      {settings.is_force_closed
+                        ? "Studio sedang ditutup sementara. Booking online dan walk-in dijeda."
+                        : "Studio mengikuti jadwal operasional rutin harian."}
+                    </p>
+                  </div>
+
+                  {forceCloseConfirmOpen ? (
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-hairline bg-alabaster/70 px-3 py-2">
+                      <span className="font-sans text-xs font-medium text-ink">
+                        {settings.is_force_closed
+                          ? "Buka kembali studio?"
+                          : "Tutup studio sementara?"}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void handleToggleForceClose()}
+                          disabled={updatingForceClose}
+                          className={`inline-flex min-h-[44px] items-center rounded-xl px-3.5 font-sans text-xs font-semibold transition-opacity disabled:opacity-50 ${
+                            settings.is_force_closed
+                              ? "bg-ink text-surface"
+                              : "bg-crimson-alert text-surface"
+                          }`}
+                        >
+                          {updatingForceClose
+                            ? "Menyimpan..."
+                            : settings.is_force_closed
+                              ? "Ya, Buka"
+                              : "Ya, Tutup"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setForceCloseConfirmOpen(false)}
+                          disabled={updatingForceClose}
+                          className="inline-flex min-h-[44px] items-center rounded-xl border border-hairline bg-surface px-3 font-sans text-xs font-medium text-muted hover:text-ink"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setForceCloseConfirmOpen(true)}
+                      className={`inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border px-4 font-sans text-xs font-semibold transition-colors ${
+                        settings.is_force_closed
+                          ? "border-ink bg-ink text-surface hover:opacity-90"
+                          : "border-crimson-alert/50 bg-crimson-alert/10 text-crimson-alert hover:bg-crimson-alert hover:text-surface"
+                      }`}
+                    >
+                      <Power aria-hidden="true" className="h-3.5 w-3.5" />
+                      <span>
+                        {settings.is_force_closed
+                          ? "Buka Studio Kembali"
+                          : "Tutup Darurat"}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Editor Jam Buka Mingguan */}
               <div className="overflow-hidden rounded-2xl border border-hairline bg-surface">
                 <div className="divide-y divide-hairline">
                   {scheduleDrafts.map((row) => (
@@ -2021,7 +2035,7 @@ export function AdminCashierDashboard({
                           }
                           className={`inline-flex min-h-[44px] min-w-[84px] items-center justify-center rounded-xl border px-3 font-sans text-xs font-semibold transition-colors ${
                             row.is_open
-                              ? "border-emerald-live/50 bg-emerald-live/10 text-emerald-live"
+                              ? "border-ink bg-ink text-surface"
                               : "border-hairline bg-surface-elevated text-muted"
                           }`}
                         >
@@ -2051,7 +2065,7 @@ export function AdminCashierDashboard({
                                 )
                               )
                             }
-                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-mono text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
+                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
                           />
                         </div>
 
@@ -2076,7 +2090,7 @@ export function AdminCashierDashboard({
                                 )
                               )
                             }
-                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-mono text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
+                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
                           />
                         </div>
                       </div>
@@ -2105,10 +2119,8 @@ export function AdminCashierDashboard({
             {/* TANGGAL LIBUR KHUSUS */}
             <section aria-label="Pengelola Tanggal Libur">
               <EditorialSectionHeader
-                label="Kalender"
-                title="Tanggal Libur"
-                accentTitle="Khusus"
-                description="Blokir tanggal tertentu (hari raya, acara pribadi, atau renovasi)."
+                title="Tanggal Libur Khusus"
+                description="Blokir tanggal tertentu seperti hari raya atau acara pribadi."
                 className="mb-4"
               />
 
@@ -2123,7 +2135,7 @@ export function AdminCashierDashboard({
                     aria-label="Pilih tanggal libur"
                     value={newClosedDate}
                     onChange={(e) => setNewClosedDate(e.target.value)}
-                    className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-mono text-base text-ink focus:border-terracotta focus:bg-surface focus:outline-none"
+                    className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
                   />
                   <input
                     type="text"
@@ -2131,7 +2143,7 @@ export function AdminCashierDashboard({
                     aria-label="Alasan libur"
                     value={newClosedReason}
                     onChange={(e) => setNewClosedReason(e.target.value)}
-                    className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
+                    className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
                   />
                   <button
                     type="submit"
@@ -2157,7 +2169,7 @@ export function AdminCashierDashboard({
                         className="flex items-center justify-between gap-3 py-3"
                       >
                         <div>
-                          <p className="font-mono text-sm font-semibold text-ink tabular-nums">
+                          <p className="font-sans text-sm font-semibold text-ink tabular-nums">
                             {item.closed_date}
                           </p>
                           <p className="text-xs text-muted">
@@ -2184,10 +2196,8 @@ export function AdminCashierDashboard({
             {/* EDITOR HARGA LAYANAN */}
             <section aria-label="Editor Harga Layanan">
               <EditorialSectionHeader
-                label="Tarif"
-                title="Harga"
-                accentTitle="Layanan"
-                description="Perbarui label tarif utama dan rincian varian layanan yang tampil di halaman publik."
+                title="Harga Layanan"
+                description="Perbarui label tarif utama dan rincian varian layanan."
                 className="mb-4"
               />
 
@@ -2199,15 +2209,11 @@ export function AdminCashierDashboard({
                   >
                     <div className="mb-4 flex items-center justify-between border-b border-hairline pb-3">
                       <div>
-                        <h3 className="font-serif text-xl font-normal text-ink">
+                        <h3 className="font-sans text-base font-semibold text-ink sm:text-lg">
                           {service.name}
                         </h3>
-                        <p className="font-sans text-xs text-muted">
-                          Blok sistem:{" "}
-                          <span className="font-mono tabular-nums">
-                            {service.slot_duration_minutes}
-                          </span>{" "}
-                          menit
+                        <p className="font-sans text-xs text-muted tabular-nums">
+                          Durasi sistem: {service.slot_duration_minutes} menit
                         </p>
                       </div>
                     </div>
@@ -2230,7 +2236,7 @@ export function AdminCashierDashboard({
                               price_display: e.target.value,
                             }))
                           }
-                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink focus:border-terracotta focus:bg-surface focus:outline-none"
+                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
                         />
                       </div>
 
@@ -2256,7 +2262,7 @@ export function AdminCashierDashboard({
                               ),
                             }))
                           }
-                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-mono text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
+                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
                         />
                       </div>
 
@@ -2282,7 +2288,7 @@ export function AdminCashierDashboard({
                               ),
                             }))
                           }
-                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-mono text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
+                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
                         />
                       </div>
                     </div>
@@ -2363,7 +2369,7 @@ export function AdminCashierDashboard({
                                   };
                                 })
                               }
-                              className="min-h-[44px] rounded-xl border border-hairline bg-surface px-2 font-mono text-base text-ink tabular-nums focus:border-terracotta focus:outline-none sm:bg-alabaster/60 sm:focus:bg-surface"
+                              className="min-h-[44px] rounded-xl border border-hairline bg-surface px-2 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:outline-none sm:bg-alabaster/60 sm:focus:bg-surface"
                             />
                             <input
                               type="text"
@@ -2383,7 +2389,7 @@ export function AdminCashierDashboard({
                                   };
                                 })
                               }
-                              className="min-h-[44px] rounded-xl border border-hairline bg-surface px-2 font-mono text-base text-ink focus:border-terracotta focus:outline-none sm:bg-alabaster/60 sm:focus:bg-surface"
+                              className="min-h-[44px] rounded-xl border border-hairline bg-surface px-2 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:outline-none sm:bg-alabaster/60 sm:focus:bg-surface"
                             />
                             <button
                               type="button"
@@ -2428,18 +2434,16 @@ export function AdminCashierDashboard({
               </div>
             </section>
 
-            {/* PENGELOLA GALERI (EMBED WHITELIST + UPLOAD WEBP CLIENT-SIDE) */}
+            {/* PENGELOLA GALERI (KHUSUS INSTAGRAM REELS + UPLOAD FOTO WEBP RINGKAS) */}
             <section aria-label="Pengelola Galeri">
               <EditorialSectionHeader
-                label="Media"
-                title="Galeri"
-                accentTitle="Karya"
-                description="Tempel link video TikTok / Instagram Reels atau unggah foto (dikompresi otomatis ke WebP <= 3 MB)."
+                title="Galeri & Reels"
+                description="Tambah link Instagram Reels atau unggah foto (otomatis dikompresi ke WebP)."
                 className="mb-4"
               />
 
               <div className="grid gap-4 md:grid-cols-2">
-                {/* Form A: Embed Video TikTok / Instagram Reels */}
+                {/* Form A: Tambah Link Instagram Reels (Judul + Link saja) */}
                 <form
                   onSubmit={handleAddSocialEmbed}
                   className="rounded-2xl border border-hairline bg-surface p-4"
@@ -2450,14 +2454,14 @@ export function AdminCashierDashboard({
                       className="h-4 w-4 text-terracotta"
                     />
                     <h3 className="font-sans text-sm font-semibold text-ink">
-                      Tambah embed TikTok / IG Reels
+                      Tambah Link Instagram Reels
                     </h3>
                   </div>
 
                   <div className="space-y-3">
                     <input
                       type="text"
-                      placeholder="Judul video (mis. Fade & Taper Clean)"
+                      placeholder="Judul reels (mis. Taper Fade)"
                       value={socialTitle}
                       onChange={(e) => setSocialTitle(e.target.value)}
                       className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
@@ -2467,7 +2471,7 @@ export function AdminCashierDashboard({
                       <input
                         type="url"
                         required
-                        placeholder="https://www.tiktok.com/@... atau https://www.instagram.com/reel/..."
+                        placeholder="https://www.instagram.com/reel/..."
                         value={socialUrl}
                         onChange={(e) => setSocialUrl(e.target.value)}
                         className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
@@ -2476,33 +2480,20 @@ export function AdminCashierDashboard({
                         <p
                           className={`mt-1.5 font-sans text-xs ${
                             socialValidation.valid
-                              ? "text-emerald-live"
+                              ? "text-ink"
                               : "text-crimson-alert"
                           }`}
                         >
                           {socialValidation.valid
-                            ? `Domain terverifikasi: ${
-                                socialValidation.platform === "tiktok"
-                                  ? "TikTok"
-                                  : "Instagram"
-                              }`
+                            ? "Link Instagram Reels siap disimpan."
                             : socialValidation.error}
                         </p>
                       ) : (
                         <p className="mt-1.5 font-sans text-xs text-muted">
-                          Domain resmi: www.tiktok.com, vm/vt.tiktok.com,
-                          www.instagram.com
+                          Gunakan tautan resmi instagram.com/reel/...
                         </p>
                       )}
                     </div>
-
-                    <input
-                      type="text"
-                      placeholder="Keterangan singkat (opsional)"
-                      value={socialCaption}
-                      onChange={(e) => setSocialCaption(e.target.value)}
-                      className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
-                    />
 
                     <button
                       type="submit"
@@ -2514,13 +2505,15 @@ export function AdminCashierDashboard({
                     >
                       <Plus aria-hidden="true" className="h-4 w-4" />
                       <span>
-                        {savingSocial ? "Menyimpan..." : "Simpan Link Video"}
+                        {savingSocial
+                          ? "Menyimpan..."
+                          : "Simpan Instagram Reels"}
                       </span>
                     </button>
                   </div>
                 </form>
 
-                {/* Form B: Upload Foto WebP Client-Side */}
+                {/* Form B: Upload Foto WebP Otomatis (Judul + File saja) */}
                 <form
                   onSubmit={handleUploadCompressedPhoto}
                   className="rounded-2xl border border-hairline bg-surface p-4"
@@ -2531,11 +2524,19 @@ export function AdminCashierDashboard({
                       className="h-4 w-4 text-terracotta"
                     />
                     <h3 className="font-sans text-sm font-semibold text-ink">
-                      Upload foto (kompresi WebP)
+                      Upload Foto
                     </h3>
                   </div>
 
                   <div className="space-y-3">
+                    <input
+                      type="text"
+                      placeholder="Judul foto (mis. Skin Fade Mid)"
+                      value={photoTitle}
+                      onChange={(e) => setPhotoTitle(e.target.value)}
+                      className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
+                    />
+
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -2569,40 +2570,21 @@ export function AdminCashierDashboard({
                         <img
                           src={compressedPhoto.previewUrl}
                           alt="Preview foto terkompresi WebP"
-                          className="h-16 w-14 shrink-0 rounded-lg object-cover"
+                          className="h-12 w-12 shrink-0 rounded-lg object-cover"
                         />
                         <div className="min-w-0 flex-1 font-sans text-xs text-muted">
                           <p className="truncate font-semibold text-ink">
                             {compressedPhoto.originalName}
                           </p>
-                          <p>
+                          <p className="tabular-nums">
                             {compressedPhoto.width}×{compressedPhoto.height}px ·{" "}
-                            <span className="font-semibold text-emerald-live">
+                            <span className="font-semibold text-ink">
                               {formatBytes(compressedPhoto.blob.size)} WebP
                             </span>
-                          </p>
-                          <p>
-                            Asli: {formatBytes(compressedPhoto.originalSize)}
                           </p>
                         </div>
                       </div>
                     ) : null}
-
-                    <input
-                      type="text"
-                      placeholder="Judul foto (mis. Skin Fade Mid)"
-                      value={photoTitle}
-                      onChange={(e) => setPhotoTitle(e.target.value)}
-                      className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
-                    />
-
-                    <input
-                      type="text"
-                      placeholder="Keterangan singkat (opsional)"
-                      value={photoCaption}
-                      onChange={(e) => setPhotoCaption(e.target.value)}
-                      className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
-                    />
 
                     <button
                       type="submit"
@@ -2611,52 +2593,49 @@ export function AdminCashierDashboard({
                     >
                       <Upload aria-hidden="true" className="h-4 w-4" />
                       <span>
-                        {uploadingPhoto ? "Mengunggah..." : "Unggah Foto WebP"}
+                        {uploadingPhoto ? "Mengunggah..." : "Unggah Foto"}
                       </span>
                     </button>
                   </div>
                 </form>
               </div>
 
-              {/* Daftar Item Galeri */}
+              {/* Daftar Media Aktif Ringkas: Thumbnail Kiri, Judul Tengah, Toggle + Hapus Kanan */}
               <div className="mt-4 divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
                 {galleryItems.length === 0 ? (
                   <p className="p-4 text-sm text-muted">
-                    Belum ada item di galeri database.
+                    Belum ada media tersimpan di galeri.
                   </p>
                 ) : (
                   galleryItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between"
+                      className="flex items-center justify-between gap-3 p-3.5"
                     >
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
                         {item.media_type === "photo" ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img
                             src={item.media_url}
                             alt={item.title}
                             loading="lazy"
-                            className="h-16 w-14 shrink-0 rounded-xl border border-hairline object-cover"
+                            className="h-12 w-12 shrink-0 rounded-xl border border-hairline object-cover"
                           />
                         ) : (
-                          <div className="flex h-16 w-14 shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface-elevated font-sans text-xs font-semibold text-terracotta">
-                            {item.media_type === "tiktok" ? "TikTok" : "IG"}
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface-elevated font-sans text-xs font-semibold text-terracotta">
+                            Reels
                           </div>
                         )}
 
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="truncate font-sans text-sm font-semibold text-ink">
                             {item.title}
                           </p>
-                          <p className="truncate font-sans text-xs text-muted">
-                            {item.media_url}
+                          <p className="font-sans text-xs text-muted">
+                            {item.media_type === "photo"
+                              ? "Foto"
+                              : "Instagram Reels"}
                           </p>
-                          {item.caption ? (
-                            <p className="mt-0.5 truncate text-xs text-muted">
-                              {item.caption}
-                            </p>
-                          ) : null}
                         </div>
                       </div>
 
@@ -2665,9 +2644,9 @@ export function AdminCashierDashboard({
                           type="button"
                           disabled={busyGalleryId === item.id}
                           onClick={() => void handleToggleGalleryActive(item)}
-                          className={`inline-flex min-h-[44px] items-center rounded-xl border px-3 font-sans text-xs font-medium transition-colors ${
+                          className={`inline-flex min-h-[44px] items-center rounded-xl border px-3 font-sans text-xs font-semibold transition-colors ${
                             item.is_active
-                              ? "border-emerald-live/50 bg-emerald-live/10 text-emerald-live"
+                              ? "border-ink bg-ink text-surface"
                               : "border-hairline bg-surface-elevated text-muted"
                           }`}
                         >
@@ -2699,26 +2678,20 @@ export function AdminCashierDashboard({
       {isQueueTab ? (
         <div className="fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t border-hairline bg-surface/95 px-4 pt-3 pb-safe font-sans backdrop-blur-md">
           <div className="mx-auto w-full max-w-4xl space-y-2.5">
-            {/* Sub-Drawer: Konfirmasi Tap ke-2 Walk-in */}
+            {/* Sub-Drawer: Konfirmasi Tap ke-2 Walk-in (Tanpa titik bulat) */}
             {pendingWalkin ? (
               <div className="flex flex-col gap-2 rounded-2xl border border-terracotta bg-alabaster/90 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    aria-hidden="true"
-                    className="h-2 w-2 shrink-0 rounded-full bg-terracotta"
-                  />
-                  <p className="font-sans text-sm font-medium text-ink">
-                    Kunci{" "}
-                    <span className="font-semibold text-terracotta">
-                      Walk-in {pendingWalkin.service.name}
-                    </span>{" "}
-                    jam{" "}
-                    <span className="font-mono font-bold tabular-nums">
-                      {pendingWalkin.slot.time} – {pendingWalkin.slot.endTime}
-                    </span>
-                    ?
-                  </p>
-                </div>
+                <p className="font-sans text-sm font-medium text-ink">
+                  Kunci{" "}
+                  <span className="font-semibold text-terracotta">
+                    Walk-in {pendingWalkin.service.name}
+                  </span>{" "}
+                  jam{" "}
+                  <span className="font-sans font-bold tabular-nums">
+                    {pendingWalkin.slot.time} – {pendingWalkin.slot.endTime}
+                  </span>
+                  ?
+                </p>
 
                 <div className="grid grid-cols-2 gap-2 sm:flex">
                   <button
@@ -2764,7 +2737,7 @@ export function AdminCashierDashboard({
                   <p className="truncate font-sans text-xs font-semibold sm:text-sm">
                     + Walk-in Haircut
                   </p>
-                  <p className="font-mono text-[11px] font-medium opacity-90 tabular-nums">
+                  <p className="font-sans text-[11px] font-medium opacity-90 tabular-nums">
                     {haircutWalkinSlot
                       ? `${haircutWalkinSlot.time} – ${haircutWalkinSlot.endTime}`
                       : "Slot penuh / tutup"}
@@ -2796,7 +2769,7 @@ export function AdminCashierDashboard({
                   <p className="truncate font-sans text-xs font-semibold sm:text-sm">
                     + Walk-in Chemicals
                   </p>
-                  <p className="font-mono text-[11px] opacity-90 tabular-nums">
+                  <p className="font-sans text-[11px] opacity-90 tabular-nums">
                     {chemicalsWalkinSlot
                       ? `${chemicalsWalkinSlot.time} – ${chemicalsWalkinSlot.endTime}`
                       : "Slot < 2 jam / tutup"}
@@ -2820,7 +2793,6 @@ export function AdminCashierDashboard({
             const startMin = parseTimeToMinutes(selectedBooking.start_time);
             const endMin = parseTimeToMinutes(selectedBooking.end_time);
             const durationMin = Math.max(60, endMin - startMin);
-            const blockCount = Math.max(1, Math.round(durationMin / 60));
             const isBooked = selectedBooking.status === "BOOKED";
             const isCompleted = selectedBooking.status === "COMPLETED";
             const isWalkin = selectedBooking.source === "WALKIN";
@@ -2865,7 +2837,7 @@ export function AdminCashierDashboard({
                             isBooked
                               ? "border-terracotta/40 bg-terracotta/12 text-terracotta"
                               : isCompleted
-                                ? "border-emerald-live/40 bg-emerald-live/12 text-emerald-live"
+                                ? "border-ink/25 bg-surface-elevated text-ink"
                                 : "border-crimson-alert/40 bg-crimson-alert/12 text-crimson-alert"
                           }`}
                         >
@@ -2877,12 +2849,10 @@ export function AdminCashierDashboard({
                         </span>
                       </div>
 
-                      <p className="mt-2 font-sans text-xs font-semibold text-terracotta">
-                        <span className="font-mono tabular-nums">
-                          {formatTimeHHMM(selectedBooking.start_time)}–
-                          {formatTimeHHMM(selectedBooking.end_time)} WIB
-                        </span>{" "}
-                        · {selectedBooking.service_name}
+                      <p className="mt-2 font-sans text-xs font-semibold text-terracotta tabular-nums">
+                        {formatTimeHHMM(selectedBooking.start_time)}–
+                        {formatTimeHHMM(selectedBooking.end_time)} WIB ·{" "}
+                        {selectedBooking.service_name}
                       </p>
                     </div>
 
@@ -2901,7 +2871,7 @@ export function AdminCashierDashboard({
                   <div className="py-4">
                     <h3
                       id="booking-detail-sheet-title"
-                      className="font-serif text-xl font-normal leading-snug text-ink"
+                      className="font-sans text-xl font-semibold leading-snug text-ink"
                     >
                       {selectedBooking.customer_name}
                     </h3>
@@ -2911,7 +2881,7 @@ export function AdminCashierDashboard({
                         <dt className="font-sans text-xs text-muted">
                           Kode tiket
                         </dt>
-                        <dd className="mt-0.5 font-mono text-sm font-bold text-terracotta tabular-nums">
+                        <dd className="mt-0.5 font-sans text-sm font-bold text-terracotta tabular-nums">
                           {selectedBooking.ticket_code}
                         </dd>
                       </div>
@@ -2919,19 +2889,15 @@ export function AdminCashierDashboard({
                         <dt className="font-sans text-xs text-muted">
                           Durasi kursi
                         </dt>
-                        <dd className="mt-0.5 font-sans text-sm font-semibold text-ink">
-                          <span className="font-mono tabular-nums">
-                            {durationMin}
-                          </span>{" "}
-                          menit
-                          {blockCount > 1 ? ` (${blockCount} blok)` : ""}
+                        <dd className="mt-0.5 font-sans text-sm font-semibold text-ink tabular-nums">
+                          {durationMin} menit
                         </dd>
                       </div>
                       <div>
                         <dt className="font-sans text-xs text-muted">
                           Tanggal
                         </dt>
-                        <dd className="mt-0.5 font-sans text-sm font-medium text-ink">
+                        <dd className="mt-0.5 font-sans text-sm font-medium text-ink tabular-nums">
                           {formatIndonesianDateShort(
                             selectedBooking.booking_date
                           )}
@@ -2946,7 +2912,7 @@ export function AdminCashierDashboard({
                     </dl>
                   </div>
 
-                  {/* Aksi Booking (BOOKED: Selesai, Geser Jadwal, Batalkan) */}
+                  {/* Aksi Booking (BOOKED: Tandai Selesai, Geser Jadwal, Batalkan) */}
                   <div className="space-y-2.5">
                     {isBooked ? (
                       detailSheetMode === "reschedule" ? (
@@ -2990,7 +2956,7 @@ export function AdminCashierDashboard({
                                       }
                                     )
                                   }
-                                  className="flex min-h-[48px] items-center justify-center rounded-xl border border-hairline bg-surface font-mono text-sm font-semibold text-ink tabular-nums transition-colors hover:border-terracotta hover:bg-terracotta hover:text-surface disabled:opacity-50"
+                                  className="flex min-h-[48px] items-center justify-center rounded-xl border border-hairline bg-surface font-sans text-sm font-semibold text-ink tabular-nums transition-colors hover:border-terracotta hover:bg-terracotta hover:text-surface disabled:opacity-50"
                                 >
                                   {slot.time}
                                 </button>
@@ -3003,13 +2969,13 @@ export function AdminCashierDashboard({
                           <p className="font-sans text-xs font-semibold text-crimson-alert">
                             Konfirmasi pembatalan
                           </p>
-                          <p className="mt-1 text-sm text-ink">
+                          <p className="mt-1 text-sm text-ink tabular-nums">
                             Batalkan{" "}
-                            <span className="font-mono font-bold">
+                            <span className="font-bold">
                               {selectedBooking.ticket_code}
                             </span>{" "}
                             dan bebaskan slot jam{" "}
-                            <span className="font-mono font-semibold tabular-nums">
+                            <span className="font-semibold">
                               {formatTimeHHMM(selectedBooking.start_time)}
                             </span>
                             ?
@@ -3048,7 +3014,7 @@ export function AdminCashierDashboard({
                                 action: "complete",
                               })
                             }
-                            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-live px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-95 disabled:opacity-50 sm:text-sm"
+                            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
                           >
                             <Check aria-hidden="true" className="h-4 w-4" />
                             <span>
@@ -3074,7 +3040,7 @@ export function AdminCashierDashboard({
                               className="inline-flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl border border-crimson-alert/45 bg-crimson-alert/10 px-3 font-sans text-xs font-semibold text-crimson-alert transition-colors hover:bg-crimson-alert hover:text-surface disabled:opacity-50 sm:text-sm"
                             >
                               <X aria-hidden="true" className="h-4 w-4" />
-                              <span>Batalkan Booking</span>
+                              <span>Batalkan</span>
                             </button>
                           </div>
                         </>
@@ -3086,7 +3052,7 @@ export function AdminCashierDashboard({
                       href={`/tiket/${selectedBooking.ticket_code}`}
                       className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-hairline bg-surface-elevated/70 px-4 font-sans text-xs font-semibold text-ink transition-colors hover:border-terracotta hover:text-terracotta sm:text-sm"
                     >
-                      <span>Lihat Smart Ticket</span>
+                      <span>Buka Smart Ticket</span>
                       <ExternalLink
                         aria-hidden="true"
                         className="h-3.5 w-3.5"

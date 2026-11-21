@@ -1,8 +1,8 @@
 import Image from "next/image";
 import {
   ArrowDownRight,
+  Calendar,
   CalendarCheck,
-  Clock,
   MapPin,
   MessageCircle,
 } from "lucide-react";
@@ -17,7 +17,11 @@ import {
   DEFAULT_STORE_SETTINGS,
   DEFAULT_WEEKLY_SCHEDULES,
 } from "@/lib/seed";
-import { formatTimeHHMM, getStoreNowParts } from "@/lib/slots";
+import {
+  formatTimeHHMM,
+  getStoreNowParts,
+  isStoreOpenLive,
+} from "@/lib/slots";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import type {
@@ -180,6 +184,22 @@ export default async function HomePage() {
 
   const heroImageUrl = settings.hero_image_url?.trim() || brand.heroImage;
   const nowParts = getStoreNowParts(settings.timezone);
+  const liveStatus = isStoreOpenLive({
+    schedules,
+    closedDates,
+    settings,
+    nowParts,
+  });
+  const isClosedToday =
+    settings.is_force_closed ||
+    liveStatus.reason === "CLOSED_DATE" ||
+    liveStatus.reason === "DAY_OFF";
+  const navbarStatusLabel = isClosedToday
+    ? "Tutup hari ini"
+    : liveStatus.isOpen
+      ? "Sedang buka"
+      : "Booking tersedia";
+
   const todaySchedule =
     schedules.find((s) => s.day_of_week === nowParts.dayOfWeek) ?? null;
   const todayClosedEntry =
@@ -206,7 +226,7 @@ export default async function HomePage() {
       <HairSalonJsonLd schedules={schedules} storeSettings={settings} />
 
       {/* =====================================================================
-          WRAPPER HERO & NAVBAR TRANSPARAN (CRISP S-CURVE TANPA KABUT SILAU)
+          WRAPPER HERO & NAVBAR TRANSPARAN (OPSI B MOBILE + S-CURVE DESKTOP)
       ===================================================================== */}
       <div className="relative w-full overflow-hidden">
         {/* Top Navbar: Logo kiri, tautan navigasi di tengah, status berlatar lembut di kanan */}
@@ -238,17 +258,17 @@ export default async function HomePage() {
               ))}
             </nav>
 
-            {/* Kanan: Ikon + 'Booking tersedia' dengan latar lembut transparan */}
+            {/* Kanan: Ikon kalender + status dinamis Asia/Pontianak */}
             <div className="justify-self-end">
               <div
                 role="status"
                 aria-live="polite"
                 className={`inline-flex items-center gap-2 rounded-full bg-[#F7F3EC]/90 px-3.5 py-1.5 font-sans text-xs font-medium whitespace-nowrap shadow-xs backdrop-blur-sm sm:text-sm ${
-                  settings.is_force_closed ? "text-crimson-alert" : "text-ink"
+                  isClosedToday ? "text-crimson-alert" : "text-ink"
                 }`}
               >
-                {settings.is_force_closed ? (
-                  <Clock
+                {isClosedToday ? (
+                  <Calendar
                     aria-hidden="true"
                     className="h-4 w-4 shrink-0 text-crimson-alert"
                   />
@@ -258,31 +278,23 @@ export default async function HomePage() {
                     className="h-4 w-4 shrink-0 text-terracotta"
                   />
                 )}
-                <span>
-                  {settings.is_force_closed
-                    ? "Tutup sementara"
-                    : "Booking tersedia"}
-                </span>
+                <span>{navbarStatusLabel}</span>
               </div>
             </div>
           </div>
         </header>
 
-        {/* Split Hero Full-Bleed Top-Right dengan Lengkungan S-Curve Bersih & Tajam */}
+        {/* Split Hero: Mobile ringkas tanpa foto (Opsi B), Desktop S-Curve Full-Bleed */}
         <section
           aria-labelledby="hero-heading"
           className="relative w-full lg:min-h-[620px]"
         >
-          {/* Kolom Kiri: Eyebrow, Judul Instrument Serif, Subjudul lugas, 1 CTA utama */}
-          <div className="relative z-10 mx-auto max-w-6xl px-safe pt-3 pb-6 lg:flex lg:min-h-[620px] lg:items-center lg:pt-24 lg:pb-24">
+          {/* Kolom Kiri: Judul Instrument Serif, Subjudul lugas, 1 CTA utama (tanpa eyebrow duplikat) */}
+          <div className="relative z-10 mx-auto max-w-6xl px-safe pt-6 pb-2 lg:flex lg:min-h-[620px] lg:items-center lg:pt-24 lg:pb-24">
             <div className="lg:w-[46%] lg:pr-12 xl:pr-16">
-              <p className="font-sans text-xs font-medium text-terracotta sm:text-sm">
-                Madzhair Barber &amp; Co
-              </p>
-
               <h1
                 id="hero-heading"
-                className="mt-3 font-serif text-4xl leading-[1.06] font-normal tracking-tight text-ink sm:text-5xl lg:text-[62px]"
+                className="font-serif text-4xl leading-[1.06] font-normal tracking-tight text-ink sm:text-5xl lg:text-[62px]"
               >
                 Atur Jadwal Cukur,{" "}
                 <span className="block italic text-terracotta">
@@ -313,15 +325,15 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Kanan (Desktop) / Bawah CTA (Mobile): Foto Barbershop + S-Curve Tajam Tanpa Kabut */}
-          <div className="relative mx-4 sm:mx-6 lg:absolute lg:top-0 lg:right-0 lg:mx-0 lg:h-full lg:min-h-[620px] lg:w-[56%]">
-            <div className="relative h-[290px] w-full overflow-hidden rounded-3xl bg-ink sm:h-[360px] lg:h-full lg:min-h-[620px] lg:rounded-none">
+          {/* Kanan (Desktop lg: saja): Foto Barbershop + S-Curve Tajam Tanpa Kabut */}
+          <div className="hidden lg:block lg:absolute lg:top-0 lg:right-0 lg:h-full lg:min-h-[620px] lg:w-[56%]">
+            <div className="relative h-full min-h-[620px] w-full overflow-hidden bg-ink">
               <Image
                 src={heroImageUrl}
                 alt={brand.heroAlt}
                 fill
                 priority
-                sizes="(max-width: 1023px) 100vw, 56vw"
+                sizes="(max-width: 1023px) 0px, 56vw"
                 className="object-cover object-center"
               />
 
@@ -330,7 +342,7 @@ export default async function HomePage() {
                 aria-hidden="true"
                 viewBox="0 0 100 100"
                 preserveAspectRatio="none"
-                className="pointer-events-none absolute inset-y-0 left-0 hidden h-full w-full lg:block"
+                className="pointer-events-none absolute inset-y-0 left-0 h-full w-full"
               >
                 <path
                   d="M -1 -1 L 41 -1 C 36 20, 6 32, 6 56 C 6 79, 21 91, 34 101 L -1 101 Z"

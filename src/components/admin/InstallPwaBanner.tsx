@@ -141,7 +141,7 @@ export function InstallPwaBanner({ className = "" }: { className?: string }) {
       {/* Garis aksen Burnt Terracotta di sisi kiri — Soft-Editorial */}
       <span aria-hidden="true" className="w-[3px] shrink-0 bg-terracotta" />
 
-      <div className="flex flex-1 items-center justify-between gap-2 px-3 py-2">
+      <div className="flex min-w-0 flex-1 items-center justify-between gap-2 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2.5">
           {env.isIos ? (
             <Share
@@ -179,7 +179,7 @@ export function InstallPwaBanner({ className = "" }: { className?: string }) {
                 {env.isAndroid ? "Android PWA" : "Aplikasi kasir"}
               </span>{" "}
               <span className="text-muted">·</span> Menu Chrome{" "}
-              <span className="font-mono font-semibold text-ink">⋮</span>{" "}
+              <span className="font-sans font-semibold text-ink">⋮</span>{" "}
               <span aria-hidden="true" className="text-muted">
                 →
               </span>{" "}

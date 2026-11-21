@@ -778,7 +778,7 @@ export function BookingExperience({
       <section
         id="layanan"
         aria-label="Layanan, Tarif, Jam Operasional, dan Lokasi Studio"
-        className="relative z-30 -mt-8 mx-4 scroll-mt-24 pb-10 sm:mx-6 sm:pb-12 lg:mx-auto lg:-mt-12 lg:max-w-5xl lg:pb-14"
+        className="relative z-30 mt-8 mx-4 scroll-mt-24 pb-10 sm:mx-6 sm:pb-12 lg:mx-auto lg:-mt-12 lg:max-w-5xl lg:pb-14"
       >
         <div className="relative rounded-3xl bg-[#F7F3EC] px-6 py-4 shadow-[0_20px_50px_-14px_rgba(48,56,65,0.13)] sm:px-8 sm:py-5 lg:rounded-full">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.1fr_auto_0.9fr_auto_1.45fr] md:items-center md:gap-5 lg:gap-7">

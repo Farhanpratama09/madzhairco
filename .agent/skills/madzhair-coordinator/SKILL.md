@@ -22,12 +22,12 @@ description: Ketua Koordinator dan Lead Architect proyek Madzhair.co. Mengelola 
 5. **Laporan ke Atasan Tertinggi:** Sajikan ringkasan progres yang padat, terverifikasi, dan siap diuji.
 
 ## 3. Checklist Gerbang Persetujuan (Acceptance Gate)
-- [x] Seluruh kriteria di `docs/PRD.md` v1.7 (`Approved`) terpenuhi tanpa penyimpangan logika slot (`Haircut` 45m/60m vs `Hair Chemicals` 120m/120m, `Asia/Pontianak`, lead time 30m, dan pembebasan slot saat status `COMPLETED`).
-- [x] Semua divisi terkait (`design`, `backend`, `customer`, `admin`, `security`, `ops`) selaras dengan pembaruan `SKILL.md` v1.7 (`Poppins` UI + `Instrument Serif` Hero, Crisp S-Curve tanpa kabut, Navbar kanan `bg-[#F7F3EC]/90`, Floating Pill 3 Segmen Dropdown, Galeri & Reels murni visual + smooth `translate3d`, `#reservasi` ikon kursi + durasi ringkas + jam `#303841`, dan Footer 3 Kolom `rounded-t-[32px]`).
+- [x] Seluruh kriteria di `docs/PRD.md` v1.8 (`Approved`) terpenuhi tanpa penyimpangan logika slot (`Haircut` 45m/60m vs `Hair Chemicals` 120m/120m, `Asia/Pontianak`, lead time 30m, dan pembebasan slot saat status `COMPLETED`).
+- [x] Semua divisi terkait (`design`, `backend`, `customer`, `admin`, `security`, `ops`) selaras dengan pembaruan `SKILL.md` v1.8 (Hero Mobile Opsi B `hidden lg:block` + `mt-8 lg:-mt-12` tanpa eyebrow duplikat, `LiveStatusTag` & Navbar berikon kalender dinamis Asia/Pontianak, 100% `Poppins` tanpa `font-mono` di seluruh halaman, serta perombakan minimalis `/admin` & `/admin/login` tanpa titik bulat, tanpa hijau `emerald-live`, header 1 baris, Tutup Darurat di atas Tab 2, statistik 1 baris di atas date scrubber, dan CMS khusus Instagram Reels).
 - [x] Tidak ada *error* TypeScript (`npx tsc --noEmit`), ESLint (`npm run lint`), atau *warning* build (`npm run build` Next.js 16.4.6 + `src/proxy.ts`).
-- [x] Zero unintended edits pada backend (`slots.ts`, `supabase/`, `src/app/api/**`), keamanan Smart Ticket `/tiket/[code]`, maupun agenda/bottom sheet `/admin`.
-- [x] Audit visual & HTML desktop (`1440px`, `1024px`) dan mobile (`390px`) lulus: 0 `font-mono` di `/` & `/tiket/[code]`, 0 `"Akses Kasir"`, 0 *"privat cukur"*, 0 TikTok di galeri, 0 teks overlay di kartu media, serta slide 1–4 mulus.
-- [x] Simulasi E2E produksi (`/`, `/admin` fail-closed, `/tiket/MDZ-8K4P`) berjalan mulus.
+- [x] Zero unintended edits pada backend (`slots.ts`, `supabase/`, `src/app/api/**`) maupun logika & keamanan Smart Ticket `/tiket/[code]`.
+- [x] Audit visual & HTML desktop (`1440px`) dan mobile (`390px`) lulus: 0 `font-mono` di `src/app/` & `src/components/`, 0 `emerald-live` & 0 TikTok di `/admin`, 0 titik bulat dekoratif, Hero mobile tanpa foto + dock rapi, serta `/admin/login` tampil bersih dalam `Poppins`.
+- [x] Simulasi E2E produksi (`/`, `/admin` fail-closed `307`, `/admin/login` `200`, `/tiket/MDZ-8K4P` `200`) berjalan mulus.
 
 ## 4. Protokol Pembaruan Skill Mandiri
 Setiap kali terjadi perubahan alur kerja atau penambahan standar evaluasi baru, Ketua Koordinator wajib memperbarui bagian **Checklist Gerbang Persetujuan** di file ini sebelum menutup sesi.

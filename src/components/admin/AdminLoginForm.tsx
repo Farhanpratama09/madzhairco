@@ -28,7 +28,7 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
             aria-hidden="true"
             className="h-5 w-5 shrink-0 text-terracotta"
           />
-          <h2 className="font-serif text-lg font-normal text-ink">
+          <h2 className="font-sans text-lg font-semibold text-ink">
             Supabase Belum Terhubung
           </h2>
         </div>
@@ -44,7 +44,7 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
             <span className="text-xs font-semibold text-terracotta">
               1. Environment (.env.local)
             </span>
-            <pre className="mt-1.5 overflow-x-auto rounded-xl border border-hairline bg-surface-elevated p-3 font-mono text-xs text-ink">
+            <pre className="mt-1.5 overflow-x-auto rounded-xl border border-hairline bg-surface-elevated p-3 font-sans text-xs text-ink">
               {`NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co\nNEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...`}
             </pre>
           </li>
@@ -54,7 +54,7 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
             </span>
             <p className="mt-1 text-xs leading-relaxed text-muted">
               Jalankan file{" "}
-              <code className="font-mono font-semibold text-ink">
+              <code className="font-sans font-semibold text-ink">
                 supabase/migrations/001_initial_schema.sql
               </code>{" "}
               di SQL Editor proyek Supabase Anda.
@@ -140,9 +140,9 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
           role="alert"
           className="mb-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/45 bg-crimson-alert/10 px-3.5 py-3 font-sans text-sm text-ink"
         >
-          <span
+          <AlertTriangle
             aria-hidden="true"
-            className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-crimson-alert"
+            className="mt-0.5 h-4 w-4 shrink-0 text-crimson-alert"
           />
           <span>{errorMessage}</span>
         </div>
