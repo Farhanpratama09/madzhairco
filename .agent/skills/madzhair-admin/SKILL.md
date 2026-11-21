@@ -44,6 +44,7 @@ description: Pengembang aplikasi kasir harian /admin berbasis Progressive Web Ap
    - Dock `fixed inset-x-0 bottom-0 rounded-t-2xl border-t border-hairline bg-surface/95 pb-safe backdrop-blur-md` dengan tombol `+ Walk-in Haircut` dan `+ Walk-in Chemicals` (`<= 2 tap`).
 5. **Manajemen Toko & Konten (Tab `Operasional & CMS`):**
    - Urutan dari atas: **Status Studio & Sakelar Tutup Darurat**, **Jam Operasional Mingguan**, **Tanggal Libur Khusus**, **Tarif & Varian Layanan**, dan **Galeri & Reels**.
+   - **Tarif & Varian Layanan:** Input manual `Teks harga tampil`, `Minimal (Rp)`, `Maksimal (Rp)`, dan teks pendek varian (`30k`) dihapus. Setiap baris varian berupa 1 baris 3 elemen (`Nama Varian` `flex-1`, `Harga (Rp)` `w-36` `inputMode="numeric"` dengan titik ribuan otomatis tanpa spinner, dan tombol hapus `44x44px`). Preview baca-saja `Tampil di halaman depan: ...` serta `price_min`, `price_max`, `price_display`, dan `display` varian dikalkulasi otomatis sebelum simpan.
    - Form video **khusus Instagram Reels** (`Tambah Link Instagram Reels`, `instagram.com/reel/...`, 0 referensi TikTok).
    - Form **Upload Foto** (kompresi WebP otomatis tetap aktif) & **Tambah Link Instagram Reels** disederhanakan menjadi **Judul** + **File/Link** saja (tanpa input keterangan/caption).
    - Daftar media aktif berupa kartu 1 baris ringkas: thumbnail kecil kiri (`h-12 w-12`), judul + tipe (`Foto` / `Instagram Reels`) tengah tanpa menampilkan path mentah `/images/...` atau caption lama, serta tombol `Tampil`/`Sembunyi` dan hapus di kanan.

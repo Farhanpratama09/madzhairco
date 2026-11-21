@@ -224,6 +224,81 @@ async function compressImageToWebP(
   }
 }
 
+function formatThousandsId(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return "";
+  return Math.trunc(amount)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function parseRupiahDigits(raw: string): number {
+  const digits = raw.replace(/\D/g, "").slice(0, 9);
+  if (!digits) return 0;
+  return Number.parseInt(digits, 10);
+}
+
+/**
+ * Format angka ke label ringkas:
+ * - Kelipatan 1.000 (>= 1.000) -> `${n / 1000}k` (misal 30000 -> "30k")
+ * - Selainnya -> format ribuan bertitik (misal 35500 -> "35.500", untuk "Rp 35.500")
+ */
+function formatShortPrice(amount: number): string {
+  const normalized = Math.max(0, Math.trunc(Number(amount) || 0));
+  if (normalized >= 1000 && normalized % 1000 === 0) {
+    return `${normalized / 1000}k`;
+  }
+  if (normalized === 0) return "0";
+  return formatThousandsId(normalized);
+}
+
+function computeServicePricingSummary(variants: PriceVariant[]): {
+  cleanedVariants: PriceVariant[];
+  priceMin: number;
+  priceMax: number;
+  priceDisplay: string;
+} {
+  const cleanedVariants: PriceVariant[] = variants
+    .map((v) => {
+      const price = Math.max(0, Math.trunc(Number(v.price) || 0));
+      return {
+        label: v.label.trim(),
+        price,
+        display: formatShortPrice(price),
+      };
+    })
+    .filter((v) => v.label.length > 0 && v.price > 0);
+
+  const pricedValues =
+    cleanedVariants.length > 0
+      ? cleanedVariants.map((v) => v.price)
+      : variants
+          .map((v) => Math.max(0, Math.trunc(Number(v.price) || 0)))
+          .filter((price) => price > 0);
+
+  if (pricedValues.length === 0) {
+    return {
+      cleanedVariants,
+      priceMin: 0,
+      priceMax: 0,
+      priceDisplay: "Rp 0",
+    };
+  }
+
+  const priceMin = Math.min(...pricedValues);
+  const priceMax = Math.max(...pricedValues);
+  const priceDisplay =
+    priceMin === priceMax
+      ? `Rp ${formatShortPrice(priceMin)}`
+      : `Rp ${formatShortPrice(priceMin)} – ${formatShortPrice(priceMax)}`;
+
+  return {
+    cleanedVariants,
+    priceMin,
+    priceMax,
+    priceDisplay,
+  };
+}
+
 export function AdminCashierDashboard({
   initialSettings,
   initialSchedules,
@@ -1016,30 +1091,26 @@ export function AdminCashierDashboard({
 
   const handleSaveService = async (service: Service) => {
     if (!db) return;
-    if (service.price_max < service.price_min) {
+
+    const { cleanedVariants, priceMin, priceMax, priceDisplay } =
+      computeServicePricingSummary(service.price_variants);
+
+    if (cleanedVariants.length === 0) {
       showToast(
         "error",
-        `Harga maksimal ${service.name} tidak boleh lebih kecil dari harga minimal.`
+        `Isi minimal 1 varian ${service.name} dengan nama dan harga lebih dari Rp 0.`
       );
       return;
     }
 
     setSavingServiceId(service.id);
     try {
-      const cleanedVariants = service.price_variants
-        .filter((v) => v.label.trim().length > 0)
-        .map((v) => ({
-          label: v.label.trim(),
-          price: Math.max(0, Number(v.price) || 0),
-          display: v.display.trim() || `${Math.round((v.price || 0) / 1000)}k`,
-        }));
-
       const { data, error } = await db
         .from("services")
         .update({
-          price_display: service.price_display.trim(),
-          price_min: Math.max(0, Number(service.price_min) || 0),
-          price_max: Math.max(0, Number(service.price_max) || 0),
+          price_display: priceDisplay,
+          price_min: priceMin,
+          price_max: priceMax,
           price_variants: cleanedVariants,
         })
         .eq("id", service.id)
@@ -1063,7 +1134,7 @@ export function AdminCashierDashboard({
       setServiceDrafts((prev) =>
         prev.map((item) => (item.id === updated.id ? updated : item))
       );
-      showToast("success", `Tarif ${updated.name} diperbarui.`);
+      showToast("success", `Tarif ${updated.name} diperbarui (${priceDisplay}).`);
     } finally {
       setSavingServiceId(null);
     }
@@ -2197,240 +2268,193 @@ export function AdminCashierDashboard({
             <section aria-label="Editor Harga Layanan">
               <EditorialSectionHeader
                 title="Harga Layanan"
-                description="Perbarui label tarif utama dan rincian varian layanan."
+                description="Cukup ubah nama dan harga varian; rentang tarif halaman depan dihitung otomatis."
                 className="mb-4"
               />
 
               <div className="space-y-4">
-                {serviceDrafts.map((service) => (
-                  <div
-                    key={service.id}
-                    className="rounded-2xl border border-hairline bg-surface p-4"
-                  >
-                    <div className="mb-4 flex items-center justify-between border-b border-hairline pb-3">
-                      <div>
-                        <h3 className="font-sans text-base font-semibold text-ink sm:text-lg">
-                          {service.name}
-                        </h3>
-                        <p className="font-sans text-xs text-muted tabular-nums">
-                          Durasi sistem: {service.slot_duration_minutes} menit
+                {serviceDrafts.map((service) => {
+                  const pricingSummary = computeServicePricingSummary(
+                    service.price_variants
+                  );
+                  const previewPriceLabel =
+                    pricingSummary.priceMax > 0
+                      ? pricingSummary.priceDisplay
+                      : service.price_display || "Rp 0";
+
+                  return (
+                    <div
+                      key={service.id}
+                      className="rounded-2xl border border-hairline bg-surface p-3.5 sm:p-4"
+                    >
+                      <div className="mb-3.5 border-b border-hairline pb-3">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <h3 className="font-sans text-base font-semibold text-ink sm:text-lg">
+                            {service.name}
+                          </h3>
+                          <span className="font-sans text-xs text-muted tabular-nums">
+                            Durasi sistem: {service.slot_duration_minutes} menit
+                          </span>
+                        </div>
+                        <p className="mt-1.5 font-sans text-xs text-muted sm:text-sm">
+                          Tampil di halaman depan:{" "}
+                          <span className="font-semibold text-terracotta tabular-nums">
+                            {previewPriceLabel}
+                          </span>
                         </p>
                       </div>
-                    </div>
 
-                    <div className="grid gap-3 sm:grid-cols-3">
+                      {/* Rincian Varian Harga (3 elemen 1 baris) */}
                       <div>
-                        <label
-                          htmlFor={`price-display-${service.id}`}
-                          className="mb-1 block font-sans text-xs font-medium text-muted"
-                        >
-                          Teks harga tampil
-                        </label>
-                        <input
-                          id={`price-display-${service.id}`}
-                          type="text"
-                          value={service.price_display}
-                          onChange={(e) =>
-                            updateServiceDraft(service.id, (prev) => ({
-                              ...prev,
-                              price_display: e.target.value,
-                            }))
-                          }
-                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
-                        />
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="font-sans text-xs font-medium text-muted">
+                            Daftar varian tarif
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateServiceDraft(service.id, (prev) => ({
+                                ...prev,
+                                price_variants: [
+                                  ...prev.price_variants,
+                                  { label: "", price: 0, display: "0" },
+                                ],
+                              }))
+                            }
+                            className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-3 font-sans text-xs font-semibold text-terracotta transition-colors hover:border-terracotta"
+                          >
+                            <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+                            <span>Varian</span>
+                          </button>
+                        </div>
+
+                        {service.price_variants.length > 0 ? (
+                          <div className="mb-1.5 flex items-center gap-1.5 px-0.5 font-sans text-[11px] font-medium text-muted sm:gap-2">
+                            <span className="min-w-0 flex-1">Nama varian</span>
+                            <span className="w-36 shrink-0">Harga (Rp)</span>
+                            <span className="w-[44px] shrink-0 text-center">
+                              Hapus
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="rounded-xl border border-dashed border-hairline bg-alabaster/40 px-3 py-3 font-sans text-xs text-muted">
+                            Belum ada varian tarif. Tekan tombol{" "}
+                            <span className="font-semibold text-ink">
+                              + Varian
+                            </span>{" "}
+                            untuk menambahkan.
+                          </p>
+                        )}
+
+                        <div className="space-y-2">
+                          {service.price_variants.map((variant, idx) => (
+                            <div
+                              key={`${service.id}-var-${idx}`}
+                              className="flex items-center gap-1.5 sm:gap-2"
+                            >
+                              <input
+                                type="text"
+                                aria-label={`Nama varian ${service.name} ${idx + 1}`}
+                                placeholder="Nama varian"
+                                value={variant.label}
+                                onChange={(e) =>
+                                  updateServiceDraft(service.id, (prev) => {
+                                    const nextVariants: PriceVariant[] =
+                                      prev.price_variants.map((v, vIdx) =>
+                                        vIdx === idx
+                                          ? { ...v, label: e.target.value }
+                                          : v
+                                      );
+                                    return {
+                                      ...prev,
+                                      price_variants: nextVariants,
+                                    };
+                                  })
+                                }
+                                className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-hairline bg-alabaster/60 px-2.5 font-sans text-base text-ink focus:border-terracotta focus:bg-surface focus:outline-none sm:px-3"
+                              />
+
+                              <div className="relative w-36 shrink-0">
+                                <span
+                                  aria-hidden="true"
+                                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 font-sans text-xs font-medium text-muted"
+                                >
+                                  Rp
+                                </span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  autoComplete="off"
+                                  aria-label={`Harga varian ${service.name} ${idx + 1} dalam Rupiah`}
+                                  placeholder="30.000"
+                                  value={formatThousandsId(variant.price)}
+                                  onChange={(e) => {
+                                    const parsedPrice = parseRupiahDigits(
+                                      e.target.value
+                                    );
+                                    updateServiceDraft(service.id, (prev) => {
+                                      const nextVariants: PriceVariant[] =
+                                        prev.price_variants.map((v, vIdx) =>
+                                          vIdx === idx
+                                            ? {
+                                                ...v,
+                                                price: parsedPrice,
+                                                display:
+                                                  formatShortPrice(parsedPrice),
+                                              }
+                                            : v
+                                        );
+                                      return {
+                                        ...prev,
+                                        price_variants: nextVariants,
+                                      };
+                                    });
+                                  }}
+                                  className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 pr-3 pl-9 text-right font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                aria-label={`Hapus varian ${variant.label || idx + 1}`}
+                                onClick={() =>
+                                  updateServiceDraft(service.id, (prev) => ({
+                                    ...prev,
+                                    price_variants: prev.price_variants.filter(
+                                      (_, vIdx) => vIdx !== idx
+                                    ),
+                                  }))
+                                }
+                                className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface text-muted transition-colors hover:border-crimson-alert hover:text-crimson-alert"
+                              >
+                                <Trash2
+                                  aria-hidden="true"
+                                  className="h-4 w-4"
+                                />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
 
-                      <div>
-                        <label
-                          htmlFor={`price-min-${service.id}`}
-                          className="mb-1 block font-sans text-xs font-medium text-muted"
-                        >
-                          Minimal (Rp)
-                        </label>
-                        <input
-                          id={`price-min-${service.id}`}
-                          type="number"
-                          min={0}
-                          step={1000}
-                          value={service.price_min}
-                          onChange={(e) =>
-                            updateServiceDraft(service.id, (prev) => ({
-                              ...prev,
-                              price_min: Number.parseInt(
-                                e.target.value || "0",
-                                10
-                              ),
-                            }))
-                          }
-                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          htmlFor={`price-max-${service.id}`}
-                          className="mb-1 block font-sans text-xs font-medium text-muted"
-                        >
-                          Maksimal (Rp)
-                        </label>
-                        <input
-                          id={`price-max-${service.id}`}
-                          type="number"
-                          min={0}
-                          step={1000}
-                          value={service.price_max}
-                          onChange={(e) =>
-                            updateServiceDraft(service.id, (prev) => ({
-                              ...prev,
-                              price_max: Number.parseInt(
-                                e.target.value || "0",
-                                10
-                              ),
-                            }))
-                          }
-                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Rincian Varian Harga */}
-                    <div className="mt-4 border-t border-hairline pt-3">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="font-sans text-xs font-medium text-muted">
-                          Rincian varian tarif
-                        </span>
+                      <div className="mt-4">
                         <button
                           type="button"
-                          onClick={() =>
-                            updateServiceDraft(service.id, (prev) => ({
-                              ...prev,
-                              price_variants: [
-                                ...prev.price_variants,
-                                { label: "", price: 0, display: "0k" },
-                              ],
-                            }))
-                          }
-                          className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-3 font-sans text-xs font-semibold text-terracotta transition-colors hover:border-terracotta"
+                          disabled={savingServiceId === service.id}
+                          onClick={() => void handleSaveService(service)}
+                          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
                         >
-                          <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-                          <span>Varian</span>
+                          <Check aria-hidden="true" className="h-4 w-4" />
+                          <span>
+                            {savingServiceId === service.id
+                              ? "Menyimpan..."
+                              : `Simpan Tarif ${service.name}`}
+                          </span>
                         </button>
                       </div>
-
-                      <div className="space-y-2.5">
-                        {service.price_variants.map((variant, idx) => (
-                          <div
-                            key={`${service.id}-var-${idx}`}
-                            className="grid grid-cols-[1fr_84px_44px] gap-2 rounded-xl border border-hairline/70 bg-alabaster/40 p-2 sm:grid-cols-[1fr_110px_88px_44px] sm:border-0 sm:bg-transparent sm:p-0"
-                          >
-                            <input
-                              type="text"
-                              placeholder="Nama varian"
-                              value={variant.label}
-                              onChange={(e) =>
-                                updateServiceDraft(service.id, (prev) => {
-                                  const nextVariants: PriceVariant[] =
-                                    prev.price_variants.map((v, vIdx) =>
-                                      vIdx === idx
-                                        ? { ...v, label: e.target.value }
-                                        : v
-                                    );
-                                  return {
-                                    ...prev,
-                                    price_variants: nextVariants,
-                                  };
-                                })
-                              }
-                              className="col-span-3 min-h-[44px] rounded-xl border border-hairline bg-surface px-2.5 font-sans text-base text-ink focus:border-terracotta focus:outline-none sm:col-span-1 sm:bg-alabaster/60 sm:focus:bg-surface"
-                            />
-                            <input
-                              type="number"
-                              min={0}
-                              step={1000}
-                              placeholder="Harga"
-                              value={variant.price}
-                              onChange={(e) =>
-                                updateServiceDraft(service.id, (prev) => {
-                                  const nextVariants: PriceVariant[] =
-                                    prev.price_variants.map((v, vIdx) =>
-                                      vIdx === idx
-                                        ? {
-                                            ...v,
-                                            price: Number.parseInt(
-                                              e.target.value || "0",
-                                              10
-                                            ),
-                                          }
-                                        : v
-                                    );
-                                  return {
-                                    ...prev,
-                                    price_variants: nextVariants,
-                                  };
-                                })
-                              }
-                              className="min-h-[44px] rounded-xl border border-hairline bg-surface px-2 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:outline-none sm:bg-alabaster/60 sm:focus:bg-surface"
-                            />
-                            <input
-                              type="text"
-                              placeholder="35k"
-                              value={variant.display}
-                              onChange={(e) =>
-                                updateServiceDraft(service.id, (prev) => {
-                                  const nextVariants: PriceVariant[] =
-                                    prev.price_variants.map((v, vIdx) =>
-                                      vIdx === idx
-                                        ? { ...v, display: e.target.value }
-                                        : v
-                                    );
-                                  return {
-                                    ...prev,
-                                    price_variants: nextVariants,
-                                  };
-                                })
-                              }
-                              className="min-h-[44px] rounded-xl border border-hairline bg-surface px-2 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:outline-none sm:bg-alabaster/60 sm:focus:bg-surface"
-                            />
-                            <button
-                              type="button"
-                              aria-label="Hapus varian"
-                              onClick={() =>
-                                updateServiceDraft(service.id, (prev) => ({
-                                  ...prev,
-                                  price_variants: prev.price_variants.filter(
-                                    (_, vIdx) => vIdx !== idx
-                                  ),
-                                }))
-                              }
-                              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-hairline bg-surface text-muted transition-colors hover:border-crimson-alert hover:text-crimson-alert"
-                            >
-                              <Trash2
-                                aria-hidden="true"
-                                className="h-4 w-4"
-                              />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
                     </div>
-
-                    <div className="mt-4">
-                      <button
-                        type="button"
-                        disabled={savingServiceId === service.id}
-                        onClick={() => void handleSaveService(service)}
-                        className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
-                      >
-                        <Check aria-hidden="true" className="h-4 w-4" />
-                        <span>
-                          {savingServiceId === service.id
-                            ? "Menyimpan..."
-                            : `Simpan Tarif ${service.name}`}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
 
