@@ -9,7 +9,7 @@
 -- inside create_booking_safe & calculateAvailableSlots.
 -- Safe & idempotent to run on an existing Supabase database.
 -- ============================================================================
-
+DROP FUNCTION IF EXISTS public.get_public_bookings_for_date(date);
 CREATE OR REPLACE FUNCTION public.create_booking_safe(
   p_service_id uuid,
   p_customer_name text,
@@ -320,3 +320,4 @@ AS $$
     AND b.status = 'BOOKED'
   ORDER BY b.start_time ASC;
 $$;
+GRANT EXECUTE ON FUNCTION public.get_public_bookings_for_date(date) TO anon, authenticated;
