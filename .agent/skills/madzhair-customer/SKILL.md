@@ -1,47 +1,52 @@
 ---
 name: madzhair-customer
-description: Pengembang halaman publik Madzhair.co (/), Split Hero Asimetris & Floating Horizontal Dock, Galeri 4 Foto + 2 Reels swipeable mobile, Area Reservasi Live Booking Preview (bebas overlap desktop), lazy-load embed sosmed, kalkulator slot real-time, redirect WhatsApp, dan Smart Ticket (/tiket/[code]).
+description: Pengembang halaman publik Madzhair.co (/), Split Hero S-Curve Feathering, Floating Pill 3 Segmen + Dropdown Pricelist, Galeri Kiri-Kanan (Video Embed + Carousel 4 Foto Dot Slider), Kalender Slide 21 Hari + Vertical Stepper Live Booking Preview, kalkulator slot real-time, redirect WhatsApp, dan Smart Ticket (/tiket/[code]).
 ---
 
 # Skill: Divisi Customer & Smart Ticket (`madzhair-customer`)
 
 ## 1. Tanggung Jawab Utama
-- Membangun pengalaman pelanggan bergaya **Soft-Editorial Editorial Minimalist (v1.4)** (palet 60–30–10 **Warm Alabaster `#EFE8DD`**, **Soft Ivory `#F7F3EC`**, **Deep Slate Charcoal `#303841`**, & **Burnt Terracotta `#C25934`**) yang instan, tanpa login, dan paritas penuh Android/iOS (`100dvh`, `env(safe-area-inset-*)`, touch target minimal `44x44px`, input `>= 16px` / `text-base`).
+- Membangun pengalaman pelanggan bergaya **Soft-Editorial Editorial Minimalist (v1.6)** (palet 60–30–10 **Warm Alabaster `#EFE8DD`**, **Soft Ivory `#F7F3EC`**, **Deep Slate Charcoal `#303841`**, & **Burnt Terracotta `#C25934`**) yang instan, tanpa login, seragam menggunakan `Plus Jakarta Sans` (`tabular-nums`) tanpa `JetBrains Mono`, dan paritas penuh Android/iOS (`100dvh`, `env(safe-area-inset-*)`, touch target minimal `44x44px`, input `>= 16px` / `text-base`).
 - Mengimplementasikan kalkulator slot real-time, sinkronisasi Supabase Realtime, dan halaman **Link Tiket Pintar (`/tiket/[code]`)**.
 
-## 2. Spesifikasi Fitur & Implementasi (v1.5 — Travorra Full-Bleed Hero & Capsule Dock)
+## 2. Spesifikasi Fitur & Implementasi (v1.6 — Finalisasi UI/UX)
 1. **Halaman Utama (`src/app/page.tsx` & `src/components/customer/BookingExperience.tsx`):**
    - `export const dynamic = "force-dynamic"` dengan fallback aman ke `DEFAULT_*` (`src/lib/seed.ts`) dan `defaultGalleryItems` (`src/config/media.ts`) ketika env Supabase belum aktif.
-   - **Navbar Atas Transparan Menyatu (Desktop `lg:absolute`) & Ringkas (Mobile `< lg`):**
-     - Kiri: `BrandMark` (`variant="compact"` di `< sm`, `variant="full"` di `sm:`, Sentence Case `Madzhair.co`) + tautan teks Sentence Case `Layanan`, `Galeri`, `Reservasi`, `Lokasi` (`hidden md:flex`) terkelompok di sisi Alabaster `#EFE8DD`.
-     - Kanan: `LiveStatusTag` (`compact`, `surfaceTone="overlayDesktop"`) teks bersih tanpa kotak pembungkus dengan indikator lingkaran halus (`w-2 h-2 rounded-full`).
-   - **Full-Bleed Top-Right Hero & Organic Curve Mask:**
-     - Wrapper `relative w-full overflow-hidden`.
-     - Kiri: eyebrow kecil bersih, `h1` `Instrument Serif` tegas (`text-4xl sm:text-5xl lg:text-[62px] leading-[1.06] tracking-tight`), baris kedua *italic* Terracotta, subjudul ringkas, dan tombol CTA kapsul penuh (`rounded-full px-7 py-3.5 bg-terracotta text-surface`) dengan ikon panah melingkar putih (tanpa grid metadata datar 3-kolom di bawah CTA).
-     - Kanan (Desktop `lg:`): foto utama menempel penuh ke sisi kanan dan atas layar (`lg:w-[54%] lg:min-h-[620px]`) dengan lengkungan organik kiri (`lg:rounded-bl-[180px] lg:rounded-br-none`) menyatu di belakang navbar transparan + kartu mengambang `Jam operasional hari ini` menembus garis batas kiri foto (`lg:-left-10 lg:top-28 shadow-xl bg-[#F7F3EC] rounded-2xl`). Pada mobile (`< lg`): foto tampil di bawah CTA (`h-[280px] rounded-3xl rounded-b-[40px]`).
-   - **Floating Horizontal Capsule Dock (`#layanan`, Above the Fold):**
-     - Menjembatani dan menindih batas bawah foto hero (`-mt-8 mx-4 sm:mx-6 lg:-mt-12 lg:max-w-5xl lg:mx-auto`), berbentuk kapsul di desktop (`lg:rounded-full`) dan `rounded-3xl grid-cols-1 sm:grid-cols-2` di mobile (`bg-[#F7F3EC] shadow-[0_20px_50px_-12px_rgba(48,56,65,0.14)]`).
-     - Berisi 4 segmen bersih: (1) Toggle `Haircut (Rp 30k–40k)` & `Hair Chemicals (Rp 250k)` yang sinkron ke `selectedServiceId` (plus baris rincian varian ringkas tepat di bawah dock), (2) `Jam buka` hari ini (`tabular-nums`), (3) `Location` (`Jalan Raya Sungai Kunyit, Gang Tani` klikabel Google Maps), dan (4) Tombol CTA kapsul Terracotta `Pilih Jadwal →`.
-   - **Urutan `<main>`:** Hero → `<BookingExperience ... gallerySection={<SocialGalleryFacade items={galleryItems} />} />` → Footer (`id="lokasi"` `scroll-mt-24`).
-   - **Area Reservasi (`#reservasi` — Bebas Tabrakan Desktop):**
-     - Grid desktop menggunakan `lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-8` dengan `min-w-0` pada kolom kiri dan tiap `<fieldset>` agar Horizontal Date Scrubber tidak pernah bertabrakan dengan kartu sticky `Live booking preview`.
-     - Seluruh label seksi (`Pilih tanggal`, `Pilih layanan`, `Pilih jam`, `Live booking preview`), status slot (`Tersedia`, `Terisi`, `Lewat`, `< 2 jam`, `Dipilih`), tombol, dan modal pra-booking menggunakan `Plus Jakarta Sans` dalam **Sentence Case** (0 kode `01 //`, 0 ALL-CAPS monospace). `JetBrains Mono` hanya untuk jam bulat, nominal harga, dan kode tiket `MDZ-XXXX`.
-     - **Strip Tanggal Horizontal & Grid Slot:** Swipeable (`snap-x snap-mandatory no-scrollbar`), slot terpilih `bg-terracotta text-surface`, legenda indikator lingkaran (`rounded-full`), input Nama (`text-base >= 16px`), *honeypot* `website`, aturan 15 menit, tombol `Review & Konfirmasi Booking`, modal pra-booking, kartu konfirmasi `MDZ-XXXX`, dan auto-redirect WhatsApp instan.
-   - **Footer Arsitektural Gelap (`id="lokasi"`, `scroll-mt-24`, `bg-ink text-surface`):** Sentence Case UI dengan `tabular-nums` khusus jam operasional mingguan.
+   - **Navbar Atas 3-Kolom (`md:grid-cols-[1fr_auto_1fr]`):**
+     - Kiri: `BrandMark` (`variant="compact"` di `< sm`, `variant="full"` di `sm:`, Sentence Case `Madzhair.co`).
+     - Tengah (`hidden md:flex`): tautan bersih `Layanan`, `Galeri`, `Reservasi`, `Lokasi`.
+     - Kanan: HANYA ikon kalender/jam kecil (`CalendarCheck` / `Clock`) + teks bersih **"Booking tersedia"** (atau `"Tutup sementara"` saat mode darurat) — tanpa titik kotak, tanpa kapsul border, dan tanpa jam operasional.
+   - **Hero Kiri & Kanan (S-Curve + Gradient Edge Feathering):**
+     - Kiri: eyebrow singkat (`Studio cukur satu kursi`), `h1` `Instrument Serif` tegas (`text-4xl sm:text-5xl lg:text-[62px] leading-[1.06] tracking-tight`) dengan baris kedua *italic* Terracotta, subjudul ringkas, dan **1 tombol CTA utama** (`Pilih Jadwal` kapsul Terracotta, tanpa tautan `Lihat Lokasi`).
+     - Kanan: foto utama tanpa kotak putih mengambang, dibentuk lengkungan organik **S-curve** mendalam di tepi kiri (`lg:`) ditambah **gradient mask / edge feathering** halus di tepi kiri dan bawah agar memudar menyatu dengan `#EFE8DD`.
+   - **Floating Pill Dock 3 Segmen + Dropdown Pricelist (`#layanan`):**
+     - Padding lega (`px-6 py-4 sm:px-8 sm:py-5`), `bg-[#F7F3EC]`, shadow lembut, `rounded-3xl lg:rounded-full`, tanpa tombol `Pilih Jadwal` dan tanpa teks pricelist kecil di luar pill.
+     - 3 segmen sejajar:
+       1. **Layanan & Tarif (Dropdown Interaktif):** membuka kartu daftar harga lengkap (**Haircut:** Kids `Rp 30k`, Longtrim & Regular `Rp 35k`, Fade & Taper `Rp 40k`; **Hair Chemicals:** `Rp 250k`). Memilih item langsung menyinkronkan layanan ke `#reservasi`.
+       2. **Jam Operasional:** satu-satunya tempat menampilkan jam operasional hari ini (`tabular-nums`).
+       3. **Location:** `Jl. Raya Sungai Kunyit, Gg. Tani` dengan ikon `MapPin` langsung menuju Google Maps.
+   - **Urutan `<main>`:** Hero → `<BookingExperience ... gallerySection={<SocialGalleryFacade items={galleryItems} />} />` → Footer (`id="lokasi"` `scroll-mt-24`, **tanpa** tautan `"Akses Kasir"`).
+   - **Area Reservasi (`#reservasi`):**
+     - Grid desktop `lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-8` dengan `min-w-0`.
+     - **Kalender Slide (21 Hari — batas aman 14–30 hari):** Header menampilkan detail lengkap *Hari, Tanggal Bulan Tahun* aktif di kanan atas (`formatIndonesianDateFull`), diikuti strip tanggal horizontal dengan tombol panah `< >` yang lancar di desktop & mobile.
+     - **Kartu Layanan Presisi:** Padding internal lega (`p-4 sm:p-5`) untuk `Haircut` dan `Hair Chemicals` agar nama, tarif, dan durasi presisi di dalam bingkai.
+     - **Live Booking Preview (Vertical Stepper):** Alur 4 titik bulat bercentang (`✓`) terhubung garis vertikal (`1. Layanan & tarif`, `2. Tanggal`, `3. Jam kursi`, `4. Nama pemesan`), input Nama (`>= 16px`), *honeypot* `website`, aturan 15 menit, tombol `Review & Konfirmasi Booking`, **tanpa tombol Lokasi** di dalam kartu preview.
+   - **Seragam Tipografi (`Plus Jakarta Sans` `tabular-nums`):** Seluruh halaman `/` bebas dari `font-mono` / `JetBrains Mono`.
    - Sinkronisasi **Supabase Realtime** (`madzhair-customer-realtime`) memantau `bookings`, `store_settings`, `weekly_schedules`, `closed_dates`, dan `services`.
 
 2. **Route Handler Booking Publik (`src/app/api/bookings/route.ts`):**
-   - Rate limiter via `extractClientIp(request.headers)` + `checkBookingRateLimit(ip)` (`429` + `Retry-After`), cek `checkHoneypot(body.website)`, validasi `sanitizeCustomerName` (`2–40` karakter), `YYYY-MM-DD`, dan `validateServiceTimeFormat`.
-   - Memanggil `supabase.rpc('create_booking_safe', ...)` pada mode Supabase (di mana status `COMPLETED` tidak memblokir kursi) atau fallback `DEFAULT_*` + `generateDemoTicketCode()` pada mode Demo Lokal.
+   - Tidak diubah: Rate limiter, *honeypot*, sanitasi nama, validasi format, serta RPC `create_booking_safe` (dengan status `COMPLETED` bebas bentrok) + fallback Demo Lokal.
 
 3. **Alur Redirect WhatsApp & Penyimpanan Demo:**
    - Setelah `POST /api/bookings` berhasil, tiket disimpan ke `sessionStorage` dan langsung diarahkan ke `https://wa.me/<whatsapp_number>?text=<encoded_text>` tanpa delay buatan.
 
-4. **Lookbook Full-Bleed & Zero-Bandwidth Social Media Embed (`src/components/customer/SocialGalleryFacade.tsx`):**
-   - Merender **4 Sample Foto (`aspect-[4/5]`, `rounded-2xl`)** dan **2 Sample Video Embed TikTok/Instagram Reels (`aspect-[9/16]`, `rounded-2xl`)** dengan judul `Instrument Serif` di atas scrim gelap (`from-[#1E2329]/90 via-[#303841]/55 to-transparent`), bebas kode nomor `01 //`, serta *horizontal swipe* (`snap-x`) di mobile.
+4. **Sesi Media Kiri-Kanan (`src/components/customer/SocialGalleryFacade.tsx`):**
+   - 2 sesi berdampingan di desktop (`lg:grid-cols-12`) / bertumpuk rapi di mobile dengan tinggi proporsional identik (`h-[430px] sm:h-[490px] lg:h-[520px]`):
+     - **Kiri (`lg:col-span-5`):** Wadah **Video Embed** (`lazy-load facade` TikTok/Instagram Reels) tervalidasi whitelist keamanan + pemilih reel jika > 1 video.
+     - **Kanan (`lg:col-span-7`):** **Carousel 4 Foto** dengan tombol geser `< >` (klik desktop & swipe sentuh mobile `snap-x snap-mandatory`) serta **indikator titik (dot pagination)** di bagian bawah.
 
 5. **Smart Ticket (`/tiket/[code]` — `src/app/tiket/[code]/page.tsx` & `src/components/ticket/SmartTicketView.tsx`):**
-   - `generateMetadata` Open Graph untuk WhatsApp, verifikasi sesi admin server-side, lookup `get_booking_by_ticket_code`, Realtime update `bookings`, dan tipografi Sentence Case bersih (`JetBrains Mono` khusus `MDZ-XXXX` dan jam).
+   - Logika & keamanan server-verified admin tetap utuh; seluruh angka, jam, tanggal, dan kode `MDZ-XXXX` menggunakan `Plus Jakarta Sans` (`tabular-nums`) tanpa `JetBrains Mono`.
 
 ## 3. Protokol Laporan & Pembaruan Skill
-- Setiap perubahan pada format pesan WA, logika kalkulator slot, struktur komponen *embed*, atau pola UI pelanggan wajib dicatat ke `SKILL.md` ini sebelum disetor ke `madzhair-coordinator`.
+- Setiap perubahan pada UI pelanggan, media facade, atau tipografi Smart Ticket wajib dicatat ke `SKILL.md` ini sebelum disetor ke `madzhair-coordinator`.

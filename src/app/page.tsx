@@ -1,11 +1,15 @@
 import Image from "next/image";
-import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, Lock, MapPin } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CalendarCheck,
+  Clock,
+  MapPin,
+} from "lucide-react";
 import { BookingExperience } from "@/components/customer/BookingExperience";
 import { SocialGalleryFacade } from "@/components/customer/SocialGalleryFacade";
 import { HairSalonJsonLd } from "@/components/seo/HairSalonJsonLd";
 import { BrandMark } from "@/components/ui/BrandMark";
-import { LiveStatusTag } from "@/components/ui/LiveStatusTag";
 import { brand, defaultGalleryItems } from "@/config/media";
 import {
   DEFAULT_CLOSED_DATES,
@@ -13,11 +17,7 @@ import {
   DEFAULT_STORE_SETTINGS,
   DEFAULT_WEEKLY_SCHEDULES,
 } from "@/lib/seed";
-import {
-  formatTimeHHMM,
-  getStoreNowParts,
-  isStoreOpenLive,
-} from "@/lib/slots";
+import { formatTimeHHMM, getStoreNowParts } from "@/lib/slots";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import type {
@@ -188,105 +188,87 @@ export default async function HomePage() {
     todayDateStr,
   } = await loadLandingData();
 
-  const nowParts = getStoreNowParts(settings.timezone);
-  const liveStatus = isStoreOpenLive({
-    schedules,
-    closedDates,
-    settings,
-    nowParts,
-  });
-
-  const scheduleNote = settings.is_force_closed
-    ? "Tutup Sementara"
-    : liveStatus.reason === "BEFORE_OPEN" &&
-        liveStatus.openTime &&
-        liveStatus.closeTime
-      ? `Buka ${liveStatus.openTime}–${liveStatus.closeTime} WIB`
-      : liveStatus.openTime && liveStatus.closeTime
-        ? `${liveStatus.openTime} – ${liveStatus.closeTime} WIB`
-        : liveStatus.closedReason ?? undefined;
-
   const heroImageUrl = settings.hero_image_url?.trim() || brand.heroImage;
-
-  const todayHoursLabel = settings.is_force_closed
-    ? "Tutup sementara"
-    : liveStatus.openTime && liveStatus.closeTime
-      ? `${liveStatus.openTime} – ${liveStatus.closeTime} WIB`
-      : liveStatus.closedReason ?? "Jadwal khusus";
 
   return (
     <div className="min-h-[100dvh] bg-alabaster text-ink">
       <HairSalonJsonLd schedules={schedules} storeSettings={settings} />
 
       {/* =====================================================================
-          WRAPPER HERO & NAVBAR TRANSPARAN (TRAVORRA FULL-BLEED TOP-RIGHT)
+          WRAPPER HERO & NAVBAR TRANSPARAN (S-CURVE + GRADIENT EDGE FEATHERING)
       ===================================================================== */}
       <div className="relative w-full overflow-hidden">
-        {/* Top Navbar: Ringkas di mobile (< lg), menyatu transparan di atas hero desktop (lg:) */}
+        {/* Top Navbar: Logo kiri, tautan navigasi di tengah, status bersih di kanan */}
         <header className="relative z-30 bg-transparent pt-safe lg:absolute lg:inset-x-0 lg:top-0">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-safe py-3.5 sm:gap-4 lg:py-5">
-            {/* Kiri: BrandMark + Nav Links tetap di atas sisi Alabaster kiri */}
-            <div className="flex items-center gap-7 xl:gap-9">
-              <div className="shrink-0">
-                <div className="sm:hidden">
-                  <BrandMark variant="compact" size="sm" href="/" />
-                </div>
-                <div className="hidden sm:block">
-                  <BrandMark variant="full" size="sm" href="/" />
-                </div>
-              </div>
-
-              <nav
-                aria-label="Navigasi utama"
-                className="hidden items-center gap-5 md:flex xl:gap-7"
-              >
-                {NAV_LINKS.map((item) => (
-                  <a
-                    key={item.href}
-                    href={item.href}
-                    className="inline-flex min-h-[44px] items-center font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta"
-                  >
-                    {item.label}
-                  </a>
-                ))}
-              </nav>
-            </div>
-
-            {/* Kanan: LiveStatusTag (kontras terang di lg: saat menindih sisi foto top-right) */}
-            <div className="min-w-0">
+          <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto] items-center gap-3 px-safe py-3.5 md:grid-cols-[1fr_auto_1fr] lg:py-5">
+            {/* Kiri: BrandMark */}
+            <div className="shrink-0 justify-self-start">
               <div className="sm:hidden">
-                <LiveStatusTag
-                  isOpen={liveStatus.isOpen}
-                  isForceClosed={settings.is_force_closed}
-                  reason={liveStatus.reason}
-                  surfaceTone="overlayDesktop"
-                  compact
-                />
+                <BrandMark variant="compact" size="sm" href="/" />
               </div>
               <div className="hidden sm:block">
-                <LiveStatusTag
-                  isOpen={liveStatus.isOpen}
-                  isForceClosed={settings.is_force_closed}
-                  reason={liveStatus.reason}
-                  scheduleNote={scheduleNote}
-                  surfaceTone="overlayDesktop"
-                  compact
-                />
+                <BrandMark variant="full" size="sm" href="/" />
+              </div>
+            </div>
+
+            {/* Tengah: Navigasi Utama Bersih */}
+            <nav
+              aria-label="Navigasi utama"
+              className="hidden items-center justify-self-center gap-6 md:flex lg:gap-7"
+            >
+              {NAV_LINKS.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="inline-flex min-h-[44px] items-center font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+
+            {/* Kanan: Ikon kalender/jam kecil + teks bersih tanpa border/titik kotak/jam */}
+            <div className="justify-self-end">
+              <div
+                role="status"
+                aria-live="polite"
+                className={`inline-flex items-center gap-2 font-sans text-xs font-medium whitespace-nowrap sm:text-sm ${
+                  settings.is_force_closed
+                    ? "text-crimson-alert lg:text-[#FECACA]"
+                    : "text-ink lg:text-[#F7F3EC]"
+                }`}
+              >
+                {settings.is_force_closed ? (
+                  <Clock
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-crimson-alert lg:text-[#FECACA]"
+                  />
+                ) : (
+                  <CalendarCheck
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-terracotta lg:text-[#F7F3EC]"
+                  />
+                )}
+                <span>
+                  {settings.is_force_closed
+                    ? "Tutup sementara"
+                    : "Booking tersedia"}
+                </span>
               </div>
             </div>
           </div>
         </header>
 
-        {/* Split Hero Full-Bleed Top-Right */}
+        {/* Split Hero Full-Bleed Top-Right dengan Organic S-Curve & Edge Feathering */}
         <section
           aria-labelledby="hero-heading"
-          className="relative w-full lg:min-h-[620px]"
+          className="relative w-full lg:min-h-[630px]"
         >
-          {/* Kolom Kiri (Tipografi Berani + Tombol Kapsul) */}
-          <div className="relative z-10 mx-auto max-w-6xl px-safe pt-3 pb-6 lg:flex lg:min-h-[620px] lg:items-center lg:pt-24 lg:pb-20">
-            <div className="lg:w-[46%] lg:pr-14 xl:pr-16">
+          {/* Kolom Kiri: Eyebrow singkat, Judul Instrument Serif, Subjudul, 1 CTA utama */}
+          <div className="relative z-10 mx-auto max-w-6xl px-safe pt-3 pb-6 lg:flex lg:min-h-[630px] lg:items-center lg:pt-24 lg:pb-24">
+            <div className="lg:w-[46%] lg:pr-12 xl:pr-16">
               <p className="font-sans text-xs font-medium text-terracotta sm:text-sm">
-                Studio cukur satu kursi · {settings.short_address}
+                Studio cukur satu kursi
               </p>
 
               <h1
@@ -305,8 +287,8 @@ export default async function HomePage() {
                 langsung via WhatsApp tanpa daftar akun.
               </p>
 
-              {/* CTA Kapsul Penuh Terracotta dengan Ikon Panah Melingkar */}
-              <div className="mt-6 flex flex-wrap items-center gap-3 sm:mt-7 sm:gap-4">
+              {/* 1 Tombol CTA Utama Kapsul Terracotta */}
+              <div className="mt-6 sm:mt-8">
                 <a
                   href="#reservasi"
                   className="inline-flex min-h-[52px] items-center justify-center gap-3 rounded-full bg-terracotta px-7 py-3.5 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90"
@@ -319,52 +301,86 @@ export default async function HomePage() {
                     <ArrowDownRight className="h-4 w-4" />
                   </span>
                 </a>
-
-                <a
-                  href={settings.google_maps_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-full px-3 py-2 font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta"
-                >
-                  <MapPin className="h-4 w-4 text-terracotta" />
-                  <span>Lihat Lokasi</span>
-                  <ArrowUpRight className="h-3.5 w-3.5 text-muted" />
-                </a>
               </div>
             </div>
           </div>
 
-          {/* Kanan / Mobile Bawah CTA: Full-Bleed Top-Right Visual + Organic Curve Mask */}
-          <div className="relative mx-4 sm:mx-6 lg:absolute lg:top-0 lg:right-0 lg:mx-0 lg:h-full lg:min-h-[620px] lg:w-[54%]">
-            {/* Bingkai lengkungan organik (full edge kanan & atas desktop) */}
-            <div className="relative h-[280px] w-full overflow-hidden rounded-3xl rounded-b-[40px] bg-ink shadow-xl sm:h-[340px] lg:h-full lg:min-h-[620px] lg:rounded-none lg:rounded-bl-[180px] lg:rounded-br-none">
+          {/* Kanan (Desktop) / Bawah CTA (Mobile): Visual Barbershop + Deep S-Curve + Edge Feathering */}
+          <div className="relative mx-4 sm:mx-6 lg:absolute lg:top-0 lg:right-0 lg:mx-0 lg:h-full lg:min-h-[630px] lg:w-[56%]">
+            <div className="relative h-[290px] w-full overflow-hidden rounded-3xl bg-ink sm:h-[360px] lg:h-full lg:min-h-[630px] lg:rounded-none">
               <Image
                 src={heroImageUrl}
                 alt={brand.heroAlt}
                 fill
                 priority
-                sizes="(max-width: 1023px) 100vw, 54vw"
-                className="object-cover"
+                sizes="(max-width: 1023px) 100vw, 56vw"
+                className="object-cover object-center"
               />
 
-              {/* Scrim atas halus khusus desktop agar status LiveStatusTag di kanan atas selalu terbaca */}
+              {/* Scrim atas-kanan halus khusus desktop agar 'Booking tersedia' tetap tajam terbaca */}
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 top-0 hidden h-28 bg-gradient-to-b from-[#1E2329]/75 via-[#1E2329]/25 to-transparent lg:block"
+                className="pointer-events-none absolute top-0 right-0 hidden h-28 w-72 bg-gradient-to-bl from-[#1E2329]/75 via-[#1E2329]/30 to-transparent lg:block"
               />
-            </div>
 
-            {/* Kartu Mengambang Kecil Menembus Batas Kiri Foto (Desktop) */}
-            <div className="hidden rounded-2xl bg-[#F7F3EC] px-4 py-3 shadow-xl lg:absolute lg:top-28 lg:-left-10 lg:z-20 lg:block">
-              <p className="font-sans text-xs font-medium text-muted">
-                Jam operasional hari ini
-              </p>
-              <p className="mt-0.5 font-mono text-sm font-semibold text-ink tabular-nums">
-                {todayHoursLabel}
-              </p>
-              <p className="mt-0.5 font-sans text-xs font-medium text-terracotta">
-                1 kursi privat · Tanpa antre
-              </p>
+              {/* Deep Organic S-Curve + Soft Left Edge Feathering (Desktop lg:) */}
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                className="pointer-events-none absolute inset-y-0 left-0 hidden h-full w-full lg:block"
+              >
+                <defs>
+                  <filter
+                    id="hero-scurve-feather"
+                    x="-20%"
+                    y="-20%"
+                    width="150%"
+                    height="140%"
+                  >
+                    <feGaussianBlur stdDeviation="4.5" />
+                  </filter>
+                  <linearGradient
+                    id="hero-left-feather-grad"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="0%"
+                  >
+                    <stop offset="0%" stopColor="#EFE8DD" stopOpacity="1" />
+                    <stop offset="55%" stopColor="#EFE8DD" stopOpacity="0.82" />
+                    <stop offset="100%" stopColor="#EFE8DD" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+
+                {/* Lapisan feather halus mengikuti kontur S-curve agar foto memudar ke #EFE8DD */}
+                <path
+                  d="M -10 -10 L 48 -10 C 44 14, 14 26, 12 52 C 10 76, 26 89, 38 110 L -10 110 Z"
+                  fill="#EFE8DD"
+                  filter="url(#hero-scurve-feather)"
+                />
+
+                {/* Lapisan S-curve solid Warm Alabaster menjaga sisi kiri & tengah navbar 100% bersih */}
+                <path
+                  d="M -2 -2 L 42 -2 C 38 16, 7 28, 6 53 C 5 76, 19 89, 31 102 L -2 102 Z"
+                  fill="#EFE8DD"
+                />
+
+                {/* Gradasi tipis ekstra sepanjang tepi kiri paling ujung */}
+                <rect
+                  x="0"
+                  y="0"
+                  width="12"
+                  height="100"
+                  fill="url(#hero-left-feather-grad)"
+                />
+              </svg>
+
+              {/* Edge Feathering Tepi Bawah: memudar menyatu ke Warm Alabaster #EFE8DD */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#EFE8DD] via-[#EFE8DD]/60 to-transparent sm:h-32 lg:h-44"
+              />
             </div>
           </div>
         </section>
@@ -372,7 +388,7 @@ export default async function HomePage() {
 
       <main>
         {/* ===================================================================
-            FLOATING HORIZONTAL CAPSULE DOCK + GALERI + RESERVASI
+            FLOATING PILL DOCK 3 SEGMEN + GALERI + RESERVASI
         =================================================================== */}
         <BookingExperience
           initialSettings={settings}
@@ -440,7 +456,7 @@ export default async function HomePage() {
                     <dt className="font-sans font-medium text-surface">
                       {DAY_LABELS[item.day_of_week] ?? `Hari ${item.day_of_week}`}
                     </dt>
-                    <dd className="font-mono text-xs text-surface/80 tabular-nums sm:text-sm">
+                    <dd className="font-sans text-xs text-surface/80 tabular-nums sm:text-sm">
                       {item.is_open
                         ? `${formatTimeHHMM(item.open_time)} – ${formatTimeHHMM(
                             item.close_time
@@ -453,20 +469,11 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="flex flex-col items-start justify-between gap-3 border-t border-surface/15 pt-6 sm:flex-row sm:items-center">
+          <div className="border-t border-surface/15 pt-6">
             <p className="font-sans text-xs text-surface/75">
               © {new Date().getFullYear()} {settings.store_name} ·{" "}
               {settings.brand_tagline}
             </p>
-
-            {/* Tautan Halus ke Dashboard Kasir /admin */}
-            <Link
-              href="/admin"
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-surface/20 px-4 py-2 font-sans text-xs font-medium text-surface/85 transition-colors hover:border-terracotta hover:bg-terracotta hover:text-surface"
-            >
-              <Lock className="h-3.5 w-3.5" />
-              <span>Akses Kasir</span>
-            </Link>
           </div>
         </div>
       </footer>

@@ -124,7 +124,7 @@ export function LiveStatusTag({
           >
             ·
           </span>
-          <span className="font-mono text-xs tabular-nums">{scheduleNote}</span>
+          <span className="font-sans text-xs tabular-nums">{scheduleNote}</span>
         </span>
       ) : null}
     </div>

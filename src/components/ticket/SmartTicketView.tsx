@@ -337,8 +337,10 @@ export function SmartTicketView({
             </h1>
             <p className="mt-2 font-sans text-sm leading-relaxed text-muted">
               Kode reservasi resmi Madzhair.co menggunakan format{" "}
-              <span className="font-mono font-semibold text-ink">MDZ-XXXX</span>.
-              Periksa kembali tautan dari WhatsApp Anda.
+              <span className="font-sans font-semibold tracking-[0.04em] text-ink tabular-nums">
+                MDZ-XXXX
+              </span>
+              . Periksa kembali tautan dari WhatsApp Anda.
             </p>
             <Link
               href="/"
@@ -352,7 +354,7 @@ export function SmartTicketView({
             <Loader2 className="mx-auto h-6 w-6 animate-spin text-terracotta" />
             <p className="mt-3 font-sans text-xs font-medium text-muted">
               Memuat tiket{" "}
-              <span className="font-mono font-semibold text-ink tabular-nums">
+              <span className="font-sans font-semibold text-ink tabular-nums">
                 {ticketCode}
               </span>
               ...
@@ -362,7 +364,7 @@ export function SmartTicketView({
           <section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm sm:p-8">
             <p className="font-sans text-xs font-medium text-muted">
               Smart Ticket ·{" "}
-              <span className="font-mono font-semibold text-ink tabular-nums">
+              <span className="font-sans font-semibold text-ink tabular-nums">
                 {ticketCode}
               </span>
             </p>
@@ -416,7 +418,7 @@ export function SmartTicketView({
                 <p className="font-sans text-xs font-medium text-muted">
                   Kode reservasi resmi
                 </p>
-                <h1 className="mt-1.5 font-mono text-4xl font-bold tracking-[0.14em] text-terracotta tabular-nums sm:text-5xl">
+                <h1 className="mt-1.5 font-sans text-4xl font-bold tracking-[0.08em] text-terracotta tabular-nums sm:text-5xl">
                   {booking.ticket_code}
                 </h1>
                 {isDemoTicket ? (
@@ -448,14 +450,14 @@ export function SmartTicketView({
                   <dt className="text-xs font-medium text-muted">
                     Hari &amp; tanggal
                   </dt>
-                  <dd className="text-sm font-medium text-ink">
+                  <dd className="text-sm font-medium text-ink tabular-nums">
                     {formatIndonesianDateFull(booking.booking_date)}
                   </dd>
                 </div>
 
                 <div className="flex flex-col justify-between gap-1 py-4 sm:flex-row sm:items-center">
                   <dt className="text-xs font-medium text-muted">Jam kursi</dt>
-                  <dd className="font-mono text-base font-bold text-terracotta tabular-nums">
+                  <dd className="font-sans text-base font-bold text-terracotta tabular-nums">
                     {formatTimeHHMM(booking.start_time)} –{" "}
                     {formatTimeHHMM(booking.end_time)} WIB
                   </dd>
@@ -606,7 +608,7 @@ export function SmartTicketView({
                                       : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
                                 }`}
                               >
-                                <span className="font-mono text-xs font-semibold tabular-nums">
+                                <span className="font-sans text-xs font-semibold tabular-nums">
                                   {slot.time}
                                 </span>
                                 <span
