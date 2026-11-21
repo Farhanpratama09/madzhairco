@@ -31,10 +31,13 @@ export function EditorialSectionHeader({
     <header className={`border-b border-hairline pb-5 ${className}`}>
       {/* Baris Indeks Bernomor + Garis Hairline Editorial (Anti-Pill-Badge) */}
       <div className="mb-3.5 flex items-center gap-3">
-        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 bg-brass" />
-        <p className="font-mono text-xs tracking-[0.22em] uppercase text-stone tabular-nums">
-          <span className="text-ivory">{index}</span>
-          <span className="mx-2 text-hairline">/</span>
+        <span
+          aria-hidden="true"
+          className="h-1.5 w-1.5 shrink-0 rounded-[2px] bg-terracotta"
+        />
+        <p className="font-mono text-xs tracking-[0.22em] uppercase text-muted tabular-nums">
+          <span className="font-semibold text-terracotta">{index}</span>
+          <span className="mx-2 text-muted/50">/</span>
           <span>{label}</span>
         </p>
         <span aria-hidden="true" className="h-px flex-1 bg-hairline" />
@@ -43,12 +46,12 @@ export function EditorialSectionHeader({
       {/* Baris Judul Editorial & Aksi Opsional */}
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="max-w-2xl">
-          <Heading className="font-display text-2xl leading-[1.08] font-bold tracking-tight text-ivory sm:text-3xl md:text-4xl">
+          <Heading className="font-display text-2xl leading-[1.08] font-bold tracking-tight text-ink sm:text-3xl md:text-4xl">
             {title}
             {accentTitle ? (
               <>
                 {" "}
-                <span className="font-serif font-normal italic text-brass">
+                <span className="font-serif font-normal italic text-terracotta">
                   {accentTitle}
                 </span>
               </>
@@ -56,7 +59,7 @@ export function EditorialSectionHeader({
           </Heading>
 
           {description ? (
-            <p className="mt-2.5 text-sm leading-relaxed text-stone sm:text-base">
+            <p className="mt-2.5 text-sm leading-relaxed text-muted sm:text-base">
               {description}
             </p>
           ) : null}

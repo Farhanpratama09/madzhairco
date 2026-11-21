@@ -42,15 +42,11 @@ export function BrandMark({
 
   const content = (
     <span className={`inline-flex items-center ${styles.gap} select-none ${className}`}>
-      {/* Monogram Arsitektural Persegi — tanpa pill rounded-full */}
+      {/* Monogram Soft-Editorial rounded-xl — tanpa pill rounded-full */}
       <span
         aria-hidden="true"
-        className={`relative inline-flex shrink-0 items-center justify-center border border-hairline bg-surface ${styles.box}`}
+        className={`relative inline-flex shrink-0 items-center justify-center rounded-xl border border-ink bg-ink ${styles.box}`}
       >
-        {/* Aksen sudut kuningan tipis */}
-        <span className="absolute top-0 left-0 h-1.5 w-1.5 border-t border-l border-brass" />
-        <span className="absolute right-0 bottom-0 h-1.5 w-1.5 border-r border-b border-brass" />
-
         <svg
           viewBox="0 0 28 28"
           fill="none"
@@ -60,16 +56,16 @@ export function BrandMark({
           {/* Garis monogram M arsitektural */}
           <path
             d="M5.5 21.5V6.5L14 15.5L22.5 6.5V21.5"
-            stroke="#F4F3EF"
-            strokeWidth="1.6"
+            stroke="#F7F3EC"
+            strokeWidth="1.75"
             strokeLinecap="square"
             strokeLinejoin="miter"
           />
-          {/* Garis presisi kuningan di dasar monogram */}
+          {/* Garis presisi Burnt Terracotta di dasar monogram */}
           <path
             d="M9.5 21.5H18.5"
-            stroke="#D49B4B"
-            strokeWidth="1.5"
+            stroke="#C25934"
+            strokeWidth="1.75"
             strokeLinecap="square"
           />
         </svg>
@@ -78,16 +74,16 @@ export function BrandMark({
       {variant !== "monogram" && (
         <span className="flex flex-col leading-none">
           <span
-            className={`font-display font-bold uppercase text-ivory ${styles.wordmark}`}
+            className={`font-display font-bold uppercase text-ink ${styles.wordmark}`}
           >
-            MADZHAIR<span className="text-brass">.CO</span>
+            MADZHAIR<span className="text-terracotta">.CO</span>
           </span>
 
           {variant === "full" && (
             <span className="mt-1.5 flex items-center gap-2">
-              <span aria-hidden="true" className="h-px w-4 bg-brass/80" />
+              <span aria-hidden="true" className="h-px w-4 bg-terracotta/85" />
               <span
-                className={`font-mono uppercase text-stone ${styles.subtitle}`}
+                className={`font-mono uppercase text-muted ${styles.subtitle}`}
               >
                 BARBER &amp; CO
               </span>
@@ -103,7 +99,7 @@ export function BrandMark({
       <Link
         href={href}
         aria-label="Madzhair Barber & Co — Beranda"
-        className="inline-flex min-h-[44px] min-w-[44px] items-center transition-opacity hover:opacity-90"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center rounded-xl transition-opacity hover:opacity-85"
       >
         {content}
       </Link>

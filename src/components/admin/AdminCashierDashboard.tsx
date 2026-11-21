@@ -40,9 +40,12 @@ import {
   calculateAvailableSlots,
   findWalkinTargetSlot,
   formatTimeHHMM,
+  getDayOfWeekFromDateStr,
   getStoreNowParts,
   getTodayAndUpcomingDates,
   isStoreOpenLive,
+  minutesToTime,
+  parseTimeToMinutes,
 } from "@/lib/slots";
 import { createClient } from "@/lib/supabase/client";
 import type {
@@ -85,6 +88,8 @@ const DAY_LABELS = [
 
 const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1200;
+/** Tinggi minimal track 60 menit (wajib >= 108px agar 2-jam merentang >= 216px & info + tombol 44px rapi di 360px) */
+const HOUR_ROW_HEIGHT_PX = 128;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -568,6 +573,151 @@ export function AdminCashierDashboard({
     }
     return counts;
   }, [bookings]);
+
+  // Pisahkan antrean timeline aktif (BOOKED / COMPLETED) dengan Riwayat Dibatalkan (CANCELLED)
+  const timelineBookings = useMemo(
+    () =>
+      dayBookings.filter(
+        (b) => b.status === "BOOKED" || b.status === "COMPLETED"
+      ),
+    [dayBookings]
+  );
+
+  const cancelledBookings = useMemo(
+    () => dayBookings.filter((b) => b.status === "CANCELLED"),
+    [dayBookings]
+  );
+
+  const selectedDateMeta = useMemo(() => {
+    const dayOfWeek = getDayOfWeekFromDateStr(selectedDate);
+    const schedule =
+      schedules.find((item) => item.day_of_week === dayOfWeek) ?? null;
+    const closedDate =
+      closedDates.find((item) => item.closed_date === selectedDate) ?? null;
+    return { dayOfWeek, schedule, closedDate };
+  }, [selectedDate, schedules, closedDates]);
+
+  const timelineRange = useMemo(() => {
+    const { schedule, closedDate } = selectedDateMeta;
+    const hasOpenSchedule = Boolean(
+      schedule && schedule.is_open && !closedDate
+    );
+
+    let minMinutes = Number.POSITIVE_INFINITY;
+    let maxMinutes = Number.NEGATIVE_INFINITY;
+
+    if (hasOpenSchedule && schedule) {
+      const openMin = parseTimeToMinutes(schedule.open_time);
+      const closeMin = parseTimeToMinutes(schedule.close_time);
+      if (closeMin > openMin) {
+        minMinutes = Math.min(minMinutes, openMin);
+        maxMinutes = Math.max(maxMinutes, closeMin);
+      }
+    }
+
+    for (const b of timelineBookings) {
+      const bStart = parseTimeToMinutes(b.start_time);
+      const bEnd = parseTimeToMinutes(b.end_time);
+      if (bEnd > bStart) {
+        minMinutes = Math.min(minMinutes, bStart);
+        maxMinutes = Math.max(maxMinutes, bEnd);
+      }
+    }
+
+    if (
+      !Number.isFinite(minMinutes) ||
+      !Number.isFinite(maxMinutes) ||
+      maxMinutes <= minMinutes
+    ) {
+      return null;
+    }
+
+    const startMinutes = Math.floor(minMinutes / 60) * 60;
+    const endMinutes = Math.max(
+      startMinutes + 60,
+      Math.ceil(maxMinutes / 60) * 60
+    );
+
+    const hours: number[] = [];
+    for (let m = startMinutes; m < endMinutes; m += 60) {
+      hours.push(m);
+    }
+
+    return {
+      startMinutes,
+      endMinutes,
+      hours,
+      totalHeightPx: hours.length * HOUR_ROW_HEIGHT_PX,
+    };
+  }, [selectedDateMeta, timelineBookings]);
+
+  const showCurrentTimeLine = Boolean(
+    timelineRange &&
+      selectedDate === nowParts.dateStr &&
+      nowParts.minutesFromMidnight >= timelineRange.startMinutes &&
+      nowParts.minutesFromMidnight <= timelineRange.endMinutes
+  );
+
+  const currentTimeTopPx = timelineRange
+    ? ((nowParts.minutesFromMidnight - timelineRange.startMinutes) / 60) *
+      HOUR_ROW_HEIGHT_PX
+    : 0;
+
+  const activeRescheduleBooking = useMemo(
+    () =>
+      rescheduleBookingId
+        ? timelineBookings.find(
+            (b) => b.id === rescheduleBookingId && b.status === "BOOKED"
+          ) ?? null
+        : null,
+    [rescheduleBookingId, timelineBookings]
+  );
+
+  const activeCancelBooking = useMemo(
+    () =>
+      cancelConfirmId
+        ? timelineBookings.find(
+            (b) => b.id === cancelConfirmId && b.status === "BOOKED"
+          ) ?? null
+        : null,
+    [cancelConfirmId, timelineBookings]
+  );
+
+  const activeRescheduleSlots = useMemo(() => {
+    if (!activeRescheduleBooking) return [];
+
+    const matchedService =
+      services.find((s) => s.id === activeRescheduleBooking.service_id) ??
+      services.find((s) => s.name === activeRescheduleBooking.service_name) ??
+      haircutService;
+
+    if (!matchedService) return [];
+
+    return calculateAvailableSlots({
+      date: activeRescheduleBooking.booking_date,
+      service: matchedService,
+      schedules,
+      closedDates,
+      bookings,
+      settings,
+      nowParts,
+      ignoreLeadTime: true,
+      excludeBookingId: activeRescheduleBooking.id,
+    }).filter(
+      (slot) =>
+        slot.available &&
+        slot.time !== formatTimeHHMM(activeRescheduleBooking.start_time)
+    );
+  }, [
+    activeRescheduleBooking,
+    services,
+    haircutService,
+    schedules,
+    closedDates,
+    bookings,
+    settings,
+    nowParts,
+  ]);
 
   // Handlers: Auth Sign Out
   const handleSignOut = async () => {
@@ -1091,15 +1241,22 @@ export function AdminCashierDashboard({
   };
 
   const isQueueTab = activeTab === "queue";
+  const hasActiveBottomDrawer = Boolean(
+    pendingWalkin || activeRescheduleBooking || activeCancelBooking
+  );
 
   return (
     <div
-      className={`min-h-[100dvh] bg-obsidian text-ivory pt-safe ${
-        isQueueTab ? "pb-44 sm:pb-36" : "pb-safe"
+      className={`min-h-[100dvh] bg-alabaster text-ink pt-safe ${
+        isQueueTab
+          ? hasActiveBottomDrawer
+            ? "pb-72 sm:pb-64"
+            : "pb-44 sm:pb-36"
+          : "pb-safe"
       }`}
     >
       {/* Top Bar Kasir */}
-      <header className="sticky top-0 z-30 border-b border-hairline bg-obsidian/95 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-hairline bg-alabaster/95 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <BrandMark variant="compact" size="sm" href="/" />
@@ -1111,17 +1268,17 @@ export function AdminCashierDashboard({
               onClick={() => void refreshAllData()}
               disabled={refreshing}
               aria-label="Muat ulang data antrean"
-              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center border border-hairline bg-surface text-stone transition-colors hover:border-brass hover:text-ivory disabled:opacity-50"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-hairline bg-surface text-muted transition-colors hover:border-terracotta hover:text-terracotta disabled:opacity-50"
             >
               <RefreshCw
                 aria-hidden="true"
-                className={`h-4 w-4 ${refreshing ? "animate-spin text-brass" : ""}`}
+                className={`h-4 w-4 ${refreshing ? "animate-spin text-terracotta" : ""}`}
               />
             </button>
 
             <Link
               href="/"
-              className="hidden min-h-[44px] items-center gap-1.5 border border-hairline bg-surface px-3 font-mono text-xs tracking-wider uppercase text-stone transition-colors hover:border-brass hover:text-ivory sm:inline-flex"
+              className="hidden min-h-[44px] items-center gap-1.5 rounded-xl border border-hairline bg-surface px-3 font-mono text-xs tracking-wider uppercase text-muted transition-colors hover:border-terracotta hover:text-terracotta sm:inline-flex"
             >
               <span>Web</span>
               <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
@@ -1131,7 +1288,7 @@ export function AdminCashierDashboard({
               type="button"
               onClick={() => void handleSignOut()}
               aria-label="Keluar dari akun admin"
-              className="inline-flex min-h-[44px] items-center gap-1.5 border border-hairline bg-surface px-3 font-mono text-xs tracking-wider uppercase text-stone transition-colors hover:border-crimson-alert hover:text-crimson-alert"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-hairline bg-surface px-3 font-mono text-xs tracking-wider uppercase text-muted transition-colors hover:border-crimson-alert hover:text-crimson-alert"
             >
               <LogOut aria-hidden="true" className="h-4 w-4" />
               <span className="hidden sm:inline">Keluar</span>
@@ -1140,7 +1297,7 @@ export function AdminCashierDashboard({
         </div>
 
         {/* Status Strip + Saklar Tutup Darurat (1-Tap Arm -> 1-Tap Confirm) */}
-        <div className="border-t border-hairline bg-surface/60">
+        <div className="border-t border-hairline bg-surface/80">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-2.5 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-start">
               <LiveStatusTag
@@ -1158,14 +1315,14 @@ export function AdminCashierDashboard({
                 }
                 compact
               />
-              <span className="truncate font-mono text-[11px] text-stone">
+              <span className="truncate font-mono text-[11px] text-muted">
                 {userEmail}
               </span>
             </div>
 
             {forceCloseConfirmOpen ? (
-              <div className="flex items-center justify-between gap-2 border border-hairline bg-obsidian px-3 py-1.5">
-                <span className="text-xs font-medium text-ivory">
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-hairline bg-surface px-3 py-1.5">
+                <span className="text-xs font-medium text-ink">
                   {settings.is_force_closed
                     ? "Buka kembali toko?"
                     : "Aktifkan Tutup Darurat?"}
@@ -1175,10 +1332,10 @@ export function AdminCashierDashboard({
                     type="button"
                     onClick={() => void handleToggleForceClose()}
                     disabled={updatingForceClose}
-                    className={`inline-flex min-h-[44px] items-center px-3 font-mono text-xs font-semibold tracking-wider uppercase transition-opacity disabled:opacity-50 ${
+                    className={`inline-flex min-h-[44px] items-center rounded-xl px-3 font-mono text-xs font-semibold tracking-wider uppercase transition-opacity disabled:opacity-50 ${
                       settings.is_force_closed
-                        ? "bg-emerald-live text-obsidian"
-                        : "bg-crimson-alert text-ivory"
+                        ? "bg-emerald-live text-surface"
+                        : "bg-crimson-alert text-surface"
                     }`}
                   >
                     {updatingForceClose
@@ -1191,7 +1348,7 @@ export function AdminCashierDashboard({
                     type="button"
                     onClick={() => setForceCloseConfirmOpen(false)}
                     disabled={updatingForceClose}
-                    className="inline-flex min-h-[44px] items-center border border-hairline px-3 font-mono text-xs uppercase text-stone hover:text-ivory"
+                    className="inline-flex min-h-[44px] items-center rounded-xl border border-hairline bg-alabaster px-3 font-mono text-xs uppercase text-muted hover:text-ink"
                   >
                     Batal
                   </button>
@@ -1201,10 +1358,10 @@ export function AdminCashierDashboard({
               <button
                 type="button"
                 onClick={() => setForceCloseConfirmOpen(true)}
-                className={`inline-flex min-h-[44px] items-center justify-center gap-2 border px-3.5 font-mono text-xs font-semibold tracking-[0.12em] uppercase transition-colors ${
+                className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border px-3.5 font-mono text-xs font-semibold tracking-[0.12em] uppercase transition-colors ${
                   settings.is_force_closed
-                    ? "border-emerald-live bg-emerald-live/15 text-emerald-live hover:bg-emerald-live/25"
-                    : "border-crimson-alert/70 bg-crimson-alert/10 text-crimson-alert hover:bg-crimson-alert/20"
+                    ? "border-emerald-live/60 bg-emerald-live/12 text-emerald-live hover:bg-emerald-live/20"
+                    : "border-crimson-alert/60 bg-crimson-alert/10 text-crimson-alert hover:bg-crimson-alert/20"
                 }`}
               >
                 <Power aria-hidden="true" className="h-3.5 w-3.5" />
@@ -1227,16 +1384,16 @@ export function AdminCashierDashboard({
           <div
             role="status"
             aria-live="polite"
-            className={`mb-4 flex items-center justify-between gap-3 border px-3.5 py-3 text-sm ${
+            className={`mb-4 flex items-center justify-between gap-3 rounded-xl border bg-surface px-3.5 py-3 text-sm text-ink ${
               toast.type === "success"
-                ? "border-emerald-live/50 bg-emerald-live/10 text-ivory"
-                : "border-crimson-alert/60 bg-crimson-alert/10 text-ivory"
+                ? "border-emerald-live/50 bg-emerald-live/10"
+                : "border-crimson-alert/50 bg-crimson-alert/10"
             }`}
           >
             <div className="flex items-center gap-2.5">
               <span
                 aria-hidden="true"
-                className={`h-2 w-2 shrink-0 ${
+                className={`h-2 w-2 shrink-0 rounded-[2px] ${
                   toast.type === "success"
                     ? "bg-emerald-live"
                     : "bg-crimson-alert"
@@ -1248,7 +1405,7 @@ export function AdminCashierDashboard({
               type="button"
               onClick={() => setToast(null)}
               aria-label="Tutup notifikasi"
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center text-stone hover:text-ivory"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-muted hover:text-ink"
             >
               <X aria-hidden="true" className="h-4 w-4" />
             </button>
@@ -1258,15 +1415,15 @@ export function AdminCashierDashboard({
         {/* Navigasi Mode Utama */}
         <nav
           aria-label="Navigasi Dashboard Kasir"
-          className="mb-6 grid grid-cols-2 border border-hairline bg-surface"
+          className="mb-5 grid grid-cols-2 gap-1.5 rounded-2xl border border-hairline bg-surface p-1.5"
         >
           <button
             type="button"
             onClick={() => setActiveTab("queue")}
-            className={`flex min-h-[48px] items-center justify-center gap-2 border-r border-hairline px-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase transition-colors ${
+            className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-3 font-mono text-xs font-semibold tracking-[0.12em] uppercase transition-colors ${
               activeTab === "queue"
-                ? "bg-brass text-obsidian"
-                : "text-stone hover:text-ivory"
+                ? "bg-terracotta text-surface"
+                : "text-muted hover:bg-surface-elevated hover:text-ink"
             }`}
           >
             <Scissors aria-hidden="true" className="h-4 w-4" />
@@ -1275,10 +1432,10 @@ export function AdminCashierDashboard({
           <button
             type="button"
             onClick={() => setActiveTab("cms")}
-            className={`flex min-h-[48px] items-center justify-center gap-2 px-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase transition-colors ${
+            className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-3 font-mono text-xs font-semibold tracking-[0.12em] uppercase transition-colors ${
               activeTab === "cms"
-                ? "bg-brass text-obsidian"
-                : "text-stone hover:text-ivory"
+                ? "bg-terracotta text-surface"
+                : "text-muted hover:bg-surface-elevated hover:text-ink"
             }`}
           >
             <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
@@ -1287,13 +1444,13 @@ export function AdminCashierDashboard({
         </nav>
 
         {/* ================================================================ */}
-        {/* TAB 1: ANTREAN & KASIR REAL-TIME                                 */}
+        {/* TAB 1: ANTREAN & KASIR REAL-TIME (VISUAL TIME-BLOCK TIMELINE)    */}
         {/* ================================================================ */}
         {activeTab === "queue" ? (
           <section aria-label="Antrean Real-time">
             {/* Peringatan jika Tutup Darurat aktif */}
             {settings.is_force_closed ? (
-              <div className="mb-5 flex items-start gap-3 border border-crimson-alert/60 bg-crimson-alert/10 p-3.5 text-sm text-ivory">
+              <div className="mb-5 flex items-start gap-3 rounded-2xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 text-sm text-ink">
                 <AlertTriangle
                   aria-hidden="true"
                   className="mt-0.5 h-4 w-4 shrink-0 text-crimson-alert"
@@ -1308,8 +1465,8 @@ export function AdminCashierDashboard({
               </div>
             ) : null}
 
-            {/* Date Filter Strip (Hari Ini + 7 Hari ke Depan) */}
-            <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
+            {/* Horizontal Date Scrubber (Hari Ini + 7 Hari ke Depan) */}
+            <div className="mb-5 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 no-scrollbar">
               {upcomingDates.map((d) => {
                 const isSelected = d.dateStr === selectedDate;
                 const count = activeCountByDate.get(d.dateStr) ?? 0;
@@ -1322,26 +1479,30 @@ export function AdminCashierDashboard({
                       setRescheduleBookingId(null);
                       setCancelConfirmId(null);
                     }}
-                    className={`flex min-h-[48px] shrink-0 items-center gap-2 border px-3.5 py-2 text-left transition-colors ${
+                    className={`flex min-h-[48px] shrink-0 snap-start items-center gap-2.5 rounded-xl border px-3.5 py-2 text-left transition-colors ${
                       isSelected
-                        ? "border-brass bg-surface-elevated text-ivory"
-                        : "border-hairline bg-surface text-stone hover:border-stone/60 hover:text-ivory"
+                        ? "border-terracotta bg-terracotta text-surface"
+                        : "border-hairline bg-surface text-ink hover:border-terracotta/60 hover:bg-surface-elevated"
                     }`}
                   >
                     <div className="flex flex-col leading-tight">
-                      <span className="font-mono text-[10px] tracking-[0.16em] uppercase text-brass">
+                      <span
+                        className={`font-mono text-[10px] font-semibold tracking-[0.16em] uppercase ${
+                          isSelected ? "text-surface/85" : "text-terracotta"
+                        }`}
+                      >
                         {d.isToday ? "Hari Ini" : d.dayNameShort}
                       </span>
-                      <span className="font-mono text-xs font-medium tabular-nums">
+                      <span className="font-mono text-xs font-semibold tabular-nums">
                         {d.labelShort.split(", ")[1] ?? d.dateStr}
                       </span>
                     </div>
                     {count > 0 ? (
                       <span
-                        className={`inline-flex h-5 min-w-[20px] items-center justify-center px-1 font-mono text-[11px] font-bold tabular-nums ${
+                        className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1.5 font-mono text-[11px] font-bold tabular-nums ${
                           isSelected
-                            ? "bg-brass text-obsidian"
-                            : "bg-hairline text-ivory"
+                            ? "bg-surface text-terracotta"
+                            : "bg-surface-elevated text-ink"
                         }`}
                       >
                         {count}
@@ -1353,314 +1514,470 @@ export function AdminCashierDashboard({
             </div>
 
             {/* Ringkasan Statistik Hari Terpilih */}
-            <div className="mb-5 grid grid-cols-3 border border-hairline bg-surface">
-              <div className="border-r border-hairline px-3 py-3">
-                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-stone">
+            <div className="mb-5 grid grid-cols-3 divide-x divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
+              <div className="px-3 py-3 sm:px-4">
+                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
                   Menunggu
                 </p>
-                <p className="mt-1 font-mono text-xl font-bold text-brass tabular-nums">
+                <p className="mt-1 font-mono text-xl font-bold text-terracotta tabular-nums">
                   {dayCounts.booked}
                 </p>
               </div>
-              <div className="border-r border-hairline px-3 py-3">
-                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-stone">
+              <div className="px-3 py-3 sm:px-4">
+                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
                   Selesai
                 </p>
                 <p className="mt-1 font-mono text-xl font-bold text-emerald-live tabular-nums">
                   {dayCounts.completed}
                 </p>
               </div>
-              <div className="px-3 py-3">
-                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-stone">
+              <div className="px-3 py-3 sm:px-4">
+                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
                   Batal
                 </p>
-                <p className="mt-1 font-mono text-xl font-bold text-stone tabular-nums">
+                <p className="mt-1 font-mono text-xl font-bold text-muted tabular-nums">
                   {dayCounts.cancelled}
                 </p>
               </div>
             </div>
 
-            {/* Daftar Kartu Antrean */}
-            {dayBookings.length === 0 ? (
-              <div className="border border-hairline bg-surface px-5 py-10 text-center">
-                <p className="font-display text-lg font-bold text-ivory">
-                  Belum Ada Antrean
+            {/* Header & Legenda Visual Time-Block Timeline */}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-0.5">
+              <p className="font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-muted tabular-nums">
+                Timeline Kursi{" "}
+                {timelineRange
+                  ? `· ${minutesToTime(timelineRange.startMinutes)}–${minutesToTime(
+                      timelineRange.endMinutes
+                    )} WIB`
+                  : "· Libur"}
+              </p>
+
+              <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] text-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className="h-2.5 w-2.5 rounded-[2px] bg-terracotta"
+                  />
+                  <span>Online</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className="h-2.5 w-2.5 rounded-[2px] bg-ink"
+                  />
+                  <span>Walk-in</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className="h-2.5 w-2.5 rounded-[2px] bg-emerald-live"
+                  />
+                  <span>Selesai</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Peringatan bila tanggal terpilih libur tetapi masih ada jadwal aktif */}
+            {(selectedDateMeta.closedDate ||
+              !selectedDateMeta.schedule?.is_open) &&
+            timelineBookings.length > 0 ? (
+              <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-crimson-alert/45 bg-crimson-alert/10 p-3.5 text-xs text-ink">
+                <AlertTriangle
+                  aria-hidden="true"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-crimson-alert"
+                />
+                <p>
+                  Tanggal ini berstatus{" "}
+                  <strong className="font-semibold">
+                    {selectedDateMeta.closedDate
+                      ? `Libur Khusus (${selectedDateMeta.closedDate.reason || "Tutup"})`
+                      : "Hari Libur Rutin"}
+                  </strong>
+                  , namun masih memiliki jadwal aktif yang tampil di timeline.
                 </p>
-                <p className="mt-1.5 text-sm text-stone">
-                  {selectedDate === nowParts.dateStr
-                    ? "Gunakan tombol + Walk-in di bawah untuk mengunci kursi secara instan."
-                    : "Belum ada reservasi online untuk tanggal ini."}
+              </div>
+            ) : null}
+
+            {/* Visual Time-Block Timeline Utama */}
+            {!timelineRange ? (
+              <div className="rounded-2xl border border-hairline bg-surface px-5 py-10 text-center">
+                <p className="font-mono text-[11px] font-semibold tracking-[0.18em] uppercase text-crimson-alert">
+                  {selectedDateMeta.closedDate
+                    ? "LIBUR KHUSUS"
+                    : "HARI LIBUR RUTIN"}
+                </p>
+                <p className="mt-1.5 font-display text-lg font-bold text-ink">
+                  Toko Tidak Beroperasi
+                </p>
+                <p className="mt-1.5 text-sm text-muted">
+                  {selectedDateMeta.closedDate?.reason ||
+                    "Tanggal ini ditandai libur pada jadwal operasional."}
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {dayBookings.map((booking) => {
-                  const isBooked = booking.status === "BOOKED";
-                  const isCompleted = booking.status === "COMPLETED";
-                  const isCancelled = booking.status === "CANCELLED";
-                  const isWalkin = booking.source === "WALKIN";
-                  const isBusy = busyBookingId === booking.id;
-                  const isRescheduling = rescheduleBookingId === booking.id;
-                  const isConfirmingCancel = cancelConfirmId === booking.id;
+              <div className="rounded-2xl border border-hairline bg-surface p-2.5 sm:p-4">
+                {timelineBookings.length === 0 ? (
+                  <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-hairline bg-alabaster/70 px-3.5 py-2.5 text-xs text-muted">
+                    <span>
+                      {selectedDate === nowParts.dateStr
+                        ? "Belum ada antrean aktif hari ini — gunakan tombol + Walk-in di bawah untuk mengunci kursi."
+                        : "Belum ada reservasi aktif pada tanggal ini."}
+                    </span>
+                  </div>
+                ) : null}
 
-                  const matchedService =
-                    services.find((s) => s.id === booking.service_id) ??
-                    services.find((s) => s.name === booking.service_name) ??
-                    haircutService;
-
-                  const rescheduleSlots =
-                    isRescheduling && matchedService
-                      ? calculateAvailableSlots({
-                          date: booking.booking_date,
-                          service: matchedService,
-                          schedules,
-                          closedDates,
-                          bookings,
-                          settings,
-                          nowParts,
-                          ignoreLeadTime: true,
-                          excludeBookingId: booking.id,
-                        }).filter(
-                          (slot) =>
-                            slot.available &&
-                            slot.time !== formatTimeHHMM(booking.start_time)
-                        )
-                      : [];
-
-                  return (
-                    <article
-                      key={booking.id}
-                      className={`relative border bg-surface transition-colors ${
-                        isBooked
-                          ? "border-hairline"
-                          : "border-hairline/70 opacity-75"
-                      }`}
-                    >
-                      {/* Bar aksen vertikal kiri sesuai status */}
+                <div className="relative flex gap-2 sm:gap-3">
+                  {/* Kolom Penanda Jam (Left Time Axis) */}
+                  <div
+                    aria-hidden="true"
+                    style={{ height: `${timelineRange.totalHeightPx}px` }}
+                    className="relative w-12 shrink-0 select-none sm:w-16"
+                  >
+                    {timelineRange.hours.map((hourStart, idx) => (
                       <span
-                        aria-hidden="true"
-                        className={`absolute top-0 bottom-0 left-0 w-1 ${
-                          isBooked
-                            ? isWalkin
-                              ? "bg-ivory"
-                              : "bg-brass"
-                            : isCompleted
-                              ? "bg-emerald-live"
-                              : "bg-crimson-alert/60"
+                        key={hourStart}
+                        style={{
+                          top:
+                            idx === 0
+                              ? "4px"
+                              : `${idx * HOUR_ROW_HEIGHT_PX}px`,
+                        }}
+                        className={`absolute right-1 font-mono text-[11px] font-medium text-muted tabular-nums sm:right-2 sm:text-xs ${
+                          idx === 0 ? "translate-y-0" : "-translate-y-1/2"
                         }`}
-                      />
+                      >
+                        {minutesToTime(hourStart)}
+                      </span>
+                    ))}
 
-                      <div className="p-4 pl-5">
-                        {/* Baris Atas: Jam, Badge ONLINE/WALK-IN, Status */}
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2.5">
-                            <span className="font-mono text-lg font-bold tracking-tight text-ivory tabular-nums">
-                              {formatTimeHHMM(booking.start_time)} –{" "}
-                              {formatTimeHHMM(booking.end_time)}
-                            </span>
+                    <span className="absolute right-1 bottom-0 font-mono text-[11px] font-medium text-muted/75 tabular-nums sm:right-2 sm:text-xs">
+                      {minutesToTime(timelineRange.endMinutes)}
+                    </span>
 
-                            <span
-                              className={`inline-flex items-center border px-2 py-0.5 font-mono text-[10px] font-semibold tracking-[0.14em] uppercase ${
-                                isWalkin
-                                  ? "border-stone/50 bg-obsidian text-ivory"
-                                  : "border-brass/60 bg-brass/10 text-brass"
-                              }`}
-                            >
-                              {isWalkin ? "WALK-IN" : "ONLINE"}
-                            </span>
-                          </div>
+                    {/* Tag Waktu Aktif Live */}
+                    {showCurrentTimeLine ? (
+                      <div
+                        style={{ top: `${currentTimeTopPx}px` }}
+                        className="pointer-events-none absolute right-0.5 z-30 -translate-y-1/2 rounded-md bg-terracotta px-1.5 py-0.5 font-mono text-[10px] font-bold text-surface tabular-nums shadow-xs sm:right-1"
+                      >
+                        {nowParts.timeStr}
+                      </div>
+                    ) : null}
+                  </div>
 
+                  {/* Kolom Track Timeline (Slot Kosong + Blok Booking + Live Line) */}
+                  <div
+                    style={{ height: `${timelineRange.totalHeightPx}px` }}
+                    className="relative min-w-0 flex-1"
+                  >
+                    {/* Layer 1: Track Grid 60 Menit & Slot Kosong */}
+                    {timelineRange.hours.map((hourStart) => {
+                      const isHourOccupied = timelineBookings.some((b) => {
+                        const bStart = parseTimeToMinutes(b.start_time);
+                        const bEnd = parseTimeToMinutes(b.end_time);
+                        return bStart < hourStart + 60 && bEnd > hourStart;
+                      });
+
+                      const isPastHour =
+                        selectedDate < nowParts.dateStr ||
+                        (selectedDate === nowParts.dateStr &&
+                          hourStart + 60 <= nowParts.minutesFromMidnight);
+
+                      return (
+                        <div
+                          key={hourStart}
+                          style={{ height: `${HOUR_ROW_HEIGHT_PX}px` }}
+                          className="border-t border-hairline py-1"
+                        >
+                          {!isHourOccupied ? (
+                            <div className="flex h-full items-center justify-between gap-2 rounded-xl border border-dashed border-hairline bg-alabaster/50 px-3 py-2">
+                              <span className="font-mono text-xs font-medium text-muted tabular-nums">
+                                {minutesToTime(hourStart)} –{" "}
+                                {minutesToTime(hourStart + 60)}
+                              </span>
+                              <span className="font-mono text-[10px] tracking-[0.12em] uppercase text-muted/80 sm:text-[11px]">
+                                {settings.is_force_closed
+                                  ? "Tutup"
+                                  : selectedDateMeta.closedDate ||
+                                      !selectedDateMeta.schedule?.is_open
+                                    ? "Libur"
+                                    : isPastHour
+                                      ? "Berlalu"
+                                      : "Kursi Kosong"}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+
+                    {/* Garis Penutup Bawah Grid */}
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-hairline"
+                    />
+
+                    {/* Layer 2: Blok Booking Proporsional (60m >= 108px, 120m >= 216px) */}
+                    {timelineBookings.map((booking) => {
+                      const startMin = parseTimeToMinutes(booking.start_time);
+                      const endMin = parseTimeToMinutes(booking.end_time);
+                      const durationMin = Math.max(60, endMin - startMin);
+                      const topPx =
+                        ((startMin - timelineRange.startMinutes) / 60) *
+                        HOUR_ROW_HEIGHT_PX;
+                      const heightPx = (durationMin / 60) * HOUR_ROW_HEIGHT_PX;
+                      const isMultiBlock = durationMin >= 120;
+
+                      const isBooked = booking.status === "BOOKED";
+                      const isWalkin = booking.source === "WALKIN";
+                      const isBusy = busyBookingId === booking.id;
+                      const isRescheduling = rescheduleBookingId === booking.id;
+                      const isConfirmingCancel = cancelConfirmId === booking.id;
+
+                      return (
+                        <article
+                          key={booking.id}
+                          style={{
+                            top: `${topPx + 4}px`,
+                            height: `${Math.max(108, heightPx - 8)}px`,
+                          }}
+                          className={`absolute inset-x-0 z-10 overflow-hidden rounded-xl border transition-shadow ${
+                            isBooked
+                              ? isRescheduling
+                                ? "border-terracotta bg-surface ring-2 ring-terracotta/25"
+                                : isConfirmingCancel
+                                  ? "border-crimson-alert bg-surface ring-2 ring-crimson-alert/25"
+                                  : "border-hairline bg-surface shadow-xs"
+                              : "border-hairline bg-surface-elevated/85"
+                          }`}
+                        >
+                          {/* Bar aksen vertikal kiri */}
                           <span
-                            className={`font-mono text-[11px] font-semibold tracking-[0.14em] uppercase ${
+                            aria-hidden="true"
+                            className={`absolute top-0 bottom-0 left-0 w-1 ${
                               isBooked
-                                ? "text-brass"
-                                : isCompleted
-                                  ? "text-emerald-live"
-                                  : "text-crimson-alert"
+                                ? isWalkin
+                                  ? "bg-ink"
+                                  : "bg-terracotta"
+                                : "bg-emerald-live"
                             }`}
-                          >
-                            {isBooked
-                              ? "BOOKED"
-                              : isCompleted
-                                ? "SELESAI"
-                                : "DIBATALKAN"}
-                          </span>
-                        </div>
+                          />
 
-                        {/* Baris Tengah: Nama, Layanan & Kode Tiket */}
-                        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-b border-hairline pb-3">
-                          <div>
-                            <p className="font-display text-base font-bold text-ivory">
-                              {booking.customer_name}
-                            </p>
-                            <p className="text-xs text-stone">
-                              {booking.service_name}
-                            </p>
-                          </div>
+                          <div className="flex h-full flex-col justify-between gap-1.5 p-2 pl-3 sm:p-2.5 sm:pl-4">
+                            {/* Baris Atas: Nama, Badge ONLINE/WALK-IN, Jam + Layanan, Kode Tiket */}
+                            <div className="flex min-w-0 items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex min-w-0 items-center gap-1.5">
+                                  <p className="truncate font-display text-sm font-bold leading-tight text-ink sm:text-base">
+                                    {booking.customer_name}
+                                  </p>
+                                  <span
+                                    className={`inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase ${
+                                      isWalkin
+                                        ? "border-ink bg-ink text-surface"
+                                        : "border-terracotta/40 bg-terracotta/12 text-terracotta"
+                                    }`}
+                                  >
+                                    {isWalkin ? "WALK-IN" : "ONLINE"}
+                                  </span>
+                                </div>
 
-                          <Link
-                            href={`/tiket/${booking.ticket_code}`}
-                            className="inline-flex min-h-[44px] items-center gap-1.5 border border-hairline bg-obsidian px-3 font-mono text-xs font-medium tracking-wider text-ivory tabular-nums transition-colors hover:border-brass hover:text-brass"
-                          >
-                            <span>{booking.ticket_code}</span>
-                            <ExternalLink
-                              aria-hidden="true"
-                              className="h-3.5 w-3.5 text-stone"
-                            />
-                          </Link>
-                        </div>
+                                <p className="mt-0.5 truncate font-mono text-[11px] text-muted tabular-nums">
+                                  {formatTimeHHMM(booking.start_time)}–
+                                  {formatTimeHHMM(booking.end_time)} ·{" "}
+                                  {booking.service_name}
+                                </p>
+                              </div>
 
-                        {/* Aksi Cepat (untuk status BOOKED) */}
-                        {isBooked ? (
-                          <div className="mt-3 space-y-2.5">
-                            <div className="grid grid-cols-3 gap-2">
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() =>
-                                  void handleBookingMutation(booking.id, {
-                                    action: "complete",
-                                  })
-                                }
-                                className="inline-flex min-h-[44px] items-center justify-center gap-1.5 border border-emerald-live/60 bg-emerald-live/10 px-2 font-mono text-xs font-semibold tracking-wider uppercase text-emerald-live transition-colors hover:bg-emerald-live hover:text-obsidian disabled:opacity-50"
+                              <Link
+                                href={`/tiket/${booking.ticket_code}`}
+                                className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-xl border border-hairline bg-alabaster/75 px-2.5 font-mono text-[11px] font-semibold tracking-wide text-ink tabular-nums transition-colors hover:border-terracotta hover:text-terracotta"
                               >
-                                <Check
+                                <span>{booking.ticket_code}</span>
+                                <ExternalLink
                                   aria-hidden="true"
-                                  className="h-3.5 w-3.5"
+                                  className="h-3 w-3 text-muted"
                                 />
-                                <span>Selesai</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() => {
-                                  setCancelConfirmId(null);
-                                  setRescheduleBookingId((prev) =>
-                                    prev === booking.id ? null : booking.id
-                                  );
-                                }}
-                                className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 border px-2 font-mono text-xs font-semibold tracking-wider uppercase transition-colors disabled:opacity-50 ${
-                                  isRescheduling
-                                    ? "border-brass bg-brass text-obsidian"
-                                    : "border-hairline bg-obsidian text-ivory hover:border-brass"
-                                }`}
-                              >
-                                <Clock
-                                  aria-hidden="true"
-                                  className="h-3.5 w-3.5"
-                                />
-                                <span>Geser</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() => {
-                                  setRescheduleBookingId(null);
-                                  setCancelConfirmId((prev) =>
-                                    prev === booking.id ? null : booking.id
-                                  );
-                                }}
-                                className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 border px-2 font-mono text-xs font-semibold tracking-wider uppercase transition-colors disabled:opacity-50 ${
-                                  isConfirmingCancel
-                                    ? "border-crimson-alert bg-crimson-alert text-ivory"
-                                    : "border-hairline bg-obsidian text-stone hover:border-crimson-alert hover:text-crimson-alert"
-                                }`}
-                              >
-                                <X aria-hidden="true" className="h-3.5 w-3.5" />
-                                <span>Batal</span>
-                              </button>
+                              </Link>
                             </div>
 
-                            {/* Tap 2 untuk Geser Jam */}
-                            {isRescheduling ? (
-                              <div className="border border-brass/50 bg-obsidian p-3">
-                                <div className="mb-2 flex items-center justify-between">
-                                  <p className="font-mono text-[11px] tracking-[0.14em] uppercase text-brass">
-                                    Pilih Jam Pengganti (1 Tap)
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => setRescheduleBookingId(null)}
-                                    className="font-mono text-xs text-stone hover:text-ivory"
-                                  >
-                                    Tutup
-                                  </button>
-                                </div>
-
-                                {rescheduleSlots.length === 0 ? (
-                                  <p className="text-xs text-stone">
-                                    Tidak ada slot kosong lain pada tanggal ini.
-                                  </p>
-                                ) : (
-                                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                                    {rescheduleSlots.map((slot) => (
-                                      <button
-                                        key={slot.time}
-                                        type="button"
-                                        disabled={isBusy}
-                                        onClick={() =>
-                                          void handleBookingMutation(
-                                            booking.id,
-                                            {
-                                              action: "reschedule",
-                                              newStartTime: slot.time,
-                                            }
-                                          )
-                                        }
-                                        className="flex min-h-[44px] items-center justify-center border border-hairline bg-surface font-mono text-sm font-semibold text-ivory tabular-nums transition-colors hover:border-brass hover:bg-brass hover:text-obsidian disabled:opacity-50"
-                                      >
-                                        {slot.time}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ) : null}
-
-                            {/* Tap 2 Konfirmasi Batalkan */}
-                            {isConfirmingCancel ? (
-                              <div className="flex items-center justify-between gap-2 border border-crimson-alert/60 bg-crimson-alert/10 px-3 py-2">
-                                <span className="text-xs font-medium text-ivory">
-                                  Batalkan {booking.ticket_code} &amp; bebaskan
-                                  slot?
+                            {/* Info Tambahan untuk Blok 2 Jam (Hair Chemicals 120 menit) */}
+                            {isMultiBlock ? (
+                              <div className="my-auto flex items-center justify-between gap-2 rounded-xl border border-hairline/85 bg-alabaster/65 px-3 py-2">
+                                <span className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-wider uppercase text-muted">
+                                  <Sparkles
+                                    aria-hidden="true"
+                                    className="h-3.5 w-3.5 text-terracotta"
+                                  />
+                                  <span>2 Blok Berurutan (120 Menit)</span>
                                 </span>
-                                <div className="flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    disabled={isBusy}
-                                    onClick={() =>
-                                      void handleBookingMutation(booking.id, {
-                                        action: "cancel",
-                                      })
-                                    }
-                                    className="inline-flex min-h-[44px] items-center bg-crimson-alert px-3 font-mono text-xs font-semibold uppercase text-ivory disabled:opacity-50"
-                                  >
-                                    {isBusy ? "Proses..." : "Ya, Batalkan"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setCancelConfirmId(null)}
-                                    className="inline-flex min-h-[44px] items-center border border-hairline bg-obsidian px-3 font-mono text-xs uppercase text-stone"
-                                  >
-                                    Tidak
-                                  </button>
-                                </div>
+                                <span
+                                  className={`font-mono text-[11px] font-semibold tracking-wider uppercase ${
+                                    isBooked
+                                      ? "text-terracotta"
+                                      : "text-emerald-live"
+                                  }`}
+                                >
+                                  {isBooked ? "BOOKED" : "SELESAI"}
+                                </span>
                               </div>
                             ) : null}
+
+                            {/* Baris Bawah: 3 Tombol Aksi Cepat (BOOKED) atau Label Selesai (COMPLETED) */}
+                            {isBooked ? (
+                              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() =>
+                                    void handleBookingMutation(booking.id, {
+                                      action: "complete",
+                                    })
+                                  }
+                                  className="inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl border border-emerald-live/50 bg-emerald-live/10 px-1.5 font-mono text-[11px] font-semibold tracking-wider uppercase text-emerald-live transition-colors hover:bg-emerald-live hover:text-surface disabled:opacity-50 sm:gap-1.5 sm:px-2 sm:text-xs"
+                                >
+                                  <Check
+                                    aria-hidden="true"
+                                    className="h-3.5 w-3.5 shrink-0"
+                                  />
+                                  <span>Selesai</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => {
+                                    setPendingWalkin(null);
+                                    setCancelConfirmId(null);
+                                    setRescheduleBookingId((prev) =>
+                                      prev === booking.id ? null : booking.id
+                                    );
+                                  }}
+                                  className={`inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl border px-1.5 font-mono text-[11px] font-semibold tracking-wider uppercase transition-colors disabled:opacity-50 sm:gap-1.5 sm:px-2 sm:text-xs ${
+                                    isRescheduling
+                                      ? "border-terracotta bg-terracotta text-surface"
+                                      : "border-hairline bg-alabaster/80 text-ink hover:border-terracotta hover:text-terracotta"
+                                  }`}
+                                >
+                                  <Clock
+                                    aria-hidden="true"
+                                    className="h-3.5 w-3.5 shrink-0"
+                                  />
+                                  <span>Geser</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => {
+                                    setPendingWalkin(null);
+                                    setRescheduleBookingId(null);
+                                    setCancelConfirmId((prev) =>
+                                      prev === booking.id ? null : booking.id
+                                    );
+                                  }}
+                                  className={`inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl border px-1.5 font-mono text-[11px] font-semibold tracking-wider uppercase transition-colors disabled:opacity-50 sm:gap-1.5 sm:px-2 sm:text-xs ${
+                                    isConfirmingCancel
+                                      ? "border-crimson-alert bg-crimson-alert text-surface"
+                                      : "border-hairline bg-alabaster/80 text-muted hover:border-crimson-alert hover:text-crimson-alert"
+                                  }`}
+                                >
+                                  <X
+                                    aria-hidden="true"
+                                    className="h-3.5 w-3.5 shrink-0"
+                                  />
+                                  <span>Batal</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between border-t border-hairline/70 pt-1.5">
+                                <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-emerald-live">
+                                  <Check
+                                    aria-hidden="true"
+                                    className="h-3.5 w-3.5"
+                                  />
+                                  <span>Sesi Selesai</span>
+                                </span>
+                                <span className="font-mono text-[11px] text-muted tabular-nums">
+                                  {durationMin} Menit
+                                </span>
+                              </div>
+                            )}
                           </div>
-                        ) : isCancelled ? (
-                          <p className="mt-2 font-mono text-[11px] uppercase tracking-wider text-stone">
-                            Slot telah dikembalikan ke sistem.
-                          </p>
-                        ) : null}
+                        </article>
+                      );
+                    })}
+
+                    {/* Layer 3: Live Current-Time Line (Burnt Terracotta #C25934) */}
+                    {showCurrentTimeLine ? (
+                      <div
+                        aria-label={`Waktu saat ini ${nowParts.timeStr} WIB`}
+                        style={{ top: `${currentTimeTopPx}px` }}
+                        className="pointer-events-none absolute inset-x-0 z-20 flex -translate-y-1/2 items-center"
+                      >
+                        <span className="-ml-1.5 h-2.5 w-2.5 shrink-0 rounded-[2px] bg-terracotta" />
+                        <span className="h-[2px] w-full bg-terracotta" />
                       </div>
-                    </article>
-                  );
-                })}
+                    ) : null}
+                  </div>
+                </div>
               </div>
             )}
+
+            {/* Daftar Ringkas Riwayat Dibatalkan (Terpisah dari Timeline Aktif) */}
+            {cancelledBookings.length > 0 ? (
+              <div className="mt-6 rounded-2xl border border-hairline bg-surface p-4">
+                <div className="mb-3 flex items-center justify-between border-b border-hairline pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className="h-2 w-2 rounded-[2px] bg-crimson-alert"
+                    />
+                    <h3 className="font-display text-sm font-bold tracking-wide uppercase text-ink">
+                      Riwayat Dibatalkan
+                    </h3>
+                  </div>
+                  <span className="font-mono text-xs font-semibold text-muted tabular-nums">
+                    {cancelledBookings.length} jadwal
+                  </span>
+                </div>
+
+                <div className="divide-y divide-hairline">
+                  {cancelledBookings.map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="flex flex-wrap items-center justify-between gap-2.5 py-2.5 first:pt-0 last:pb-0"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-xs font-semibold text-ink tabular-nums">
+                            {formatTimeHHMM(booking.start_time)}–
+                            {formatTimeHHMM(booking.end_time)}
+                          </span>
+                          <span className="truncate font-display text-sm font-bold text-ink">
+                            {booking.customer_name}
+                          </span>
+                          <span className="rounded-md border border-hairline bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase text-muted">
+                            {booking.source === "WALKIN" ? "WALK-IN" : "ONLINE"}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted">
+                          {booking.service_name} • Slot telah dibebaskan
+                        </p>
+                      </div>
+
+                      <Link
+                        href={`/tiket/${booking.ticket_code}`}
+                        className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl border border-hairline bg-alabaster/70 px-3 font-mono text-xs font-medium tracking-wider text-muted tabular-nums transition-colors hover:border-terracotta hover:text-terracotta"
+                      >
+                        <span>{booking.ticket_code}</span>
+                        <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : (
           /* ================================================================ */
@@ -1678,7 +1995,7 @@ export function AdminCashierDashboard({
                 className="mb-4"
               />
 
-              <div className="border border-hairline bg-surface">
+              <div className="overflow-hidden rounded-2xl border border-hairline bg-surface">
                 <div className="divide-y divide-hairline">
                   {scheduleDrafts.map((row) => (
                     <div
@@ -1686,7 +2003,7 @@ export function AdminCashierDashboard({
                       className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex items-center justify-between gap-3 sm:w-44">
-                        <span className="font-display text-sm font-bold text-ivory">
+                        <span className="font-display text-sm font-bold text-ink">
                           {DAY_LABELS[row.day_of_week]}
                         </span>
                         <button
@@ -1700,10 +2017,10 @@ export function AdminCashierDashboard({
                               )
                             )
                           }
-                          className={`inline-flex min-h-[44px] min-w-[84px] items-center justify-center border px-3 font-mono text-xs font-semibold uppercase tracking-wider transition-colors ${
+                          className={`inline-flex min-h-[44px] min-w-[84px] items-center justify-center rounded-xl border px-3 font-mono text-xs font-semibold tracking-wider uppercase transition-colors ${
                             row.is_open
-                              ? "border-emerald-live/60 bg-emerald-live/10 text-emerald-live"
-                              : "border-hairline bg-obsidian text-stone"
+                              ? "border-emerald-live/50 bg-emerald-live/10 text-emerald-live"
+                              : "border-hairline bg-surface-elevated text-muted"
                           }`}
                         >
                           {row.is_open ? "Buka" : "Libur"}
@@ -1714,7 +2031,7 @@ export function AdminCashierDashboard({
                         <div className="flex flex-col gap-1">
                           <label
                             htmlFor={`open-${row.day_of_week}`}
-                            className="font-mono text-[10px] uppercase tracking-wider text-stone"
+                            className="font-mono text-[10px] tracking-wider uppercase text-muted"
                           >
                             Buka
                           </label>
@@ -1732,14 +2049,14 @@ export function AdminCashierDashboard({
                                 )
                               )
                             }
-                            className="min-h-[44px] border border-hairline bg-obsidian px-3 font-mono text-base text-ivory tabular-nums disabled:opacity-40"
+                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-mono text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
                           />
                         </div>
 
                         <div className="flex flex-col gap-1">
                           <label
                             htmlFor={`close-${row.day_of_week}`}
-                            className="font-mono text-[10px] uppercase tracking-wider text-stone"
+                            className="font-mono text-[10px] tracking-wider uppercase text-muted"
                           >
                             Tutup
                           </label>
@@ -1757,7 +2074,7 @@ export function AdminCashierDashboard({
                                 )
                               )
                             }
-                            className="min-h-[44px] border border-hairline bg-obsidian px-3 font-mono text-base text-ivory tabular-nums disabled:opacity-40"
+                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-mono text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
                           />
                         </div>
                       </div>
@@ -1770,7 +2087,7 @@ export function AdminCashierDashboard({
                     type="button"
                     disabled={savingSchedules}
                     onClick={() => void handleSaveSchedules()}
-                    className="flex min-h-[48px] w-full items-center justify-center gap-2 bg-brass px-4 font-display text-sm font-bold tracking-[0.12em] uppercase text-obsidian transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto"
+                    className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-5 font-display text-sm font-bold tracking-[0.12em] uppercase text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto"
                   >
                     <Check aria-hidden="true" className="h-4 w-4" />
                     <span>
@@ -1794,7 +2111,7 @@ export function AdminCashierDashboard({
                 className="mb-4"
               />
 
-              <div className="border border-hairline bg-surface p-4">
+              <div className="rounded-2xl border border-hairline bg-surface p-4">
                 <form
                   onSubmit={handleAddClosedDate}
                   className="grid gap-3 sm:grid-cols-[180px_1fr_auto]"
@@ -1805,7 +2122,7 @@ export function AdminCashierDashboard({
                     aria-label="Pilih tanggal libur"
                     value={newClosedDate}
                     onChange={(e) => setNewClosedDate(e.target.value)}
-                    className="min-h-[44px] border border-hairline bg-obsidian px-3 font-mono text-base text-ivory"
+                    className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-mono text-base text-ink focus:border-terracotta focus:bg-surface focus:outline-none"
                   />
                   <input
                     type="text"
@@ -1813,12 +2130,12 @@ export function AdminCashierDashboard({
                     aria-label="Alasan libur"
                     value={newClosedReason}
                     onChange={(e) => setNewClosedReason(e.target.value)}
-                    className="min-h-[44px] border border-hairline bg-obsidian px-3 text-base text-ivory placeholder:text-stone/50"
+                    className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
                   />
                   <button
                     type="submit"
                     disabled={savingClosedDate}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 bg-brass px-4 font-mono text-xs font-bold tracking-wider uppercase text-obsidian disabled:opacity-50"
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-mono text-xs font-bold tracking-wider uppercase text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
                     <CalendarOff aria-hidden="true" className="h-4 w-4" />
                     <span>
@@ -1829,7 +2146,7 @@ export function AdminCashierDashboard({
 
                 <div className="mt-4 divide-y divide-hairline border-t border-hairline">
                   {closedDates.length === 0 ? (
-                    <p className="py-4 text-sm text-stone">
+                    <p className="py-4 text-sm text-muted">
                       Tidak ada tanggal libur khusus yang terdaftar.
                     </p>
                   ) : (
@@ -1839,10 +2156,10 @@ export function AdminCashierDashboard({
                         className="flex items-center justify-between gap-3 py-3"
                       >
                         <div>
-                          <p className="font-mono text-sm font-semibold text-ivory tabular-nums">
+                          <p className="font-mono text-sm font-semibold text-ink tabular-nums">
                             {item.closed_date}
                           </p>
-                          <p className="text-xs text-stone">
+                          <p className="text-xs text-muted">
                             {item.reason || "Libur khusus"}
                           </p>
                         </div>
@@ -1851,7 +2168,7 @@ export function AdminCashierDashboard({
                           type="button"
                           disabled={deletingClosedId === item.id}
                           onClick={() => void handleDeleteClosedDate(item.id)}
-                          className="inline-flex min-h-[44px] items-center gap-1.5 border border-hairline bg-obsidian px-3 font-mono text-xs uppercase text-crimson-alert transition-colors hover:border-crimson-alert disabled:opacity-50"
+                          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-hairline bg-alabaster/70 px-3 font-mono text-xs uppercase text-crimson-alert transition-colors hover:border-crimson-alert hover:bg-crimson-alert/10 disabled:opacity-50"
                         >
                           <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                           <span>Hapus</span>
@@ -1878,14 +2195,14 @@ export function AdminCashierDashboard({
                 {serviceDrafts.map((service) => (
                   <div
                     key={service.id}
-                    className="border border-hairline bg-surface p-4"
+                    className="rounded-2xl border border-hairline bg-surface p-4"
                   >
                     <div className="mb-4 flex items-center justify-between border-b border-hairline pb-3">
                       <div>
-                        <h3 className="font-display text-lg font-bold text-ivory">
+                        <h3 className="font-display text-lg font-bold text-ink">
                           {service.name}
                         </h3>
-                        <p className="font-mono text-xs text-stone">
+                        <p className="font-mono text-xs text-muted">
                           Blok sistem: {service.slot_duration_minutes} menit
                         </p>
                       </div>
@@ -1895,7 +2212,7 @@ export function AdminCashierDashboard({
                       <div>
                         <label
                           htmlFor={`price-display-${service.id}`}
-                          className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-stone"
+                          className="mb-1 block font-mono text-[11px] tracking-wider uppercase text-muted"
                         >
                           Teks Harga Tampil
                         </label>
@@ -1909,14 +2226,14 @@ export function AdminCashierDashboard({
                               price_display: e.target.value,
                             }))
                           }
-                          className="min-h-[44px] w-full border border-hairline bg-obsidian px-3 text-base text-ivory"
+                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 text-base text-ink focus:border-terracotta focus:bg-surface focus:outline-none"
                         />
                       </div>
 
                       <div>
                         <label
                           htmlFor={`price-min-${service.id}`}
-                          className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-stone"
+                          className="mb-1 block font-mono text-[11px] tracking-wider uppercase text-muted"
                         >
                           Minimal (Rp)
                         </label>
@@ -1929,17 +2246,20 @@ export function AdminCashierDashboard({
                           onChange={(e) =>
                             updateServiceDraft(service.id, (prev) => ({
                               ...prev,
-                              price_min: Number.parseInt(e.target.value || "0", 10),
+                              price_min: Number.parseInt(
+                                e.target.value || "0",
+                                10
+                              ),
                             }))
                           }
-                          className="min-h-[44px] w-full border border-hairline bg-obsidian px-3 font-mono text-base text-ivory tabular-nums"
+                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-mono text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
                         />
                       </div>
 
                       <div>
                         <label
                           htmlFor={`price-max-${service.id}`}
-                          className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-stone"
+                          className="mb-1 block font-mono text-[11px] tracking-wider uppercase text-muted"
                         >
                           Maksimal (Rp)
                         </label>
@@ -1952,10 +2272,13 @@ export function AdminCashierDashboard({
                           onChange={(e) =>
                             updateServiceDraft(service.id, (prev) => ({
                               ...prev,
-                              price_max: Number.parseInt(e.target.value || "0", 10),
+                              price_max: Number.parseInt(
+                                e.target.value || "0",
+                                10
+                              ),
                             }))
                           }
-                          className="min-h-[44px] w-full border border-hairline bg-obsidian px-3 font-mono text-base text-ivory tabular-nums"
+                          className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-mono text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
                         />
                       </div>
                     </div>
@@ -1963,7 +2286,7 @@ export function AdminCashierDashboard({
                     {/* Rincian Varian Harga */}
                     <div className="mt-4 border-t border-hairline pt-3">
                       <div className="mb-2 flex items-center justify-between">
-                        <span className="font-mono text-[11px] uppercase tracking-wider text-stone">
+                        <span className="font-mono text-[11px] tracking-wider uppercase text-muted">
                           Rincian Varian Tarif
                         </span>
                         <button
@@ -1977,18 +2300,18 @@ export function AdminCashierDashboard({
                               ],
                             }))
                           }
-                          className="inline-flex min-h-[44px] items-center gap-1 border border-hairline bg-obsidian px-2.5 font-mono text-xs uppercase text-brass"
+                          className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-3 font-mono text-xs font-semibold uppercase text-terracotta transition-colors hover:border-terracotta"
                         >
                           <Plus aria-hidden="true" className="h-3.5 w-3.5" />
                           <span>Varian</span>
                         </button>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         {service.price_variants.map((variant, idx) => (
                           <div
                             key={`${service.id}-var-${idx}`}
-                            className="grid grid-cols-[1fr_100px_84px_44px] gap-2"
+                            className="grid grid-cols-[1fr_84px_44px] gap-2 rounded-xl border border-hairline/70 bg-alabaster/40 p-2 sm:grid-cols-[1fr_110px_88px_44px] sm:border-0 sm:bg-transparent sm:p-0"
                           >
                             <input
                               type="text"
@@ -2008,7 +2331,7 @@ export function AdminCashierDashboard({
                                   };
                                 })
                               }
-                              className="min-h-[44px] border border-hairline bg-obsidian px-2.5 text-base text-ivory"
+                              className="col-span-3 min-h-[44px] rounded-xl border border-hairline bg-surface px-2.5 text-base text-ink focus:border-terracotta focus:outline-none sm:col-span-1 sm:bg-alabaster/60 sm:focus:bg-surface"
                             />
                             <input
                               type="number"
@@ -2036,7 +2359,7 @@ export function AdminCashierDashboard({
                                   };
                                 })
                               }
-                              className="min-h-[44px] border border-hairline bg-obsidian px-2 font-mono text-base text-ivory tabular-nums"
+                              className="min-h-[44px] rounded-xl border border-hairline bg-surface px-2 font-mono text-base text-ink tabular-nums focus:border-terracotta focus:outline-none sm:bg-alabaster/60 sm:focus:bg-surface"
                             />
                             <input
                               type="text"
@@ -2056,7 +2379,7 @@ export function AdminCashierDashboard({
                                   };
                                 })
                               }
-                              className="min-h-[44px] border border-hairline bg-obsidian px-2 font-mono text-base text-ivory"
+                              className="min-h-[44px] rounded-xl border border-hairline bg-surface px-2 font-mono text-base text-ink focus:border-terracotta focus:outline-none sm:bg-alabaster/60 sm:focus:bg-surface"
                             />
                             <button
                               type="button"
@@ -2069,7 +2392,7 @@ export function AdminCashierDashboard({
                                   ),
                                 }))
                               }
-                              className="flex min-h-[44px] min-w-[44px] items-center justify-center border border-hairline bg-obsidian text-stone hover:text-crimson-alert"
+                              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-hairline bg-surface text-muted transition-colors hover:border-crimson-alert hover:text-crimson-alert"
                             >
                               <Trash2
                                 aria-hidden="true"
@@ -2086,7 +2409,7 @@ export function AdminCashierDashboard({
                         type="button"
                         disabled={savingServiceId === service.id}
                         onClick={() => void handleSaveService(service)}
-                        className="inline-flex min-h-[44px] items-center justify-center gap-2 bg-brass px-4 font-mono text-xs font-bold tracking-wider uppercase text-obsidian disabled:opacity-50"
+                        className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-mono text-xs font-bold tracking-wider uppercase text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
                       >
                         <Check aria-hidden="true" className="h-4 w-4" />
                         <span>
@@ -2116,11 +2439,14 @@ export function AdminCashierDashboard({
                 {/* Form A: Embed Video TikTok / Instagram Reels */}
                 <form
                   onSubmit={handleAddSocialEmbed}
-                  className="border border-hairline bg-surface p-4"
+                  className="rounded-2xl border border-hairline bg-surface p-4"
                 >
                   <div className="mb-3 flex items-center gap-2 border-b border-hairline pb-2.5">
-                    <Link2 aria-hidden="true" className="h-4 w-4 text-brass" />
-                    <h3 className="font-display text-sm font-bold uppercase text-ivory">
+                    <Link2
+                      aria-hidden="true"
+                      className="h-4 w-4 text-terracotta"
+                    />
+                    <h3 className="font-display text-sm font-bold uppercase text-ink">
                       Tambah Embed TikTok / IG Reels
                     </h3>
                   </div>
@@ -2131,7 +2457,7 @@ export function AdminCashierDashboard({
                       placeholder="Judul video (mis. Fade & Taper Clean)"
                       value={socialTitle}
                       onChange={(e) => setSocialTitle(e.target.value)}
-                      className="min-h-[44px] w-full border border-hairline bg-obsidian px-3 text-base text-ivory placeholder:text-stone/50"
+                      className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
                     />
 
                     <div>
@@ -2141,7 +2467,7 @@ export function AdminCashierDashboard({
                         placeholder="https://www.tiktok.com/@... atau https://www.instagram.com/reel/..."
                         value={socialUrl}
                         onChange={(e) => setSocialUrl(e.target.value)}
-                        className="min-h-[44px] w-full border border-hairline bg-obsidian px-3 text-base text-ivory placeholder:text-stone/50"
+                        className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
                       />
                       {socialValidation ? (
                         <p
@@ -2156,7 +2482,7 @@ export function AdminCashierDashboard({
                             : socialValidation.error}
                         </p>
                       ) : (
-                        <p className="mt-1.5 font-mono text-[11px] text-stone">
+                        <p className="mt-1.5 font-mono text-[11px] text-muted">
                           Whitelist: www.tiktok.com, vm/vt.tiktok.com,
                           www.instagram.com
                         </p>
@@ -2168,7 +2494,7 @@ export function AdminCashierDashboard({
                       placeholder="Keterangan singkat (opsional)"
                       value={socialCaption}
                       onChange={(e) => setSocialCaption(e.target.value)}
-                      className="min-h-[44px] w-full border border-hairline bg-obsidian px-3 text-base text-ivory placeholder:text-stone/50"
+                      className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
                     />
 
                     <button
@@ -2177,7 +2503,7 @@ export function AdminCashierDashboard({
                         savingSocial ||
                         (socialValidation ? !socialValidation.valid : false)
                       }
-                      className="flex min-h-[44px] w-full items-center justify-center gap-2 bg-brass px-4 font-mono text-xs font-bold tracking-wider uppercase text-obsidian disabled:opacity-50"
+                      className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-mono text-xs font-bold tracking-wider uppercase text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
                       <Plus aria-hidden="true" className="h-4 w-4" />
                       <span>
@@ -2190,14 +2516,14 @@ export function AdminCashierDashboard({
                 {/* Form B: Upload Foto WebP Client-Side */}
                 <form
                   onSubmit={handleUploadCompressedPhoto}
-                  className="border border-hairline bg-surface p-4"
+                  className="rounded-2xl border border-hairline bg-surface p-4"
                 >
                   <div className="mb-3 flex items-center gap-2 border-b border-hairline pb-2.5">
                     <ImagePlus
                       aria-hidden="true"
-                      className="h-4 w-4 text-brass"
+                      className="h-4 w-4 text-terracotta"
                     />
-                    <h3 className="font-display text-sm font-bold uppercase text-ivory">
+                    <h3 className="font-display text-sm font-bold uppercase text-ink">
                       Upload Foto (Kompresi WebP)
                     </h3>
                   </div>
@@ -2215,9 +2541,12 @@ export function AdminCashierDashboard({
                       type="button"
                       disabled={compressingPhoto}
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex min-h-[48px] w-full items-center justify-center gap-2 border border-dashed border-hairline bg-obsidian px-3 font-mono text-xs uppercase tracking-wider text-ivory transition-colors hover:border-brass"
+                      className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-dashed border-hairline bg-alabaster/60 px-3 font-mono text-xs tracking-wider uppercase text-ink transition-colors hover:border-terracotta"
                     >
-                      <Upload aria-hidden="true" className="h-4 w-4 text-brass" />
+                      <Upload
+                        aria-hidden="true"
+                        className="h-4 w-4 text-terracotta"
+                      />
                       <span>
                         {compressingPhoto
                           ? "Mengompresi ke WebP..."
@@ -2228,20 +2557,20 @@ export function AdminCashierDashboard({
                     </button>
 
                     {compressedPhoto ? (
-                      <div className="flex items-center gap-3 border border-hairline bg-obsidian p-2.5">
+                      <div className="flex items-center gap-3 rounded-xl border border-hairline bg-alabaster/70 p-2.5">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={compressedPhoto.previewUrl}
                           alt="Preview foto terkompresi WebP"
-                          className="h-16 w-14 shrink-0 object-cover"
+                          className="h-16 w-14 shrink-0 rounded-lg object-cover"
                         />
-                        <div className="min-w-0 flex-1 font-mono text-[11px] text-stone">
-                          <p className="truncate text-ivory">
+                        <div className="min-w-0 flex-1 font-mono text-[11px] text-muted">
+                          <p className="truncate font-semibold text-ink">
                             {compressedPhoto.originalName}
                           </p>
                           <p>
                             {compressedPhoto.width}×{compressedPhoto.height}px •{" "}
-                            <span className="text-emerald-live">
+                            <span className="font-semibold text-emerald-live">
                               {formatBytes(compressedPhoto.blob.size)} WebP
                             </span>
                           </p>
@@ -2257,7 +2586,7 @@ export function AdminCashierDashboard({
                       placeholder="Judul foto (mis. Skin Fade Mid)"
                       value={photoTitle}
                       onChange={(e) => setPhotoTitle(e.target.value)}
-                      className="min-h-[44px] w-full border border-hairline bg-obsidian px-3 text-base text-ivory placeholder:text-stone/50"
+                      className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
                     />
 
                     <input
@@ -2265,13 +2594,13 @@ export function AdminCashierDashboard({
                       placeholder="Keterangan singkat (opsional)"
                       value={photoCaption}
                       onChange={(e) => setPhotoCaption(e.target.value)}
-                      className="min-h-[44px] w-full border border-hairline bg-obsidian px-3 text-base text-ivory placeholder:text-stone/50"
+                      className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
                     />
 
                     <button
                       type="submit"
                       disabled={!compressedPhoto || uploadingPhoto}
-                      className="flex min-h-[44px] w-full items-center justify-center gap-2 bg-brass px-4 font-mono text-xs font-bold tracking-wider uppercase text-obsidian disabled:opacity-50"
+                      className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-mono text-xs font-bold tracking-wider uppercase text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
                       <Upload aria-hidden="true" className="h-4 w-4" />
                       <span>
@@ -2283,9 +2612,9 @@ export function AdminCashierDashboard({
               </div>
 
               {/* Daftar Item Galeri */}
-              <div className="mt-4 divide-y divide-hairline border border-hairline bg-surface">
+              <div className="mt-4 divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
                 {galleryItems.length === 0 ? (
-                  <p className="p-4 text-sm text-stone">
+                  <p className="p-4 text-sm text-muted">
                     Belum ada item di galeri database.
                   </p>
                 ) : (
@@ -2301,23 +2630,23 @@ export function AdminCashierDashboard({
                             src={item.media_url}
                             alt={item.title}
                             loading="lazy"
-                            className="h-16 w-14 shrink-0 border border-hairline object-cover"
+                            className="h-16 w-14 shrink-0 rounded-xl border border-hairline object-cover"
                           />
                         ) : (
-                          <div className="flex h-16 w-14 shrink-0 items-center justify-center border border-hairline bg-obsidian font-mono text-[10px] font-bold uppercase text-brass">
+                          <div className="flex h-16 w-14 shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface-elevated font-mono text-[10px] font-bold uppercase text-terracotta">
                             {item.media_type}
                           </div>
                         )}
 
                         <div className="min-w-0">
-                          <p className="truncate font-display text-sm font-bold text-ivory">
+                          <p className="truncate font-display text-sm font-bold text-ink">
                             {item.title}
                           </p>
-                          <p className="truncate font-mono text-xs text-stone">
+                          <p className="truncate font-mono text-xs text-muted">
                             {item.media_url}
                           </p>
                           {item.caption ? (
-                            <p className="mt-0.5 truncate text-xs text-stone">
+                            <p className="mt-0.5 truncate text-xs text-muted">
                               {item.caption}
                             </p>
                           ) : null}
@@ -2329,10 +2658,10 @@ export function AdminCashierDashboard({
                           type="button"
                           disabled={busyGalleryId === item.id}
                           onClick={() => void handleToggleGalleryActive(item)}
-                          className={`inline-flex min-h-[44px] items-center border px-3 font-mono text-xs uppercase transition-colors ${
+                          className={`inline-flex min-h-[44px] items-center rounded-xl border px-3 font-mono text-xs uppercase transition-colors ${
                             item.is_active
-                              ? "border-emerald-live/60 bg-emerald-live/10 text-emerald-live"
-                              : "border-hairline bg-obsidian text-stone"
+                              ? "border-emerald-live/50 bg-emerald-live/10 text-emerald-live"
+                              : "border-hairline bg-surface-elevated text-muted"
                           }`}
                         >
                           {item.is_active ? "Tampil" : "Sembunyi"}
@@ -2343,7 +2672,7 @@ export function AdminCashierDashboard({
                           disabled={busyGalleryId === item.id}
                           onClick={() => void handleDeleteGalleryItem(item)}
                           aria-label={`Hapus ${item.title}`}
-                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center border border-hairline bg-obsidian text-crimson-alert transition-colors hover:border-crimson-alert"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-hairline bg-alabaster/70 text-crimson-alert transition-colors hover:border-crimson-alert hover:bg-crimson-alert/10"
                         >
                           <Trash2 aria-hidden="true" className="h-4 w-4" />
                         </button>
@@ -2358,22 +2687,121 @@ export function AdminCashierDashboard({
       </main>
 
       {/* ================================================================ */}
-      {/* THUMB-ZONE BAR AKSI INSTAN WALK-IN (<= 2 TAP, ZERO TYPING)       */}
+      {/* THUMB-ZONE BAR AKSI INSTAN & SUB-DRAWER GESER / BATAL            */}
       {/* ================================================================ */}
       {isQueueTab ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-obsidian/95 px-4 pt-3 pb-safe backdrop-blur-md">
+        <div className="fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t border-hairline bg-surface/95 px-4 pt-3 pb-safe backdrop-blur-md">
           <div className="mx-auto w-full max-w-4xl space-y-2.5">
-            {/* Konfirmasi Tap ke-2 */}
+            {/* Sub-Drawer 1: Pilihan Jam Pengganti untuk Geser Jadwal */}
+            {activeRescheduleBooking ? (
+              <div className="max-h-[45dvh] overflow-y-auto rounded-2xl border border-terracotta/60 bg-alabaster/90 p-3.5 shadow-sm">
+                <div className="mb-2.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-terracotta">
+                      Geser Jadwal • {activeRescheduleBooking.ticket_code}
+                    </p>
+                    <p className="truncate text-xs font-medium text-ink">
+                      {activeRescheduleBooking.customer_name} (
+                      {activeRescheduleBooking.service_name}) — pilih jam baru:
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRescheduleBookingId(null)}
+                    aria-label="Tutup panel geser jadwal"
+                    className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface text-muted transition-colors hover:text-ink"
+                  >
+                    <X aria-hidden="true" className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {activeRescheduleSlots.length === 0 ? (
+                  <p className="rounded-xl border border-hairline bg-surface px-3 py-2.5 text-xs text-muted">
+                    Tidak ada slot kosong lain pada tanggal ini.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {activeRescheduleSlots.map((slot) => (
+                      <button
+                        key={slot.time}
+                        type="button"
+                        disabled={busyBookingId === activeRescheduleBooking.id}
+                        onClick={() =>
+                          void handleBookingMutation(
+                            activeRescheduleBooking.id,
+                            {
+                              action: "reschedule",
+                              newStartTime: slot.time,
+                            }
+                          )
+                        }
+                        className="flex min-h-[44px] items-center justify-center rounded-xl border border-hairline bg-surface font-mono text-sm font-semibold text-ink tabular-nums transition-colors hover:border-terracotta hover:bg-terracotta hover:text-surface disabled:opacity-50"
+                      >
+                        {slot.time}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {/* Sub-Drawer 2: Konfirmasi Pembatalan Jadwal */}
+            {activeCancelBooking ? (
+              <div className="flex flex-col gap-2.5 rounded-2xl border border-crimson-alert/60 bg-crimson-alert/10 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-crimson-alert">
+                    Konfirmasi Pembatalan
+                  </p>
+                  <p className="text-sm font-medium text-ink">
+                    Batalkan{" "}
+                    <span className="font-mono font-bold">
+                      {activeCancelBooking.ticket_code}
+                    </span>{" "}
+                    ({activeCancelBooking.customer_name}) &amp; bebaskan slot{" "}
+                    <span className="font-mono font-semibold tabular-nums">
+                      {formatTimeHHMM(activeCancelBooking.start_time)}
+                    </span>
+                    ?
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                  <button
+                    type="button"
+                    disabled={busyBookingId === activeCancelBooking.id}
+                    onClick={() =>
+                      void handleBookingMutation(activeCancelBooking.id, {
+                        action: "cancel",
+                      })
+                    }
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-crimson-alert px-3.5 font-mono text-xs font-semibold uppercase text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
+                  >
+                    {busyBookingId === activeCancelBooking.id
+                      ? "Proses..."
+                      : "Ya, Batalkan"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCancelConfirmId(null)}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-hairline bg-surface px-3.5 font-mono text-xs font-semibold uppercase text-muted hover:text-ink"
+                  >
+                    Tidak
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Sub-Drawer 3: Konfirmasi Tap ke-2 Walk-in */}
             {pendingWalkin ? (
-              <div className="flex flex-col gap-2 border border-brass bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-2 rounded-2xl border border-terracotta bg-alabaster/90 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
                   <span
                     aria-hidden="true"
-                    className="h-2 w-2 shrink-0 bg-brass"
+                    className="h-2 w-2 shrink-0 rounded-[2px] bg-terracotta"
                   />
-                  <p className="text-sm font-medium text-ivory">
+                  <p className="text-sm font-medium text-ink">
                     Kunci{" "}
-                    <span className="font-bold text-brass">
+                    <span className="font-bold text-terracotta">
                       Walk-in {pendingWalkin.service.name}
                     </span>{" "}
                     jam{" "}
@@ -2389,7 +2817,7 @@ export function AdminCashierDashboard({
                     type="button"
                     disabled={submittingWalkin}
                     onClick={() => void handleConfirmWalkin()}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-1.5 bg-brass px-4 font-display text-xs font-bold tracking-wider uppercase text-obsidian disabled:opacity-50"
+                    className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-terracotta px-4 font-display text-xs font-bold tracking-wider uppercase text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
                     <Check aria-hidden="true" className="h-4 w-4" />
                     <span>
@@ -2400,7 +2828,7 @@ export function AdminCashierDashboard({
                     type="button"
                     disabled={submittingWalkin}
                     onClick={() => setPendingWalkin(null)}
-                    className="inline-flex min-h-[44px] items-center justify-center border border-hairline bg-obsidian px-4 font-mono text-xs uppercase text-stone hover:text-ivory"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-hairline bg-surface px-4 font-mono text-xs uppercase text-muted hover:text-ink"
                   >
                     Batal
                   </button>
@@ -2415,13 +2843,15 @@ export function AdminCashierDashboard({
                 disabled={!haircutService || !haircutWalkinSlot || submittingWalkin}
                 onClick={() => {
                   if (haircutService && haircutWalkinSlot) {
+                    setRescheduleBookingId(null);
+                    setCancelConfirmId(null);
                     setPendingWalkin({
                       service: haircutService,
                       slot: haircutWalkinSlot,
                     });
                   }
                 }}
-                className="flex min-h-[52px] items-center justify-between gap-2 border border-brass bg-brass px-3.5 py-2 text-left text-obsidian transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:border-hairline disabled:bg-surface disabled:text-stone"
+                className="flex min-h-[52px] items-center justify-between gap-2 rounded-xl border border-terracotta bg-terracotta px-3.5 py-2 text-left text-surface transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:border-hairline disabled:bg-surface-elevated disabled:text-muted"
               >
                 <div className="min-w-0">
                   <p className="truncate font-display text-xs font-bold tracking-wide uppercase sm:text-sm">
@@ -2435,7 +2865,7 @@ export function AdminCashierDashboard({
                 </div>
                 <Scissors
                   aria-hidden="true"
-                  className="h-4 w-4 shrink-0 opacity-85"
+                  className="h-4 w-4 shrink-0 opacity-90"
                 />
               </button>
 
@@ -2446,19 +2876,21 @@ export function AdminCashierDashboard({
                 }
                 onClick={() => {
                   if (chemicalsService && chemicalsWalkinSlot) {
+                    setRescheduleBookingId(null);
+                    setCancelConfirmId(null);
                     setPendingWalkin({
                       service: chemicalsService,
                       slot: chemicalsWalkinSlot,
                     });
                   }
                 }}
-                className="flex min-h-[52px] items-center justify-between gap-2 border border-brass/80 bg-surface-elevated px-3.5 py-2 text-left text-ivory transition-colors hover:border-brass hover:bg-brass/15 disabled:cursor-not-allowed disabled:border-hairline disabled:bg-surface disabled:text-stone"
+                className="flex min-h-[52px] items-center justify-between gap-2 rounded-xl border border-ink bg-ink px-3.5 py-2 text-left text-surface transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-hairline disabled:bg-surface-elevated disabled:text-muted"
               >
                 <div className="min-w-0">
                   <p className="truncate font-display text-xs font-bold tracking-wide uppercase sm:text-sm">
                     + Walk-in Chemicals
                   </p>
-                  <p className="font-mono text-[11px] text-brass tabular-nums">
+                  <p className="font-mono text-[11px] opacity-90 tabular-nums">
                     {chemicalsWalkinSlot
                       ? `${chemicalsWalkinSlot.time} – ${chemicalsWalkinSlot.endTime}`
                       : "Slot < 2 Jam / Tutup"}
@@ -2466,7 +2898,7 @@ export function AdminCashierDashboard({
                 </div>
                 <Sparkles
                   aria-hidden="true"
-                  className="h-4 w-4 shrink-0 text-brass"
+                  className="h-4 w-4 shrink-0 text-terracotta"
                 />
               </button>
             </div>

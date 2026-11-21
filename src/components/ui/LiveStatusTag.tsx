@@ -46,46 +46,46 @@ export function LiveStatusTag({
   const accentBg = isLiveOpen
     ? "bg-emerald-live"
     : isPreOpenOrAfterHours
-      ? "bg-brass"
+      ? "bg-terracotta"
       : "bg-crimson-alert";
 
   const accentPing = isLiveOpen
-    ? "bg-emerald-live/50"
+    ? "bg-emerald-live/45"
     : isPreOpenOrAfterHours
-      ? "bg-brass/40"
+      ? "bg-terracotta/40"
       : "";
 
   const accentText = isLiveOpen
     ? "text-emerald-live"
     : isPreOpenOrAfterHours
-      ? "text-brass"
+      ? "text-terracotta"
       : "text-crimson-alert";
 
   return (
     <div
       role="status"
       aria-live="polite"
-      className={`inline-flex items-stretch border border-hairline bg-surface ${className}`}
+      className={`inline-flex items-stretch overflow-hidden rounded-xl border border-hairline bg-surface ${className}`}
     >
-      {/* Garis aksen semantik vertikal 2px di sisi kiri — tajam & non-pill */}
-      <span aria-hidden="true" className={`w-0.5 shrink-0 ${accentBg}`} />
+      {/* Garis aksen semantik vertikal 3px di sisi kiri — Soft-Editorial non-pill */}
+      <span aria-hidden="true" className={`w-[3px] shrink-0 ${accentBg}`} />
 
       <div
         className={`flex items-center gap-2.5 ${
           compact ? "px-2.5 py-1.5" : "px-3 py-2"
         }`}
       >
-        {/* Titik status persegi tajam (#34D399, #D49B4B, atau #EF4444) */}
+        {/* Titik status non-pill (#2E6F56, #C25934, atau #B83B3B) */}
         <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
           {isLiveOpen || isPreOpenOrAfterHours ? (
             <span
               aria-hidden="true"
-              className={`absolute inset-0 animate-ping ${accentPing}`}
+              className={`absolute inset-0 animate-ping rounded-[2px] ${accentPing}`}
             />
           ) : null}
           <span
             aria-hidden="true"
-            className={`relative block h-2 w-2 ${accentBg}`}
+            className={`relative block h-2 w-2 rounded-[2px] ${accentBg}`}
           />
         </span>
 
@@ -98,7 +98,7 @@ export function LiveStatusTag({
         {scheduleNote ? (
           <>
             <span aria-hidden="true" className="h-3 w-px bg-hairline" />
-            <span className="font-mono text-xs tracking-wide text-stone tabular-nums">
+            <span className="font-mono text-xs tracking-wide text-muted tabular-nums">
               {scheduleNote}
             </span>
           </>

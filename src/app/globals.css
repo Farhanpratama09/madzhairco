@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* Palet Baku Madzhair Barber & Co */
-  --color-obsidian: #0B0B0C;
-  --color-surface: #141416;
-  --color-surface-elevated: #1A1A1D;
-  --color-hairline: #26262A;
-  --color-ivory: #F4F3EF;
-  --color-stone: #9A9891;
-  --color-brass: #D49B4B;
-  --color-emerald-live: #34D399;
-  --color-crimson-alert: #EF4444;
+  /* Palet Baku Madzhair Barber & Co (v1.2 — Warm Alabaster Soft-Editorial 60-30-10) */
+  --color-alabaster: #EFE8DD;
+  --color-surface: #F7F3EC;
+  --color-surface-elevated: #E6DDD0;
+  --color-hairline: #DCD4C6;
+  --color-ink: #303841;
+  --color-muted: #5C646D;
+  --color-terracotta: #C25934;
+  --color-emerald-live: #2E6F56;
+  --color-crimson-alert: #B83B3B;
 
   /* Tipografi Editorial (Anti-AI-Slop: NO Inter/Roboto/Space Grotesk) */
   --font-display: var(--font-syne), ui-sans-serif, system-ui, sans-serif;
@@ -21,16 +21,16 @@
 
 @layer base {
   html {
-    background-color: #0B0B0C;
-    color: #F4F3EF;
-    color-scheme: dark;
+    background-color: #EFE8DD;
+    color: #303841;
+    color-scheme: light;
     -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
   }
 
   body {
-    background-color: #0B0B0C;
-    color: #F4F3EF;
+    background-color: #EFE8DD;
+    color: #303841;
     font-family: var(--font-sans);
     min-height: 100dvh;
     overscroll-behavior-y: contain;
@@ -48,13 +48,22 @@
   }
 
   ::selection {
-    background-color: rgba(212, 155, 75, 0.25);
-    color: #F4F3EF;
+    background-color: rgba(194, 89, 52, 0.18);
+    color: #303841;
   }
 
   :focus-visible {
-    outline: 1px solid #D49B4B;
+    outline: 2px solid #C25934;
     outline-offset: 2px;
+  }
+}
+
+/* Horizontal Date Scrubber: sembunyikan scrollbar sambil tetap scrollable halus */
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -81,25 +90,25 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Garis Batas Arsitektural Tipis (1px solid #26262A) */
+/* Garis Batas Arsitektural Tipis (1px solid #DCD4C6) */
 @utility hairline-border {
-  border: 1px solid #26262A;
+  border: 1px solid #DCD4C6;
 }
 
 @utility hairline-t {
-  border-top: 1px solid #26262A;
+  border-top: 1px solid #DCD4C6;
 }
 
 @utility hairline-b {
-  border-bottom: 1px solid #26262A;
+  border-bottom: 1px solid #DCD4C6;
 }
 
 @utility hairline-l {
-  border-left: 1px solid #26262A;
+  border-left: 1px solid #DCD4C6;
 }
 
 @utility hairline-r {
-  border-right: 1px solid #26262A;
+  border-right: 1px solid #DCD4C6;
 }
 
 /* Standar Area Sentuh Minimal Android & iOS (44px x 44px) */

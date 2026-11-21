@@ -136,54 +136,58 @@ export function InstallPwaBanner({ className = "" }: { className?: string }) {
   return (
     <aside
       aria-label="Panduan instalasi aplikasi kasir"
-      className={`relative flex items-stretch border border-hairline bg-surface ${className}`}
+      className={`relative flex items-stretch overflow-hidden rounded-xl border border-hairline bg-surface ${className}`}
     >
-      {/* Garis aksen kuningan tajam di sisi kiri */}
-      <span aria-hidden="true" className="w-0.5 shrink-0 bg-brass" />
+      {/* Garis aksen Burnt Terracotta di sisi kiri — Soft-Editorial */}
+      <span aria-hidden="true" className="w-[3px] shrink-0 bg-terracotta" />
 
       <div className="flex flex-1 items-center justify-between gap-2 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2.5">
           {env.isIos ? (
             <Share
               aria-hidden="true"
-              className="h-4 w-4 shrink-0 text-brass"
+              className="h-4 w-4 shrink-0 text-terracotta"
             />
           ) : (
             <Smartphone
               aria-hidden="true"
-              className="h-4 w-4 shrink-0 text-brass"
+              className="h-4 w-4 shrink-0 text-terracotta"
             />
           )}
 
           {env.isIos ? (
-            <p className="truncate text-xs text-ivory sm:text-sm">
-              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-brass">
+            <p className="truncate text-xs text-ink sm:text-sm">
+              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-terracotta">
                 iOS PWA
               </span>{" "}
-              <span className="text-stone">•</span> Tap{" "}
-              <span className="font-semibold text-ivory">Share</span>{" "}
-              <span aria-hidden="true">→</span>{" "}
-              <span className="font-semibold text-ivory">
+              <span className="text-muted">•</span> Tap{" "}
+              <span className="font-semibold text-ink">Share</span>{" "}
+              <span aria-hidden="true" className="text-muted">
+                →
+              </span>{" "}
+              <span className="font-semibold text-ink">
                 Add to Home Screen
               </span>
             </p>
           ) : deferredPrompt ? (
-            <p className="truncate text-xs text-ivory sm:text-sm">
-              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-brass">
+            <p className="truncate text-xs text-ink sm:text-sm">
+              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-terracotta">
                 PWA Kasir
               </span>{" "}
-              <span className="text-stone">•</span> Pasang di Home Screen untuk
+              <span className="text-muted">•</span> Pasang di Home Screen untuk
               layar penuh
             </p>
           ) : (
-            <p className="truncate text-xs text-ivory sm:text-sm">
-              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-brass">
+            <p className="truncate text-xs text-ink sm:text-sm">
+              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-terracotta">
                 {env.isAndroid ? "Android PWA" : "Aplikasi Kasir"}
               </span>{" "}
-              <span className="text-stone">•</span> Menu Chrome{" "}
-              <span className="font-mono text-ivory">⋮</span>{" "}
-              <span aria-hidden="true">→</span>{" "}
-              <span className="font-semibold text-ivory">Install App</span>
+              <span className="text-muted">•</span> Menu Chrome{" "}
+              <span className="font-mono font-semibold text-ink">⋮</span>{" "}
+              <span aria-hidden="true" className="text-muted">
+                →
+              </span>{" "}
+              <span className="font-semibold text-ink">Install App</span>
             </p>
           )}
         </div>
@@ -194,7 +198,7 @@ export function InstallPwaBanner({ className = "" }: { className?: string }) {
               type="button"
               onClick={handleInstallClick}
               disabled={installing}
-              className="inline-flex min-h-[44px] items-center gap-1.5 border border-brass bg-brass/15 px-3 text-xs font-semibold tracking-wider uppercase text-brass transition-colors hover:bg-brass hover:text-obsidian disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-terracotta bg-terracotta/10 px-3 text-xs font-semibold tracking-wider uppercase text-terracotta transition-colors hover:bg-terracotta hover:text-surface disabled:opacity-50"
             >
               <Download aria-hidden="true" className="h-3.5 w-3.5" />
               <span>{installing ? "Memasang..." : "Install App"}</span>
@@ -205,7 +209,7 @@ export function InstallPwaBanner({ className = "" }: { className?: string }) {
             type="button"
             onClick={() => setDismissed(true)}
             aria-label="Tutup banner instalasi"
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-stone transition-colors hover:text-ivory"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface-elevated hover:text-ink"
           >
             <X aria-hidden="true" className="h-4 w-4" />
           </button>

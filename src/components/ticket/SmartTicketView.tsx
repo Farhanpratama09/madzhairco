@@ -98,9 +98,9 @@ function getStatusDisplay(status: Booking["status"]) {
   if (status === "COMPLETED") {
     return {
       label: "SELESAI",
-      barClass: "bg-brass",
-      textClass: "text-brass",
-      borderClass: "border-brass/40",
+      barClass: "bg-terracotta",
+      textClass: "text-terracotta",
+      borderClass: "border-terracotta/40",
     };
   }
   return {
@@ -309,15 +309,15 @@ export function SmartTicketView({
   const statusMeta = booking ? getStatusDisplay(booking.status) : null;
 
   return (
-    <div className="min-h-[100dvh] bg-obsidian text-ivory">
+    <div className="min-h-[100dvh] bg-alabaster text-ink">
       {/* Header Top Bar */}
-      <header className="border-b border-hairline bg-obsidian pt-safe">
+      <header className="sticky top-0 z-30 border-b border-hairline bg-alabaster/95 pt-safe backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-safe py-3.5">
           <BrandMark variant="compact" size="sm" href="/" />
 
           <Link
             href="/"
-            className="inline-flex min-h-[44px] items-center gap-2 border border-hairline bg-surface px-4 py-2 font-mono text-xs tracking-[0.14em] uppercase text-ivory transition-colors hover:border-brass hover:text-brass"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-hairline bg-surface px-4 py-2 font-mono text-xs font-medium tracking-[0.14em] uppercase text-ink transition-colors hover:border-terracotta hover:text-terracotta"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Beranda
@@ -328,48 +328,48 @@ export function SmartTicketView({
       <main className="mx-auto max-w-3xl px-safe py-8 pb-safe sm:py-12">
         {/* Invalid Code Format */}
         {!isValidCodeFormat ? (
-          <section className="border border-crimson-alert/50 bg-surface p-6 sm:p-8">
-            <p className="font-mono text-xs tracking-[0.2em] uppercase text-crimson-alert">
+          <section className="rounded-2xl border border-crimson-alert/45 bg-surface p-6 shadow-sm sm:p-8">
+            <p className="font-mono text-xs font-semibold tracking-[0.2em] uppercase text-crimson-alert">
               KODE TIDAK VALID
             </p>
-            <h1 className="mt-2 font-display text-2xl font-bold text-ivory">
+            <h1 className="mt-2 font-display text-2xl font-bold text-ink">
               Format Kode Tiket Tidak Dikenali
             </h1>
-            <p className="mt-2 text-sm leading-relaxed text-stone">
+            <p className="mt-2 text-sm leading-relaxed text-muted">
               Kode reservasi resmi Madzhair.co menggunakan format{" "}
-              <span className="font-mono text-ivory">MDZ-XXXX</span>. Periksa
-              kembali tautan dari WhatsApp Anda.
+              <span className="font-mono font-semibold text-ink">MDZ-XXXX</span>.
+              Periksa kembali tautan dari WhatsApp Anda.
             </p>
             <Link
               href="/"
-              className="mt-6 inline-flex min-h-[44px] items-center gap-2 border border-brass bg-brass px-5 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-obsidian"
+              className="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-terracotta px-5 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-surface transition-colors hover:bg-terracotta/90"
             >
               Kembali ke Halaman Utama
             </Link>
           </section>
         ) : isCheckingDemoStorage ? (
-          <section className="border border-hairline bg-surface p-8 text-center">
-            <Loader2 className="mx-auto h-6 w-6 animate-spin text-brass" />
-            <p className="mt-3 font-mono text-xs tracking-[0.16em] uppercase text-stone">
+          <section className="rounded-2xl border border-hairline bg-surface p-8 text-center shadow-sm">
+            <Loader2 className="mx-auto h-6 w-6 animate-spin text-terracotta" />
+            <p className="mt-3 font-mono text-xs tracking-[0.16em] uppercase text-muted">
               Memuat Tiket {ticketCode}...
             </p>
           </section>
         ) : !booking ? (
-          <section className="border border-hairline bg-surface p-6 sm:p-8">
-            <p className="font-mono text-xs tracking-[0.2em] uppercase text-stone">
+          <section className="rounded-2xl border border-hairline bg-surface p-6 shadow-sm sm:p-8">
+            <p className="font-mono text-xs tracking-[0.2em] uppercase text-muted">
               SMART TICKET // {ticketCode}
             </p>
-            <h1 className="mt-2 font-display text-2xl font-bold text-ivory">
+            <h1 className="mt-2 font-display text-2xl font-bold text-ink">
               Tiket Tidak Ditemukan
             </h1>
-            <p className="mt-2 text-sm leading-relaxed text-stone">
+            <p className="mt-2 text-sm leading-relaxed text-muted">
               {isSupabaseMode
                 ? `Kami tidak menemukan reservasi dengan kode ${ticketCode}. Pastikan tautan tidak terpotong.`
                 : `Mode Demo Lokal aktif: kode ${ticketCode} tidak ditemukan di penyimpanan sesi browser ini.`}
             </p>
             <Link
               href="/"
-              className="mt-6 inline-flex min-h-[48px] items-center gap-2 border border-brass bg-brass px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-obsidian transition-colors hover:bg-brass/90"
+              className="mt-6 inline-flex min-h-[48px] items-center gap-2 rounded-xl bg-terracotta px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-surface transition-colors hover:bg-terracotta/90"
             >
               Buat Booking Baru
             </Link>
@@ -379,33 +379,23 @@ export function SmartTicketView({
             {/* =================================================================
                 KARTU BUKTI TIKET RESMI (MODE PUBLIK)
             ================================================================= */}
-            <article className="relative border border-hairline bg-surface">
-              {/* Aksen Sudut Kuningan */}
-              <span
-                aria-hidden="true"
-                className="absolute top-0 left-0 h-3 w-3 border-t-2 border-l-2 border-brass"
-              />
-              <span
-                aria-hidden="true"
-                className="absolute right-0 bottom-0 h-3 w-3 border-r-2 border-b-2 border-brass"
-              />
-
+            <article className="overflow-hidden rounded-2xl border border-hairline bg-surface shadow-sm">
               {/* Header Kartu Tiket */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-5 py-4 sm:px-7">
                 <div>
-                  <p className="font-mono text-[11px] tracking-[0.2em] uppercase text-stone">
+                  <p className="font-mono text-[11px] font-medium tracking-[0.2em] uppercase text-muted">
                     SMART TICKET // {settings.store_name}
                   </p>
-                  <p className="mt-0.5 text-xs text-stone">
+                  <p className="mt-0.5 text-xs text-muted">
                     {settings.brand_tagline}
                   </p>
                 </div>
 
                 {statusMeta ? (
                   <div
-                    className={`inline-flex items-stretch border bg-obsidian ${statusMeta.borderClass}`}
+                    className={`inline-flex items-stretch overflow-hidden rounded-xl border bg-alabaster/70 ${statusMeta.borderClass}`}
                   >
-                    <span className={`w-1 ${statusMeta.barClass}`} />
+                    <span className={`w-[3px] shrink-0 ${statusMeta.barClass}`} />
                     <span
                       className={`px-3 py-1.5 font-mono text-xs font-semibold tracking-[0.16em] uppercase ${statusMeta.textClass}`}
                     >
@@ -416,15 +406,15 @@ export function SmartTicketView({
               </div>
 
               {/* Kode Tiket Besar */}
-              <div className="border-b border-hairline bg-obsidian/50 px-5 py-6 sm:px-7">
-                <p className="font-mono text-[11px] tracking-[0.2em] uppercase text-stone">
+              <div className="border-b border-hairline bg-surface-elevated/60 px-5 py-6 sm:px-7">
+                <p className="font-mono text-[11px] tracking-[0.2em] uppercase text-muted">
                   Kode Reservasi Resmi
                 </p>
-                <h1 className="mt-1.5 font-mono text-4xl font-bold tracking-[0.16em] text-brass tabular-nums sm:text-5xl">
+                <h1 className="mt-1.5 font-mono text-4xl font-bold tracking-[0.16em] text-terracotta tabular-nums sm:text-5xl">
                   {booking.ticket_code}
                 </h1>
                 {isDemoTicket ? (
-                  <p className="mt-2 font-mono text-[11px] text-stone">
+                  <p className="mt-2 font-mono text-[11px] text-muted">
                     Mode Demo Lokal — tersimpan di sesi browser Anda.
                   </p>
                 ) : null}
@@ -433,47 +423,47 @@ export function SmartTicketView({
               {/* Rincian Data Booking */}
               <dl className="divide-y divide-hairline px-5 sm:px-7">
                 <div className="flex flex-col justify-between gap-1 py-4 sm:flex-row sm:items-center">
-                  <dt className="font-mono text-xs tracking-[0.14em] uppercase text-stone">
+                  <dt className="font-mono text-xs tracking-[0.14em] uppercase text-muted">
                     Nama Pelanggan
                   </dt>
-                  <dd className="text-base font-semibold text-ivory">
+                  <dd className="text-base font-semibold text-ink">
                     {booking.customer_name}
                   </dd>
                 </div>
 
                 <div className="flex flex-col justify-between gap-1 py-4 sm:flex-row sm:items-center">
-                  <dt className="font-mono text-xs tracking-[0.14em] uppercase text-stone">
+                  <dt className="font-mono text-xs tracking-[0.14em] uppercase text-muted">
                     Layanan
                   </dt>
-                  <dd className="text-base font-semibold text-ivory">
+                  <dd className="text-base font-semibold text-ink">
                     {booking.service_name}
                   </dd>
                 </div>
 
                 <div className="flex flex-col justify-between gap-1 py-4 sm:flex-row sm:items-center">
-                  <dt className="font-mono text-xs tracking-[0.14em] uppercase text-stone">
+                  <dt className="font-mono text-xs tracking-[0.14em] uppercase text-muted">
                     Hari &amp; Tanggal
                   </dt>
-                  <dd className="font-mono text-sm font-medium text-ivory tabular-nums">
+                  <dd className="font-mono text-sm font-medium text-ink tabular-nums">
                     {formatIndonesianDateFull(booking.booking_date)}
                   </dd>
                 </div>
 
                 <div className="flex flex-col justify-between gap-1 py-4 sm:flex-row sm:items-center">
-                  <dt className="font-mono text-xs tracking-[0.14em] uppercase text-stone">
+                  <dt className="font-mono text-xs tracking-[0.14em] uppercase text-muted">
                     Jam Kursi
                   </dt>
-                  <dd className="font-mono text-base font-bold text-brass tabular-nums">
+                  <dd className="font-mono text-base font-bold text-terracotta tabular-nums">
                     {formatTimeHHMM(booking.start_time)} –{" "}
                     {formatTimeHHMM(booking.end_time)} WIB
                   </dd>
                 </div>
 
                 <div className="flex flex-col justify-between gap-1 py-4 sm:flex-row sm:items-center">
-                  <dt className="font-mono text-xs tracking-[0.14em] uppercase text-stone">
+                  <dt className="font-mono text-xs tracking-[0.14em] uppercase text-muted">
                     Tipe Antrean
                   </dt>
-                  <dd className="font-mono text-xs tracking-[0.14em] uppercase text-stone">
+                  <dd className="font-mono text-xs tracking-[0.14em] uppercase text-muted">
                     {booking.source === "WALKIN"
                       ? "Walk-in Studio"
                       : "Booking Online"}
@@ -483,16 +473,16 @@ export function SmartTicketView({
 
               {/* Aturan Keterlambatan 15 Menit & Google Maps */}
               <div className="space-y-4 border-t border-hairline p-5 sm:p-7">
-                <div className="flex items-start gap-3 border-l-2 border-brass bg-obsidian p-4">
-                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-brass" />
-                  <div className="text-xs leading-relaxed text-stone">
-                    <p className="font-mono font-semibold uppercase tracking-[0.14em] text-ivory">
+                <div className="flex items-start gap-3 rounded-xl border-l-2 border-terracotta bg-surface-elevated/70 p-4">
+                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
+                  <div className="text-xs leading-relaxed text-muted">
+                    <p className="font-mono font-semibold uppercase tracking-[0.14em] text-ink">
                       Aturan Keterlambatan 15 Menit
                     </p>
                     <p className="mt-1">
                       Harap tiba di studio sebelum jam reservasi dimulai. Toleransi
                       keterlambatan maksimal{" "}
-                      <strong className="text-ivory">15 menit</strong>; lewat dari
+                      <strong className="text-ink">15 menit</strong>; lewat dari
                       batas tersebut tanpa konfirmasi, slot dapat dialihkan ke
                       pelanggan lain.
                     </p>
@@ -504,7 +494,7 @@ export function SmartTicketView({
                     href={settings.google_maps_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 border border-brass bg-brass px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-obsidian transition-colors hover:bg-brass/90"
+                    className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90"
                   >
                     <MapPin className="h-4 w-4" />
                     Buka Google Maps ({settings.short_address})
@@ -513,7 +503,7 @@ export function SmartTicketView({
 
                   <Link
                     href="/"
-                    className="inline-flex min-h-[48px] items-center justify-center border border-hairline bg-obsidian px-5 py-3 font-mono text-xs tracking-[0.14em] uppercase text-ivory transition-colors hover:border-brass hover:text-brass"
+                    className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-hairline bg-alabaster/70 px-5 py-3 font-mono text-xs font-medium tracking-[0.14em] uppercase text-ink transition-colors hover:border-terracotta hover:text-terracotta"
                   >
                     Booking Jadwal Lain
                   </Link>
@@ -527,16 +517,16 @@ export function SmartTicketView({
             {isAdminAuthenticated ? (
               <section
                 aria-label="Panel Kontrol Cepat Admin"
-                className="border border-brass bg-surface p-5 sm:p-7"
+                className="rounded-2xl border border-terracotta/45 bg-surface p-5 shadow-sm sm:p-7"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
                   <div className="flex items-center gap-2.5">
-                    <ShieldCheck className="h-5 w-5 text-brass" />
+                    <ShieldCheck className="h-5 w-5 text-terracotta" />
                     <div>
-                      <p className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-brass">
+                      <p className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-terracotta">
                         Panel Kontrol Cepat Kasir
                       </p>
-                      <p className="text-xs text-stone">
+                      <p className="text-xs text-muted">
                         Sesi admin terverifikasi server. Perubahan langsung
                         memperbarui jadwal live.
                       </p>
@@ -545,7 +535,7 @@ export function SmartTicketView({
 
                   <Link
                     href="/admin"
-                    className="inline-flex min-h-[44px] items-center gap-1.5 border border-hairline bg-obsidian px-3.5 py-2 font-mono text-[11px] tracking-[0.14em] uppercase text-ivory transition-colors hover:border-brass hover:text-brass"
+                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-hairline bg-alabaster/70 px-3.5 py-2 font-mono text-[11px] font-medium tracking-[0.14em] uppercase text-ink transition-colors hover:border-terracotta hover:text-terracotta"
                   >
                     Buka Dashboard
                     <ArrowUpRight className="h-3.5 w-3.5" />
@@ -555,7 +545,7 @@ export function SmartTicketView({
                 {actionMessage ? (
                   <div
                     role="status"
-                    className="mt-4 flex items-center gap-2.5 border border-emerald-live/50 bg-obsidian p-3.5 text-xs text-emerald-live"
+                    className="mt-4 flex items-center gap-2.5 rounded-xl border border-emerald-live/45 bg-emerald-live/10 p-3.5 text-xs text-emerald-live"
                   >
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     <span>{actionMessage}</span>
@@ -565,7 +555,7 @@ export function SmartTicketView({
                 {actionError ? (
                   <div
                     role="alert"
-                    className="mt-4 flex items-center gap-2.5 border border-crimson-alert/50 bg-obsidian p-3.5 text-xs text-crimson-alert"
+                    className="mt-4 flex items-center gap-2.5 rounded-xl border border-crimson-alert/45 bg-crimson-alert/10 p-3.5 text-xs text-crimson-alert"
                   >
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     <span>{actionError}</span>
@@ -577,22 +567,22 @@ export function SmartTicketView({
                     {/* Reschedule 2-Tap */}
                     <div>
                       <div className="flex items-center gap-2">
-                        <CalendarClock className="h-4 w-4 text-brass" />
-                        <h2 className="font-mono text-xs font-semibold tracking-[0.16em] uppercase text-ivory">
+                        <CalendarClock className="h-4 w-4 text-terracotta" />
+                        <h2 className="font-mono text-xs font-semibold tracking-[0.16em] uppercase text-ink">
                           Geser Jadwal (2-Tap Reschedule)
                         </h2>
                       </div>
-                      <p className="mt-1 text-xs text-stone">
+                      <p className="mt-1 text-xs text-muted">
                         Tap 1: pilih jam pengganti yang kosong hari ini. Tap 2:
                         konfirmasi geser jadwal.
                       </p>
 
                       {rescheduleSlots.length === 0 ? (
-                        <p className="mt-3 border border-hairline bg-obsidian p-3.5 text-xs text-stone">
+                        <p className="mt-3 rounded-xl border border-hairline bg-surface-elevated/60 p-3.5 text-xs text-muted">
                           Tidak ada jam lain yang tersedia di tanggal ini.
                         </p>
                       ) : (
-                        <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                        <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-5">
                           {rescheduleSlots.map((slot) => {
                             const isPicked = selectedNewStartTime === slot.time;
                             return (
@@ -606,18 +596,22 @@ export function SmartTicketView({
                                   )
                                 }
                                 title={slot.reason}
-                                className={`flex min-h-[48px] flex-col items-center justify-center border px-2 py-2 font-mono transition-colors ${
+                                className={`flex min-h-[48px] flex-col items-center justify-center rounded-xl border px-2 py-2 font-mono transition-colors ${
                                   isPicked
-                                    ? "border-brass bg-brass text-obsidian"
+                                    ? "border-terracotta bg-terracotta text-surface shadow-sm"
                                     : !slot.available
-                                      ? "cursor-not-allowed border-hairline bg-obsidian/40 text-stone/40"
-                                      : "border-hairline bg-obsidian text-ivory hover:border-brass hover:text-brass"
+                                      ? "cursor-not-allowed border-hairline bg-surface-elevated/55 text-muted/50"
+                                      : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
                                 }`}
                               >
                                 <span className="text-xs font-semibold tabular-nums">
                                   {slot.time}
                                 </span>
-                                <span className="text-[10px] uppercase">
+                                <span
+                                  className={`text-[10px] uppercase ${
+                                    isPicked ? "text-surface/90" : ""
+                                  }`}
+                                >
                                   {slot.available
                                     ? isPicked
                                       ? "Tap 2"
@@ -642,7 +636,7 @@ export function SmartTicketView({
                               newStartTime: selectedNewStartTime,
                             })
                           }
-                          className="mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 border border-brass bg-brass px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-obsidian transition-colors hover:bg-brass/90 disabled:opacity-60"
+                          className="mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:opacity-60"
                         >
                           {isMutating ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -662,7 +656,7 @@ export function SmartTicketView({
                         onClick={() =>
                           void handleAdminAction({ action: "complete" })
                         }
-                        className="inline-flex min-h-[48px] items-center justify-center gap-2 border border-emerald-live/60 bg-obsidian px-4 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-emerald-live transition-colors hover:bg-emerald-live hover:text-obsidian disabled:opacity-60"
+                        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-emerald-live/50 bg-emerald-live/10 px-4 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-emerald-live transition-colors hover:bg-emerald-live hover:text-surface disabled:opacity-60"
                       >
                         <CheckCircle2 className="h-4 w-4" />
                         Tandai Selesai
@@ -673,7 +667,7 @@ export function SmartTicketView({
                           type="button"
                           disabled={isMutating}
                           onClick={() => setConfirmCancelArmed(true)}
-                          className="inline-flex min-h-[48px] items-center justify-center gap-2 border border-crimson-alert/60 bg-obsidian px-4 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-crimson-alert transition-colors hover:bg-crimson-alert hover:text-ivory disabled:opacity-60"
+                          className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 px-4 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-crimson-alert transition-colors hover:bg-crimson-alert hover:text-surface disabled:opacity-60"
                         >
                           <XCircle className="h-4 w-4" />
                           Batalkan Booking
@@ -686,7 +680,7 @@ export function SmartTicketView({
                             onClick={() =>
                               void handleAdminAction({ action: "cancel" })
                             }
-                            className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 border border-crimson-alert bg-crimson-alert px-3 py-3 font-mono text-xs font-semibold tracking-[0.12em] uppercase text-ivory transition-colors hover:bg-crimson-alert/90 disabled:opacity-60"
+                            className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-crimson-alert px-3 py-3 font-mono text-xs font-semibold tracking-[0.12em] uppercase text-surface transition-colors hover:bg-crimson-alert/90 disabled:opacity-60"
                           >
                             Ya, Batalkan
                           </button>
@@ -694,7 +688,7 @@ export function SmartTicketView({
                             type="button"
                             disabled={isMutating}
                             onClick={() => setConfirmCancelArmed(false)}
-                            className="inline-flex min-h-[48px] items-center justify-center border border-hairline bg-obsidian px-4 py-3 font-mono text-xs uppercase text-stone hover:text-ivory"
+                            className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-hairline bg-alabaster/70 px-4 py-3 font-mono text-xs uppercase text-muted transition-colors hover:text-ink"
                           >
                             Batal
                           </button>
@@ -703,9 +697,9 @@ export function SmartTicketView({
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-4 border border-hairline bg-obsidian p-4 text-xs text-stone">
+                  <p className="mt-4 rounded-xl border border-hairline bg-surface-elevated/60 p-4 text-xs text-muted">
                     Tiket ini berstatus{" "}
-                    <strong className="font-mono text-ivory">
+                    <strong className="font-mono text-ink">
                       {booking.status}
                     </strong>
                     . Tidak ada aksi perubahan jadwal lebih lanjut.

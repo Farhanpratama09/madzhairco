@@ -95,6 +95,13 @@ function formatServiceDuration(displayMinutes: number): string {
   return `~${displayMinutes} Menit`;
 }
 
+function formatServiceDurationCompact(displayMinutes: number): string {
+  if (displayMinutes >= 60 && displayMinutes % 60 === 0) {
+    return `~${displayMinutes / 60}j`;
+  }
+  return `~${displayMinutes}m`;
+}
+
 function readDemoSessionBookings(): Booking[] {
   if (typeof window === "undefined") return [];
   try {
@@ -586,6 +593,16 @@ export function BookingExperience({
   };
 
   const availableSlotCount = slots.filter((s) => s.available).length;
+  const trimmedCustomerName = customerName.trim();
+  const isNameValid =
+    trimmedCustomerName.length >= 2 && trimmedCustomerName.length <= 40;
+  const isDockReady =
+    !settings.is_force_closed &&
+    Boolean(selectedService) &&
+    Boolean(selectedDate) &&
+    Boolean(selectedSlotObj) &&
+    isNameValid;
+
   const activeStep = !selectedService
     ? 1
     : !selectedDate
@@ -594,15 +611,241 @@ export function BookingExperience({
         ? 3
         : 4;
 
+  const completedStepsCount = [
+    Boolean(selectedService),
+    Boolean(selectedDate),
+    Boolean(selectedSlotObj),
+    isNameValid,
+  ].filter(Boolean).length;
+
+  const handleDockAction = () => {
+    setErrorMessage(null);
+    setConfirmedResult(null);
+
+    if (isDockReady) {
+      setShowConfirmModal(true);
+      return;
+    }
+
+    formSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
   return (
-    <div className="bg-obsidian">
+    <div className="bg-alabaster text-ink">
       {/* =====================================================================
-          01 // KATALOG LAYANAN EDITORIAL ASIMETRIS
+          FLOATING SEGMENTED BOOKING BAR (HERO OVERLAP DOCK)
+      ===================================================================== */}
+      <div className="relative z-20 -mt-8 px-safe lg:-mt-12">
+        <div className="mx-auto max-w-6xl rounded-2xl border border-hairline bg-surface/95 p-4 shadow-xl backdrop-blur-md sm:p-5">
+          {/* Baris Atas: Tab Pilihan Cepat Layanan + Info Slot Real-Time */}
+          <div className="flex flex-col gap-3 border-b border-hairline pb-3.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              {activeServices.map((service) => {
+                const isTabActive = selectedService?.id === service.id;
+                return (
+                  <button
+                    key={service.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedServiceId(service.id);
+                      setSelectedTime("");
+                      setErrorMessage(null);
+                      setConfirmedResult(null);
+                    }}
+                    className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-3.5 py-2 font-mono text-xs font-semibold tracking-wide transition-colors ${
+                      isTabActive
+                        ? "border-terracotta bg-terracotta text-surface shadow-xs"
+                        : "border-hairline bg-alabaster/70 text-ink hover:border-terracotta hover:text-terracotta"
+                    }`}
+                  >
+                    <span>{service.name}</span>
+                    <span
+                      className={`tabular-nums ${
+                        isTabActive ? "text-surface/90" : "text-muted"
+                      }`}
+                    >
+                      {formatServiceDurationCompact(
+                        service.display_duration_minutes
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="font-mono text-[11px] tracking-[0.12em] uppercase text-muted tabular-nums">
+              {settings.is_force_closed
+                ? "Reservasi sedang dijeda"
+                : isLoadingSlots
+                  ? "Menyinkronkan jadwal..."
+                  : `${availableSlotCount} slot tersedia`}
+            </p>
+          </div>
+
+          {/* Segmen Input Adaptif: Mobile max 2 kolom/baris | Desktop sejajar */}
+          <div className="mt-3.5 grid grid-cols-2 gap-2.5 lg:grid-cols-12 lg:items-end lg:gap-3">
+            {/* Segmen 1: Layanan */}
+            <div className="col-span-1 lg:col-span-2">
+              <label
+                htmlFor="dock-service-select"
+                className="block font-mono text-[10px] tracking-[0.16em] uppercase text-muted"
+              >
+                Layanan
+              </label>
+              <select
+                id="dock-service-select"
+                value={selectedService?.id ?? ""}
+                onChange={(e) => {
+                  setSelectedServiceId(e.target.value);
+                  setSelectedTime("");
+                  setErrorMessage(null);
+                  setConfirmedResult(null);
+                }}
+                className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 py-2 text-base font-medium text-ink transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+              >
+                {activeServices.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name} (
+                    {formatServiceDurationCompact(
+                      service.display_duration_minutes
+                    )}
+                    )
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Segmen 2: Tanggal */}
+            <div className="col-span-1 lg:col-span-3">
+              <label
+                htmlFor="dock-date-select"
+                className="block font-mono text-[10px] tracking-[0.16em] uppercase text-muted"
+              >
+                Tanggal
+              </label>
+              <select
+                id="dock-date-select"
+                value={selectedDate}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setSelectedTime("");
+                  setErrorMessage(null);
+                  setConfirmedResult(null);
+                }}
+                className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 py-2 text-base font-medium text-ink transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+              >
+                {upcomingDates.map((dateItem) => {
+                  const closedInfo = isDateClosed(dateItem.dateStr);
+                  const datePart =
+                    dateItem.labelShort.split(", ")[1] ?? dateItem.dateStr;
+                  const label = dateItem.isToday
+                    ? `Hari Ini (${datePart})`
+                    : dateItem.labelShort;
+                  return (
+                    <option key={dateItem.dateStr} value={dateItem.dateStr}>
+                      {closedInfo.closed ? `${label} — Tutup` : label}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Segmen 3: Jam */}
+            <div className="col-span-1 lg:col-span-2">
+              <label
+                htmlFor="dock-time-select"
+                className="block font-mono text-[10px] tracking-[0.16em] uppercase text-muted"
+              >
+                Jam
+              </label>
+              <select
+                id="dock-time-select"
+                value={selectedSlotObj ? selectedSlotObj.time : ""}
+                onChange={(e) => {
+                  handleSelectSlot(e.target.value);
+                  setConfirmedResult(null);
+                }}
+                className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 py-2 font-mono text-base font-medium text-ink tabular-nums transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+              >
+                <option value="">
+                  {slots.length === 0 ? "Tutup" : "Pilih jam"}
+                </option>
+                {slots.map((slot) => (
+                  <option
+                    key={slot.time}
+                    value={slot.time}
+                    disabled={!slot.available}
+                  >
+                    {slot.available
+                      ? `${slot.time} WIB`
+                      : `${slot.time} (${
+                          slot.status === "BOOKED"
+                            ? "Terisi"
+                            : slot.status === "EXPIRED"
+                              ? "Lewat"
+                              : "< 2j"
+                        })`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Segmen 4: Input Nama (>= 16px text-base) */}
+            <div className="col-span-1 lg:col-span-3">
+              <label
+                htmlFor="dock-name-input"
+                className="block font-mono text-[10px] tracking-[0.16em] uppercase text-muted"
+              >
+                Nama Anda
+              </label>
+              <input
+                id="dock-name-input"
+                type="text"
+                minLength={2}
+                maxLength={40}
+                autoComplete="name"
+                value={customerName}
+                onChange={(e) => {
+                  setCustomerName(e.target.value);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                placeholder="Nama pelanggan"
+                className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3.5 py-2 text-base text-ink placeholder:text-muted/65 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+              />
+            </div>
+
+            {/* Segmen 5: Tombol CTA Terracotta */}
+            <div className="col-span-2 lg:col-span-2">
+              <button
+                type="button"
+                disabled={settings.is_force_closed}
+                onClick={handleDockAction}
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 py-3 font-display text-xs font-bold tracking-wide uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted"
+              >
+                <span>
+                  {settings.is_force_closed
+                    ? "Tutup"
+                    : isDockReady
+                      ? "Review Booking"
+                      : "Pilih Jadwal"}
+                </span>
+                <ArrowRight className="h-4 w-4 shrink-0" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* =====================================================================
+          01 // KATALOG LAYANAN SOFT-EDITORIAL ASIMETRIS
       ===================================================================== */}
       <section
         id="layanan"
         aria-labelledby="layanan-heading"
-        className="border-t border-hairline px-safe py-14 sm:py-20"
+        className="px-safe py-14 sm:py-20"
       >
         <div className="mx-auto max-w-6xl space-y-10">
           <EditorialSectionHeader
@@ -622,7 +865,7 @@ export function BookingExperience({
           />
 
           {/* Grid Asimetris 12-Kolom dengan Hairline Dividers */}
-          <div className="grid grid-cols-1 border border-hairline bg-surface lg:grid-cols-12">
+          <div className="grid grid-cols-1 overflow-hidden rounded-2xl border border-hairline bg-surface shadow-sm lg:grid-cols-12">
             {activeServices.map((service, index) => {
               const isPrimary = index === 0;
               const blockCount = Math.max(
@@ -641,24 +884,24 @@ export function BookingExperience({
                   }`}
                 >
                   <div>
-                    {/* Indeks Layanan & Badge Blok Sistem (Persegi Tajam) */}
+                    {/* Indeks Layanan & Tag Blok Sistem (rounded-xl) */}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
                       <div className="flex items-center gap-2.5">
-                        <span className="font-mono text-xs tracking-[0.2em] text-brass tabular-nums">
+                        <span className="font-mono text-xs font-semibold tracking-[0.2em] text-terracotta tabular-nums">
                           {String(index + 1).padStart(2, "0")}
                         </span>
-                        <span className="text-hairline">/</span>
-                        <span className="font-mono text-xs tracking-[0.16em] uppercase text-stone">
+                        <span className="text-muted/50">/</span>
+                        <span className="font-mono text-xs tracking-[0.16em] uppercase text-muted">
                           {formatServiceDuration(service.display_duration_minutes)} ·{" "}
                           {blockCount} Blok
                         </span>
                       </div>
 
-                      <span className="inline-flex items-center gap-1.5 border border-hairline bg-obsidian px-2.5 py-1 font-mono text-[11px] tracking-[0.14em] uppercase text-ivory tabular-nums">
+                      <span className="inline-flex items-center gap-1.5 rounded-xl border border-hairline bg-surface-elevated px-3 py-1.5 font-mono text-[11px] font-medium tracking-[0.12em] uppercase text-ink tabular-nums">
                         {blockCount === 1 ? (
-                          <Scissors className="h-3 w-3 text-brass" />
+                          <Scissors className="h-3.5 w-3.5 text-terracotta" />
                         ) : (
-                          <Sparkles className="h-3 w-3 text-brass" />
+                          <Sparkles className="h-3.5 w-3.5 text-terracotta" />
                         )}
                         {blockCount * 60} Mnt Sistem
                       </span>
@@ -666,16 +909,16 @@ export function BookingExperience({
 
                     {/* Nama Layanan & Subjudul */}
                     <div className="mt-6 flex flex-col justify-between gap-2 sm:flex-row sm:items-baseline">
-                      <h3 className="font-display text-2xl font-bold tracking-tight text-ivory sm:text-3xl">
+                      <h3 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
                         {service.name}
                       </h3>
-                      <p className="font-mono text-lg font-semibold text-brass tabular-nums">
+                      <p className="font-mono text-lg font-bold text-terracotta tabular-nums">
                         {service.price_display}
                       </p>
                     </div>
 
                     {service.subtitle ? (
-                      <p className="mt-2 text-sm leading-relaxed text-stone">
+                      <p className="mt-2 text-sm leading-relaxed text-muted">
                         {service.subtitle}
                       </p>
                     ) : null}
@@ -687,10 +930,10 @@ export function BookingExperience({
                           key={variant.label}
                           className="flex items-center justify-between gap-4 py-3.5"
                         >
-                          <span className="text-sm font-medium text-ivory sm:text-base">
+                          <span className="text-sm font-medium text-ink sm:text-base">
                             {variant.label}
                           </span>
-                          <span className="shrink-0 font-mono text-sm font-semibold text-ivory tabular-nums sm:text-base">
+                          <span className="shrink-0 font-mono text-sm font-semibold text-ink tabular-nums sm:text-base">
                             Rp {variant.display}
                           </span>
                         </li>
@@ -698,12 +941,12 @@ export function BookingExperience({
                     </ul>
 
                     {blockCount >= 2 ? (
-                      <p className="mt-4 border-l-2 border-brass pl-3 text-xs leading-relaxed text-stone">
+                      <p className="mt-4 border-l-2 border-terracotta pl-3 text-xs leading-relaxed text-muted">
                         Layanan 2 jam otomatis mengunci 2 blok waktu berurutan agar
                         pengerjaan kimia rambut tidak terburu-buru.
                       </p>
                     ) : (
-                      <p className="mt-4 border-l-2 border-hairline pl-3 text-xs leading-relaxed text-stone">
+                      <p className="mt-4 border-l-2 border-hairline pl-3 text-xs leading-relaxed text-muted">
                         Sisa 15 menit dari blok 1 jam digunakan otomatis untuk sanitasi
                         peralatan &amp; jeda barber.
                       </p>
@@ -714,10 +957,10 @@ export function BookingExperience({
                     <button
                       type="button"
                       onClick={() => handleSelectServiceFromCatalog(service.id)}
-                      className={`inline-flex min-h-[48px] w-full items-center justify-between border px-5 py-3 font-mono text-xs font-semibold tracking-[0.16em] uppercase transition-colors ${
+                      className={`inline-flex min-h-[48px] w-full items-center justify-between rounded-xl border px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase transition-colors ${
                         isSelected
-                          ? "border-brass bg-brass text-obsidian"
-                          : "border-hairline bg-obsidian text-ivory hover:border-brass hover:text-brass"
+                          ? "border-terracotta bg-terracotta text-surface shadow-xs"
+                          : "border-hairline bg-alabaster/70 text-ink hover:border-terracotta hover:bg-terracotta hover:text-surface"
                       }`}
                     >
                       <span>
@@ -740,7 +983,7 @@ export function BookingExperience({
         id="reservasi"
         ref={formSectionRef}
         aria-labelledby="reservasi-heading"
-        className="border-t border-hairline bg-surface/40 px-safe py-14 sm:py-20"
+        className="border-t border-hairline bg-surface-elevated/45 px-safe py-14 sm:py-20"
       >
         <div className="mx-auto max-w-6xl space-y-8">
           <EditorialSectionHeader
@@ -753,6 +996,7 @@ export function BookingExperience({
               <LiveStatusTag
                 isOpen={liveStatus.isOpen}
                 isForceClosed={settings.is_force_closed}
+                reason={liveStatus.reason}
                 scheduleNote={scheduleNote}
                 compact
               />
@@ -763,14 +1007,14 @@ export function BookingExperience({
           {settings.is_force_closed ? (
             <div
               role="alert"
-              className="flex items-start gap-3 border border-crimson-alert/50 bg-surface p-4 text-sm text-ivory"
+              className="flex items-start gap-3 rounded-2xl border border-crimson-alert/45 bg-surface p-4 text-sm text-ink shadow-xs"
             >
               <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-crimson-alert" />
               <div>
                 <p className="font-display font-bold text-crimson-alert">
                   Toko Sedang Tutup Sementara (Mode Darurat)
                 </p>
-                <p className="mt-1 text-xs leading-relaxed text-stone">
+                <p className="mt-1 text-xs leading-relaxed text-muted">
                   Reservasi online sementara dinonaktifkan oleh barber. Silakan cek
                   kembali beberapa saat lagi atau hubungi via WhatsApp.
                 </p>
@@ -778,8 +1022,8 @@ export function BookingExperience({
             </div>
           ) : null}
 
-          {/* Bar Progres 4 Langkah Arsitektural */}
-          <ol className="grid grid-cols-2 border border-hairline bg-surface sm:grid-cols-4">
+          {/* Bar Progres 4 Langkah Soft-Editorial */}
+          <ol className="grid grid-cols-2 overflow-hidden rounded-2xl border border-hairline bg-surface sm:grid-cols-4">
             {[
               { step: 1, title: "Layanan", value: selectedService?.name ?? "-" },
               {
@@ -799,7 +1043,7 @@ export function BookingExperience({
               {
                 step: 4,
                 title: "Nama",
-                value: customerName.trim() || "Isi nama",
+                value: trimmedCustomerName || "Isi nama",
               },
             ].map((item, idx) => {
               const isDone =
@@ -809,27 +1053,29 @@ export function BookingExperience({
                     ? Boolean(selectedDate)
                     : item.step === 3
                       ? Boolean(selectedSlotObj)
-                      : customerName.trim().length >= 2;
+                      : isNameValid;
               const isCurrent = activeStep === item.step;
 
               return (
                 <li
                   key={item.step}
                   className={`flex flex-col justify-between p-3.5 sm:p-4 ${
-                    idx > 0 ? "border-t border-hairline sm:border-t-0 sm:border-l" : ""
-                  } ${isCurrent ? "bg-surface-elevated" : ""}`}
+                    idx > 0
+                      ? "border-t border-hairline sm:border-t-0 sm:border-l"
+                      : ""
+                  } ${isCurrent ? "bg-surface-elevated/70" : ""}`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-[11px] tracking-[0.18em] uppercase text-stone tabular-nums">
+                    <span className="font-mono text-[11px] tracking-[0.18em] uppercase text-muted tabular-nums">
                       0{item.step} {"//"} {item.title}
                     </span>
                     <span
-                      className={`h-2 w-2 ${
-                        isDone ? "bg-brass" : "bg-hairline"
+                      className={`h-2 w-2 rounded-[2px] ${
+                        isDone ? "bg-terracotta" : "bg-hairline"
                       }`}
                     />
                   </div>
-                  <p className="mt-2 truncate font-mono text-xs font-medium text-ivory tabular-nums">
+                  <p className="mt-2 truncate font-mono text-xs font-semibold text-ink tabular-nums">
                     {item.value}
                   </p>
                 </li>
@@ -839,49 +1085,49 @@ export function BookingExperience({
 
           {/* Kartu Konfirmasi Berhasil + Auto Redirect WhatsApp */}
           {confirmedResult ? (
-            <div className="border border-brass bg-surface p-6 sm:p-8">
+            <div className="rounded-2xl border border-terracotta/50 bg-surface p-6 shadow-md sm:p-8">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="space-y-4">
                   <div className="flex items-center gap-2.5">
-                    <span className="inline-flex h-6 w-6 items-center justify-center bg-emerald-live text-obsidian">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-live text-surface">
                       <Check className="h-4 w-4" />
                     </span>
-                    <span className="font-mono text-xs tracking-[0.2em] uppercase text-emerald-live">
+                    <span className="font-mono text-xs font-semibold tracking-[0.2em] uppercase text-emerald-live">
                       SLOT BERHASIL DIKUNCI ({confirmedResult.booking.status})
                     </span>
                   </div>
 
                   <div>
-                    <p className="font-mono text-xs uppercase tracking-[0.18em] text-stone">
+                    <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">
                       Kode Tiket Resmi
                     </p>
-                    <p className="mt-1 font-mono text-3xl font-bold tracking-[0.16em] text-brass tabular-nums sm:text-4xl">
+                    <p className="mt-1 font-mono text-3xl font-bold tracking-[0.16em] text-terracotta tabular-nums sm:text-4xl">
                       {confirmedResult.booking.ticket_code}
                     </p>
                   </div>
 
                   <dl className="grid grid-cols-1 gap-3 border-t border-hairline pt-4 text-sm sm:grid-cols-3 sm:gap-6">
                     <div>
-                      <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-stone">
+                      <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
                         Pelanggan
                       </dt>
-                      <dd className="mt-1 font-medium text-ivory">
+                      <dd className="mt-1 font-semibold text-ink">
                         {confirmedResult.booking.customer_name}
                       </dd>
                     </div>
                     <div>
-                      <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-stone">
+                      <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
                         Layanan
                       </dt>
-                      <dd className="mt-1 font-medium text-ivory">
+                      <dd className="mt-1 font-semibold text-ink">
                         {confirmedResult.booking.service_name}
                       </dd>
                     </div>
                     <div>
-                      <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-stone">
+                      <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
                         Jadwal
                       </dt>
-                      <dd className="mt-1 font-mono font-medium text-ivory tabular-nums">
+                      <dd className="mt-1 font-mono font-semibold text-ink tabular-nums">
                         {formatIndonesianDateFull(
                           confirmedResult.booking.booking_date
                         )}{" "}
@@ -891,19 +1137,19 @@ export function BookingExperience({
                   </dl>
 
                   {confirmedResult.mode === "demo" ? (
-                    <p className="font-mono text-[11px] text-stone">
+                    <p className="font-mono text-[11px] text-muted">
                       * Mode Demo Lokal aktif: tiket tersimpan di sesi browser ini.
                     </p>
                   ) : null}
                 </div>
 
                 <div className="flex flex-col gap-3 sm:min-w-[280px]">
-                  <p className="font-mono text-xs text-brass">
+                  <p className="font-mono text-xs font-medium text-terracotta">
                     Mengalihkan otomatis ke WhatsApp...
                   </p>
                   <a
                     href={confirmedResult.waUrl}
-                    className="inline-flex min-h-[48px] items-center justify-center gap-2.5 border border-brass bg-brass px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-obsidian transition-colors hover:bg-brass/90"
+                    className="inline-flex min-h-[48px] items-center justify-center gap-2.5 rounded-xl bg-terracotta px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90"
                   >
                     <MessageCircle className="h-4 w-4" />
                     Konfirmasi via WhatsApp
@@ -912,7 +1158,7 @@ export function BookingExperience({
 
                   <Link
                     href={`/tiket/${confirmedResult.booking.ticket_code}`}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 border border-hairline bg-obsidian px-5 py-2.5 font-mono text-xs tracking-[0.14em] uppercase text-ivory transition-colors hover:border-brass hover:text-brass"
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-hairline bg-alabaster/70 px-5 py-2.5 font-mono text-xs font-medium tracking-[0.14em] uppercase text-ink transition-colors hover:border-terracotta hover:text-terracotta"
                   >
                     <Ticket className="h-4 w-4" />
                     Buka Smart Ticket
@@ -921,7 +1167,7 @@ export function BookingExperience({
                   <button
                     type="button"
                     onClick={resetForNewBooking}
-                    className="inline-flex min-h-[44px] items-center justify-center border border-transparent px-4 py-2 font-mono text-xs tracking-[0.14em] uppercase text-stone transition-colors hover:text-ivory"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-transparent px-4 py-2 font-mono text-xs tracking-[0.14em] uppercase text-muted transition-colors hover:bg-surface-elevated hover:text-ink"
                   >
                     Buat Booking Baru
                   </button>
@@ -937,11 +1183,11 @@ export function BookingExperience({
               {/* Kolom Kiri (7 Col): Langkah 1, 2, 3 */}
               <div className="space-y-6 lg:col-span-7">
                 {/* LANGKAH 1: PILIH LAYANAN */}
-                <fieldset className="border border-hairline bg-surface p-5 sm:p-6">
-                  <legend className="px-1 font-mono text-xs tracking-[0.2em] uppercase text-brass">
+                <fieldset className="rounded-2xl border border-hairline bg-surface p-5 shadow-xs sm:p-6">
+                  <legend className="px-1 font-mono text-xs font-semibold tracking-[0.2em] uppercase text-terracotta">
                     Langkah 01 — Pilih Layanan
                   </legend>
-                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                     {activeServices.map((service) => {
                       const active = selectedService?.id === service.id;
                       const blocks = Math.max(
@@ -957,25 +1203,25 @@ export function BookingExperience({
                             setSelectedTime("");
                             setErrorMessage(null);
                           }}
-                          className={`flex min-h-[56px] flex-col items-start justify-between border p-4 text-left transition-colors ${
+                          className={`flex min-h-[56px] flex-col items-start justify-between rounded-xl border p-4 text-left transition-colors ${
                             active
-                              ? "border-brass bg-surface-elevated"
-                              : "border-hairline bg-obsidian hover:border-stone"
+                              ? "border-terracotta bg-surface-elevated shadow-xs"
+                              : "border-hairline bg-alabaster/55 hover:border-terracotta/70"
                           }`}
                         >
                           <div className="flex w-full items-center justify-between gap-2">
-                            <span className="font-display text-base font-bold text-ivory">
+                            <span className="font-display text-base font-bold text-ink">
                               {service.name}
                             </span>
                             <span
                               className={`font-mono text-xs font-semibold tabular-nums ${
-                                active ? "text-brass" : "text-stone"
+                                active ? "text-terracotta" : "text-muted"
                               }`}
                             >
                               {service.price_display}
                             </span>
                           </div>
-                          <span className="mt-1.5 font-mono text-[11px] tracking-[0.12em] uppercase text-stone tabular-nums">
+                          <span className="mt-1.5 font-mono text-[11px] tracking-[0.12em] uppercase text-muted tabular-nums">
                             {formatServiceDuration(service.display_duration_minutes)} ·{" "}
                             {blocks} Blok ({blocks * 60}m)
                           </span>
@@ -985,12 +1231,18 @@ export function BookingExperience({
                   </div>
                 </fieldset>
 
-                {/* LANGKAH 2: PILIH TANGGAL */}
-                <fieldset className="border border-hairline bg-surface p-5 sm:p-6">
-                  <legend className="px-1 font-mono text-xs tracking-[0.2em] uppercase text-brass">
-                    Langkah 02 — Pilih Tanggal
-                  </legend>
-                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                {/* LANGKAH 2: HORIZONTAL DATE SCRUBBER */}
+                <fieldset className="rounded-2xl border border-hairline bg-surface p-5 shadow-xs sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <legend className="px-1 font-mono text-xs font-semibold tracking-[0.2em] uppercase text-terracotta">
+                      Langkah 02 — Pilih Tanggal
+                    </legend>
+                    <span className="font-mono text-[11px] text-muted">
+                      Geser horizontal →
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex gap-2.5 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1">
                     {upcomingDates.map((dateItem) => {
                       const active = selectedDate === dateItem.dateStr;
                       const dateClosedInfo = isDateClosed(dateItem.dateStr);
@@ -1004,17 +1256,17 @@ export function BookingExperience({
                             setSelectedTime("");
                             setErrorMessage(null);
                           }}
-                          className={`flex min-h-[54px] flex-col items-start justify-center border px-3 py-2 text-left transition-colors ${
+                          className={`flex min-h-[60px] min-w-[78px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors ${
                             active
-                              ? "border-brass bg-brass text-obsidian"
+                              ? "border-terracotta bg-terracotta text-surface shadow-sm"
                               : dateClosedInfo.closed
-                                ? "border-hairline bg-obsidian/50 text-stone opacity-70 hover:border-stone"
-                                : "border-hairline bg-obsidian text-ivory hover:border-brass"
+                                ? "border-hairline bg-surface-elevated/60 text-muted opacity-75 hover:border-muted"
+                                : "border-hairline bg-alabaster/55 text-ink hover:border-terracotta"
                           }`}
                         >
                           <span
-                            className={`font-mono text-[10px] tracking-[0.16em] uppercase ${
-                              active ? "text-obsidian/80" : "text-stone"
+                            className={`font-mono text-[10px] tracking-[0.14em] uppercase ${
+                              active ? "text-surface/85" : "text-muted"
                             }`}
                           >
                             {dateItem.isToday ? "Hari Ini" : dateItem.dayNameShort}
@@ -1025,7 +1277,7 @@ export function BookingExperience({
                           {dateClosedInfo.closed ? (
                             <span
                               className={`mt-0.5 font-mono text-[10px] uppercase ${
-                                active ? "text-obsidian" : "text-crimson-alert"
+                                active ? "text-surface" : "text-crimson-alert"
                               }`}
                             >
                               Tutup
@@ -1038,12 +1290,12 @@ export function BookingExperience({
                 </fieldset>
 
                 {/* LANGKAH 3: PILIH JAM (GRID 1 JAM) */}
-                <fieldset className="border border-hairline bg-surface p-5 sm:p-6">
+                <fieldset className="rounded-2xl border border-hairline bg-surface p-5 shadow-xs sm:p-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <legend className="px-1 font-mono text-xs tracking-[0.2em] uppercase text-brass">
+                    <legend className="px-1 font-mono text-xs font-semibold tracking-[0.2em] uppercase text-terracotta">
                       Langkah 03 — Pilih Jam ({settings.timezone})
                     </legend>
-                    <span className="font-mono text-[11px] text-stone tabular-nums">
+                    <span className="font-mono text-[11px] text-muted tabular-nums">
                       {isLoadingSlots
                         ? "Menyinkronkan slot..."
                         : `${availableSlotCount} slot tersedia`}
@@ -1051,19 +1303,19 @@ export function BookingExperience({
                   </div>
 
                   {slots.length === 0 ? (
-                    <div className="mt-4 border border-hairline bg-obsidian p-5 text-center">
-                      <Calendar className="mx-auto h-5 w-5 text-stone" />
-                      <p className="mt-2 text-sm font-medium text-ivory">
+                    <div className="mt-4 rounded-xl border border-hairline bg-alabaster/60 p-5 text-center">
+                      <Calendar className="mx-auto h-5 w-5 text-muted" />
+                      <p className="mt-2 text-sm font-semibold text-ink">
                         Tidak ada slot buka pada tanggal ini.
                       </p>
-                      <p className="mt-1 text-xs text-stone">
+                      <p className="mt-1 text-xs text-muted">
                         {isDateClosed(selectedDate).label ||
                           "Silakan pilih tanggal lain di Langkah 02."}
                       </p>
                     </div>
                   ) : (
                     <>
-                      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                      <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
                         {slots.map((slot) => {
                           const isSelected =
                             selectedTime === slot.time && slot.available;
@@ -1082,12 +1334,12 @@ export function BookingExperience({
                               disabled={isDisabled}
                               onClick={() => handleSelectSlot(slot.time)}
                               title={slot.reason}
-                              className={`flex min-h-[54px] flex-col items-center justify-center border px-2 py-2 font-mono transition-colors ${
+                              className={`flex min-h-[54px] flex-col items-center justify-center rounded-xl border px-2 py-2 font-mono transition-colors ${
                                 isSelected
-                                  ? "border-brass bg-brass text-obsidian"
+                                  ? "border-terracotta bg-terracotta text-surface shadow-sm"
                                   : isDisabled
-                                    ? "cursor-not-allowed border-hairline bg-obsidian/40 text-stone/50"
-                                    : "border-hairline bg-obsidian text-ivory hover:border-brass hover:text-brass"
+                                    ? "cursor-not-allowed border-hairline bg-surface-elevated/55 text-muted/60"
+                                    : "border-hairline bg-alabaster/55 text-ink hover:border-terracotta hover:text-terracotta"
                               }`}
                             >
                               <span className="text-sm font-semibold tabular-nums">
@@ -1096,10 +1348,10 @@ export function BookingExperience({
                               <span
                                 className={`mt-0.5 text-[10px] uppercase tracking-wider ${
                                   isSelected
-                                    ? "text-obsidian/80"
+                                    ? "text-surface/90"
                                     : slot.status === "BOOKED"
-                                      ? "text-crimson-alert/75"
-                                      : "text-stone/75"
+                                      ? "text-crimson-alert/80"
+                                      : "text-muted"
                                 }`}
                               >
                                 {isSelected ? "Dipilih" : subLabel}
@@ -1109,17 +1361,17 @@ export function BookingExperience({
                         })}
                       </div>
 
-                      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-hairline pt-3 font-mono text-[11px] text-stone">
+                      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-hairline pt-3 font-mono text-[11px] text-muted">
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 border border-hairline bg-obsidian" />
+                          <span className="h-2.5 w-2.5 rounded-[2px] border border-hairline bg-alabaster" />
                           Tersedia
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 bg-brass" />
+                          <span className="h-2.5 w-2.5 rounded-[2px] bg-terracotta" />
                           Dipilih
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 bg-crimson-alert/60" />
+                          <span className="h-2.5 w-2.5 rounded-[2px] bg-crimson-alert/60" />
                           Terisi / Lewat
                         </span>
                       </div>
@@ -1128,42 +1380,142 @@ export function BookingExperience({
                 </fieldset>
               </div>
 
-              {/* Kolom Kanan (5 Col): Langkah 4 & Ringkasan */}
+              {/* Kolom Kanan (5 Col): LIVE BOOKING PREVIEW STICKY PANEL */}
               <div className="lg:col-span-5">
-                <div className="sticky top-6 border border-hairline bg-surface p-5 sm:p-6">
-                  <p className="font-mono text-xs tracking-[0.2em] uppercase text-brass">
-                    Langkah 04 — Nama &amp; Kunci Jadwal
-                  </p>
+                <div className="sticky top-20 rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
+                  <div className="flex items-center justify-between gap-2 border-b border-hairline pb-4">
+                    <div>
+                      <p className="font-mono text-xs font-semibold tracking-[0.2em] uppercase text-terracotta">
+                        Live Booking Preview
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        Langkah 04 — Ringkasan &amp; Nama Pelanggan
+                      </p>
+                    </div>
+                    <span className="rounded-xl border border-hairline bg-surface-elevated px-2.5 py-1 font-mono text-[11px] font-semibold text-ink tabular-nums">
+                      {completedStepsCount}/4
+                    </span>
+                  </div>
 
-                  {/* Ringkasan Pilihan */}
-                  <dl className="mt-4 space-y-3 border-y border-hairline py-4 text-sm">
-                    <div className="flex items-center justify-between gap-4">
-                      <dt className="text-stone">Layanan</dt>
-                      <dd className="text-right font-medium text-ivory">
-                        {selectedService?.name ?? "-"}
-                      </dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <dt className="text-stone">Tanggal</dt>
-                      <dd className="text-right font-mono text-xs text-ivory tabular-nums sm:text-sm">
-                        {selectedDate ? formatIndonesianDateFull(selectedDate) : "-"}
-                      </dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <dt className="text-stone">Jam Kursi</dt>
-                      <dd className="text-right font-mono font-semibold text-brass tabular-nums">
-                        {selectedSlotObj
+                  {/* Checklist Progres Vertikal 4 Titik Real-Time */}
+                  <ol className="mt-5 space-y-0">
+                    {[
+                      {
+                        step: 1,
+                        label: "Layanan",
+                        done: Boolean(selectedService),
+                        value: selectedService
+                          ? `${selectedService.name} · ${
+                              Math.max(
+                                1,
+                                Math.round(
+                                  selectedService.slot_duration_minutes / 60
+                                )
+                              ) * 60
+                            }m (${formatServiceDuration(
+                              selectedService.display_duration_minutes
+                            )})`
+                          : "Belum dipilih",
+                        badge: selectedService?.price_display ?? null,
+                      },
+                      {
+                        step: 2,
+                        label: "Tanggal",
+                        done: Boolean(selectedDate),
+                        value: selectedDate
+                          ? formatIndonesianDateFull(selectedDate)
+                          : "Belum dipilih",
+                        badge: null,
+                      },
+                      {
+                        step: 3,
+                        label: "Jam Kursi",
+                        done: Boolean(selectedSlotObj),
+                        value: selectedSlotObj
                           ? `${selectedSlotObj.time} – ${selectedSlotObj.endTime} WIB`
-                          : "Belum dipilih"}
-                      </dd>
-                    </div>
-                  </dl>
+                          : "Belum dipilih",
+                        badge: selectedSlotObj ? "Tersedia" : null,
+                      },
+                      {
+                        step: 4,
+                        label: "Nama Pelanggan",
+                        done: isNameValid,
+                        value: isNameValid
+                          ? trimmedCustomerName
+                          : trimmedCustomerName
+                            ? `${trimmedCustomerName} (min. 2 huruf)`
+                            : "Isi nama Anda di bawah",
+                        badge: null,
+                      },
+                    ].map((node, index, arr) => {
+                      const isLast = index === arr.length - 1;
+                      const isCurrentNode = activeStep === node.step;
+
+                      return (
+                        <li key={node.step} className="flex items-stretch gap-3">
+                          <div className="flex flex-col items-center">
+                            <span
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg font-mono text-[11px] font-semibold tabular-nums transition-colors ${
+                                node.done
+                                  ? "bg-terracotta text-surface"
+                                  : isCurrentNode
+                                    ? "border border-terracotta bg-surface-elevated text-terracotta"
+                                    : "border border-hairline bg-alabaster text-muted"
+                              }`}
+                            >
+                              {node.done ? (
+                                <Check className="h-3.5 w-3.5" />
+                              ) : (
+                                node.step
+                              )}
+                            </span>
+                            {!isLast ? (
+                              <span
+                                aria-hidden="true"
+                                className={`my-1 w-px flex-1 ${
+                                  node.done ? "bg-terracotta/50" : "bg-hairline"
+                                }`}
+                              />
+                            ) : null}
+                          </div>
+
+                          <div className={`min-w-0 flex-1 ${isLast ? "pb-1" : "pb-4"}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-mono text-[11px] tracking-[0.14em] uppercase text-muted">
+                                {node.label}
+                              </span>
+                              {node.badge ? (
+                                <span
+                                  className={`font-mono text-[11px] font-semibold tabular-nums ${
+                                    node.step === 3
+                                      ? "text-emerald-live"
+                                      : "text-terracotta"
+                                  }`}
+                                >
+                                  {node.badge}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p
+                              className={`mt-0.5 truncate text-sm ${
+                                node.done
+                                  ? "font-semibold text-ink"
+                                  : "text-muted"
+                              }`}
+                            >
+                              {node.value}
+                            </p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
 
                   {/* Input Nama Pelanggan (min 16px text-base anti-zoom iOS) */}
-                  <div className="mt-5">
+                  <div className="mt-5 border-t border-hairline pt-5">
                     <label
                       htmlFor="customer-name-input"
-                      className="block font-mono text-xs tracking-[0.14em] uppercase text-ivory"
+                      className="block font-mono text-xs font-semibold tracking-[0.14em] uppercase text-ink"
                     >
                       Nama Anda (Tanpa No. HP / Login)
                     </label>
@@ -1182,9 +1534,9 @@ export function BookingExperience({
                         if (errorMessage) setErrorMessage(null);
                       }}
                       placeholder="Contoh: Farhan Pratama"
-                      className="mt-2 min-h-[48px] w-full border border-hairline bg-obsidian px-4 py-3 text-base text-ivory placeholder:text-stone/60 focus:border-brass focus:outline-none"
+                      className="mt-2 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-3 text-base text-ink placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
                     />
-                    <p className="mt-1.5 font-mono text-[11px] text-stone">
+                    <p className="mt-1.5 font-mono text-[11px] text-muted">
                       2–40 karakter. Akan tercantum di tiket &amp; pesan WhatsApp.
                     </p>
                   </div>
@@ -1207,7 +1559,7 @@ export function BookingExperience({
                   {errorMessage ? (
                     <div
                       role="alert"
-                      className="mt-4 flex items-start gap-2.5 border border-crimson-alert/60 bg-obsidian p-3.5 text-xs text-crimson-alert"
+                      className="mt-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 text-xs text-crimson-alert"
                     >
                       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                       <span>{errorMessage}</span>
@@ -1215,11 +1567,11 @@ export function BookingExperience({
                   ) : null}
 
                   {/* Catatan Aturan Keterlambatan */}
-                  <div className="mt-5 flex items-start gap-2.5 border-l-2 border-brass bg-obsidian/70 p-3 text-xs leading-relaxed text-stone">
-                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-brass" />
+                  <div className="mt-5 flex items-start gap-2.5 rounded-xl border-l-2 border-terracotta bg-surface-elevated/70 p-3 text-xs leading-relaxed text-muted">
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
                     <span>
                       Toleransi keterlambatan maksimal{" "}
-                      <strong className="text-ivory">15 menit</strong> dari jam
+                      <strong className="text-ink">15 menit</strong> dari jam
                       reservasi. Konfirmasi dikirim langsung ke WhatsApp kasir.
                     </span>
                   </div>
@@ -1233,7 +1585,7 @@ export function BookingExperience({
                       !selectedService ||
                       !selectedSlotObj
                     }
-                    className="mt-6 inline-flex min-h-[50px] w-full items-center justify-center gap-2.5 border border-brass bg-brass px-5 py-3.5 font-display text-sm font-bold tracking-wide uppercase text-obsidian transition-colors hover:bg-brass/90 disabled:cursor-not-allowed disabled:border-hairline disabled:bg-surface-elevated disabled:text-stone"
+                    className="mt-6 inline-flex min-h-[50px] w-full items-center justify-center gap-2.5 rounded-xl bg-terracotta px-5 py-3.5 font-display text-sm font-bold tracking-wide uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted"
                   >
                     {isSubmitting ? (
                       <>
@@ -1253,9 +1605,9 @@ export function BookingExperience({
                     href={settings.google_maps_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center gap-2 border border-hairline bg-obsidian px-4 py-2.5 font-mono text-xs tracking-[0.12em] uppercase text-stone transition-colors hover:border-brass hover:text-ivory"
+                    className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-mono text-xs tracking-[0.12em] uppercase text-muted transition-colors hover:border-terracotta hover:text-ink"
                   >
-                    <MapPin className="h-3.5 w-3.5 text-brass" />
+                    <MapPin className="h-3.5 w-3.5 text-terracotta" />
                     {settings.short_address}
                     <ExternalLink className="h-3 w-3" />
                   </a>
@@ -1272,25 +1624,25 @@ export function BookingExperience({
           role="dialog"
           aria-modal="true"
           aria-labelledby="prebooking-confirm-title"
-          className="fixed inset-0 z-50 flex items-end justify-center bg-obsidian/85 p-4 pb-safe backdrop-blur-sm sm:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/75 p-4 pb-safe backdrop-blur-sm sm:items-center"
         >
-          <div className="w-full max-w-md border border-brass bg-surface p-5 sm:p-6">
+          <div className="w-full max-w-md rounded-2xl border border-hairline bg-surface p-5 shadow-2xl sm:p-6">
             <div className="flex items-center justify-between border-b border-hairline pb-3">
-              <span className="font-mono text-xs tracking-[0.2em] uppercase text-brass">
+              <span className="font-mono text-xs font-semibold tracking-[0.2em] uppercase text-terracotta">
                 Konfirmasi Akhir
               </span>
-              <span className="font-mono text-[11px] uppercase text-stone">
+              <span className="font-mono text-[11px] uppercase text-muted">
                 Belum Terkunci
               </span>
             </div>
 
             <h3
               id="prebooking-confirm-title"
-              className="mt-4 font-display text-xl font-bold text-ivory"
+              className="mt-4 font-display text-xl font-bold text-ink"
             >
               Pastikan Jadwal Sudah Sesuai
             </h3>
-            <p className="mt-1.5 text-xs leading-relaxed text-stone">
+            <p className="mt-1.5 text-xs leading-relaxed text-muted">
               Jika Anda memilih batal sekarang, slot tidak akan dikunci. Setelah
               konfirmasi, kursi langsung terkunci dan pesan WhatsApp otomatis
               terbuka.
@@ -1298,26 +1650,26 @@ export function BookingExperience({
 
             <dl className="mt-4 space-y-2.5 border-y border-hairline py-4 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-stone">Nama</dt>
-                <dd className="text-right font-medium text-ivory">
+                <dt className="text-muted">Nama</dt>
+                <dd className="text-right font-semibold text-ink">
                   {customerName.trim()}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-stone">Layanan</dt>
-                <dd className="text-right font-medium text-ivory">
+                <dt className="text-muted">Layanan</dt>
+                <dd className="text-right font-semibold text-ink">
                   {selectedService.name} ({selectedService.price_display})
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-stone">Tanggal</dt>
-                <dd className="text-right font-mono text-xs text-ivory tabular-nums sm:text-sm">
+                <dt className="text-muted">Tanggal</dt>
+                <dd className="text-right font-mono text-xs font-medium text-ink tabular-nums sm:text-sm">
                   {formatIndonesianDateFull(selectedDate)}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-stone">Jam Kursi</dt>
-                <dd className="text-right font-mono font-semibold text-brass tabular-nums">
+                <dt className="text-muted">Jam Kursi</dt>
+                <dd className="text-right font-mono font-bold text-terracotta tabular-nums">
                   {selectedSlotObj.time} – {selectedSlotObj.endTime} WIB
                 </dd>
               </div>
@@ -1328,7 +1680,7 @@ export function BookingExperience({
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => void handleConfirmBookingAndOpenWa()}
-                className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 border border-brass bg-brass px-4 py-3 font-mono text-xs font-bold tracking-[0.12em] uppercase text-obsidian transition-colors hover:bg-brass/90 disabled:opacity-50"
+                className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-terracotta px-4 py-3 font-mono text-xs font-bold tracking-[0.12em] uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <>
@@ -1347,7 +1699,7 @@ export function BookingExperience({
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => setShowConfirmModal(false)}
-                className="inline-flex min-h-[44px] items-center justify-center border border-hairline bg-obsidian px-4 py-2.5 font-mono text-xs tracking-[0.12em] uppercase text-stone transition-colors hover:border-ivory hover:text-ivory disabled:opacity-50"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-hairline bg-alabaster/70 px-4 py-2.5 font-mono text-xs font-medium tracking-[0.12em] uppercase text-ink transition-colors hover:border-ink disabled:opacity-50"
               >
                 Batal / Ubah
               </button>

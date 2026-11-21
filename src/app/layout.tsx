@@ -70,7 +70,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Madzhair",
   },
   openGraph: {
@@ -101,7 +101,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0B0B0C",
+  themeColor: "#EFE8DD",
 };
 
 export default function RootLayout({
@@ -112,9 +112,9 @@ export default function RootLayout({
   return (
     <html
       lang="id"
-      className={`${syne.variable} ${instrumentSerif.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable} dark`}
+      className={`${syne.variable} ${instrumentSerif.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="bg-obsidian text-ivory antialiased min-h-[100dvh]">
+      <body className="bg-alabaster text-ink antialiased min-h-[100dvh]">
         {children}
       </body>
     </html>

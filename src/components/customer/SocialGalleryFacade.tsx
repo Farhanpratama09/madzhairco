@@ -82,134 +82,125 @@ function VideoReelCard({
       : null;
 
   return (
-    <article className="group flex flex-col border border-hairline bg-surface">
-      <div className="flex items-center justify-between border-b border-hairline px-3.5 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 bg-brass" aria-hidden="true" />
-          <span className="font-mono text-[11px] tracking-[0.18em] uppercase text-stone tabular-nums">
-            {indexNumber} {"//"} {platformLabel}
-          </span>
-        </div>
+    <article className="group relative aspect-[9/16] w-full overflow-hidden rounded-2xl bg-ink shadow-md">
+      {!isLoaded ? (
+        <>
+          <Image
+            src={thumbnailSrc}
+            alt={item.title}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-gradient-to-t from-[#1E2329]/90 via-[#303841]/55 to-transparent"
+          />
 
-        {isLoaded ? (
+          <div className="absolute inset-x-0 bottom-0 space-y-3.5 p-5 sm:p-6">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 rounded-[2px] bg-terracotta"
+                />
+                <p className="font-mono text-[11px] tracking-[0.18em] uppercase text-[#F7F3EC]/85 tabular-nums">
+                  {indexNumber} {"//"} {platformLabel}
+                </p>
+              </div>
+              <h3 className="font-display text-lg font-bold leading-snug text-[#F7F3EC]">
+                {item.title}
+              </h3>
+              {item.caption ? (
+                <p className="line-clamp-2 text-xs leading-relaxed text-[#F7F3EC]/85">
+                  {item.caption}
+                </p>
+              ) : null}
+            </div>
+
+            {validation.valid ? (
+              <button
+                type="button"
+                onClick={() => setIsLoaded(true)}
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2.5 rounded-xl bg-terracotta px-4 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-[#F7F3EC] shadow-sm transition-colors hover:bg-terracotta/90"
+              >
+                <Play className="h-4 w-4 fill-[#F7F3EC]" />
+                Putar Video
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 rounded-xl border border-crimson-alert/60 bg-[#1E2329]/90 px-3 py-2.5 text-xs text-[#F7F3EC]">
+                <ShieldAlert className="h-4 w-4 shrink-0 text-crimson-alert" />
+                <span>URL embed tidak lolos validasi keamanan.</span>
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="relative h-full w-full">
           <button
             type="button"
             onClick={() => setIsLoaded(false)}
             aria-label={`Tutup pemutar ${item.title}`}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center border border-hairline bg-obsidian text-stone transition-colors hover:border-brass hover:text-ivory"
+            className="absolute top-3 right-3 z-20 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-[#1E2329]/85 text-[#F7F3EC] backdrop-blur-sm transition-colors hover:bg-terracotta"
           >
             <X className="h-4 w-4" />
           </button>
-        ) : null}
-      </div>
 
-      <div className="relative aspect-[9/16] w-full overflow-hidden bg-obsidian">
-        {!isLoaded ? (
-          <>
-            <Image
-              src={thumbnailSrc}
-              alt={item.title}
-              fill
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-            />
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 bg-gradient-to-t from-obsidian via-obsidian/40 to-obsidian/20"
-            />
-
-            <div className="absolute inset-0 flex flex-col justify-between p-4">
-              <div className="flex items-center justify-between">
-                <span className="border border-hairline bg-obsidian/85 px-2.5 py-1 font-mono text-[10px] tracking-[0.18em] uppercase text-ivory">
-                  {platformLabel}
-                </span>
-                <span className="border border-hairline bg-obsidian/85 px-2 py-1 font-mono text-[10px] tracking-[0.14em] uppercase text-stone">
-                  LAZY EMBED
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <h3 className="font-display text-lg font-bold leading-snug text-ivory">
-                    {item.title}
-                  </h3>
-                  {item.caption ? (
-                    <p className="mt-1 text-xs leading-relaxed text-stone">
-                      {item.caption}
-                    </p>
-                  ) : null}
-                </div>
-
-                {validation.valid ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsLoaded(true)}
-                    className="inline-flex min-h-[44px] w-full items-center justify-center gap-2.5 border border-brass bg-brass px-4 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-obsidian transition-colors hover:bg-brass/90"
-                  >
-                    <Play className="h-4 w-4 fill-obsidian" />
-                    Putar Video
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-2 border border-crimson-alert/50 bg-obsidian/90 px-3 py-2.5 text-xs text-crimson-alert">
-                    <ShieldAlert className="h-4 w-4 shrink-0" />
-                    <span>URL embed tidak lolos validasi keamanan.</span>
-                  </div>
-                )}
-              </div>
+          {!validation.valid || !validation.url ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+              <ShieldAlert className="h-7 w-7 text-crimson-alert" />
+              <p className="text-sm font-semibold text-[#F7F3EC]">
+                Tautan video diblokir
+              </p>
+              <p className="text-xs text-[#F7F3EC]/80">
+                Hanya URL HTTPS resmi TikTok dan Instagram Reels yang diizinkan.
+              </p>
             </div>
-          </>
-        ) : !validation.valid || !validation.url ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-            <ShieldAlert className="h-7 w-7 text-crimson-alert" />
-            <p className="text-sm text-ivory">Tautan video diblokir</p>
-            <p className="text-xs text-stone">
-              Hanya URL HTTPS resmi TikTok dan Instagram Reels yang diizinkan.
-            </p>
-          </div>
-        ) : embedIframeUrl ? (
-          <div className="flex h-full flex-col">
-            <iframe
-              src={embedIframeUrl}
-              title={item.title}
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allow="encrypted-media; picture-in-picture"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
-              className="h-full w-full flex-1 border-0 bg-obsidian"
-            />
-            <a
-              href={validation.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 border-t border-hairline bg-surface px-4 py-2 font-mono text-[11px] tracking-[0.14em] uppercase text-ivory transition-colors hover:bg-surface-elevated hover:text-brass"
-            >
-              Buka di {item.media_type === "tiktok" ? "TikTok" : "Instagram"}
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
-          </div>
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-            <p className="font-mono text-xs tracking-[0.16em] uppercase text-brass">
-              {platformLabel}
-            </p>
-            <h3 className="font-display text-lg font-bold text-ivory">
-              {item.title}
-            </h3>
-            <p className="text-xs leading-relaxed text-stone">
-              Tautan pendek terdeteksi. Buka langsung di aplikasi resmi untuk pemutaran penuh.
-            </p>
-            <a
-              href={validation.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 border border-brass bg-brass px-5 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-obsidian transition-colors hover:bg-brass/90"
-            >
-              Tonton Sekarang
-              <ArrowUpRight className="h-4 w-4" />
-            </a>
-          </div>
-        )}
-      </div>
+          ) : embedIframeUrl ? (
+            <div className="flex h-full flex-col">
+              <iframe
+                src={embedIframeUrl}
+                title={item.title}
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allow="encrypted-media; picture-in-picture"
+                sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
+                className="h-full w-full flex-1 border-0 bg-ink"
+              />
+              <a
+                href={validation.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 border-t border-hairline bg-surface px-4 py-2 font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-ink transition-colors hover:bg-surface-elevated hover:text-terracotta"
+              >
+                Buka di {item.media_type === "tiktok" ? "TikTok" : "Instagram"}
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+              <p className="font-mono text-xs font-semibold tracking-[0.16em] uppercase text-terracotta">
+                {platformLabel}
+              </p>
+              <h3 className="font-display text-lg font-bold text-[#F7F3EC]">
+                {item.title}
+              </h3>
+              <p className="text-xs leading-relaxed text-[#F7F3EC]/80">
+                Tautan pendek terdeteksi. Buka langsung di aplikasi resmi untuk pemutaran penuh.
+              </p>
+              <a
+                href={validation.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-[#F7F3EC] transition-colors hover:bg-terracotta/90"
+              >
+                Tonton Sekarang
+                <ArrowUpRight className="h-4 w-4" />
+              </a>
+            </div>
+          )}
+        </div>
+      )}
     </article>
   );
 }
@@ -225,7 +216,7 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
     <section
       id="galeri"
       aria-labelledby="galeri-heading"
-      className="border-t border-hairline bg-obsidian px-safe py-14 sm:py-20"
+      className="border-t border-hairline bg-alabaster px-safe py-14 sm:py-20"
     >
       <div className="mx-auto max-w-6xl space-y-10">
         <EditorialSectionHeader
@@ -236,14 +227,15 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
           description="Arsip gaya rambut dari satu kursi Madzhair.co. Video TikTok & Reels dimuat hanya saat Anda tekan agar hemat kuota seluler."
         />
 
-        {/* Komposisi Asimetris Foto (4:5) */}
+        {/* Komposisi Asimetris Foto Full-Bleed (4:5) */}
         {photoItems.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-12 md:gap-5">
             {photoItems.map((item, index) => {
-              const isLead = index === 0;
+              const mod = index % 3;
+              const isLead = mod === 0;
               const colSpan = isLead
                 ? "md:col-span-6 lg:col-span-5"
-                : index === 1
+                : mod === 1
                   ? "md:col-span-6 lg:col-span-4 md:mt-8"
                   : "md:col-span-12 lg:col-span-3 lg:mt-16";
 
@@ -253,35 +245,40 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
               return (
                 <article
                   key={item.id}
-                  className={`group flex flex-col border border-hairline bg-surface ${colSpan}`}
+                  className={`group relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-ink shadow-md ${colSpan}`}
                 >
-                  <div className="flex items-center justify-between border-b border-hairline px-3.5 py-2.5">
-                    <span className="font-mono text-[11px] tracking-[0.18em] uppercase text-stone tabular-nums">
-                      {indexNumber} {"//"} FOTO STUDIO
-                    </span>
-                    <span className="h-1.5 w-1.5 bg-hairline transition-colors group-hover:bg-brass" />
-                  </div>
+                  <Image
+                    src={photoSrc}
+                    alt={item.title}
+                    fill
+                    sizes={
+                      isLead
+                        ? "(max-width: 768px) 100vw, 45vw"
+                        : "(max-width: 768px) 100vw, 33vw"
+                    }
+                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                  />
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-0 bg-gradient-to-t from-[#1E2329]/90 via-[#303841]/55 to-transparent"
+                  />
 
-                  <div className="relative aspect-[4/5] w-full overflow-hidden bg-obsidian">
-                    <Image
-                      src={photoSrc}
-                      alt={item.title}
-                      fill
-                      sizes={
-                        isLead
-                          ? "(max-width: 768px) 100vw, 45vw"
-                          : "(max-width: 768px) 100vw, 33vw"
-                      }
-                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                    />
-                  </div>
+                  <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="h-1.5 w-1.5 rounded-[2px] bg-terracotta"
+                      />
+                      <span className="font-mono text-[11px] tracking-[0.18em] uppercase text-[#F7F3EC]/85 tabular-nums">
+                        {indexNumber} {"//"} FOTO STUDIO
+                      </span>
+                    </div>
 
-                  <div className="border-t border-hairline p-4">
-                    <h3 className="font-display text-base font-bold text-ivory sm:text-lg">
+                    <h3 className="mt-2 font-display text-lg font-bold leading-snug text-[#F7F3EC] sm:text-xl">
                       {item.title}
                     </h3>
                     {item.caption ? (
-                      <p className="mt-1.5 text-xs leading-relaxed text-stone sm:text-sm">
+                      <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-[#F7F3EC]/85 sm:text-sm">
                         {item.caption}
                       </p>
                     ) : null}
@@ -292,19 +289,19 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
           </div>
         ) : null}
 
-        {/* Baris Editorial Reels (9:16 Lazy Facade) */}
+        {/* Baris Editorial Reels Full-Bleed (9:16 Lazy Facade) */}
         {videoItems.length > 0 ? (
           <div className="border-t border-hairline pt-8">
             <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="font-mono text-xs tracking-[0.2em] uppercase text-stone">
+              <p className="font-mono text-xs font-semibold tracking-[0.2em] uppercase text-ink">
                 VIDEO REELS // KLIK UNTUK MEMUAT
               </p>
-              <p className="font-mono text-[11px] text-stone">
+              <p className="font-mono text-[11px] text-muted">
                 Zero-script initial load · HTTPS verified
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:gap-6">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-12 lg:gap-6">
               {videoItems.map((item, idx) => {
                 const indexNumber = String(photoItems.length + idx + 1).padStart(
                   2,

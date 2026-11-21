@@ -31,8 +31,8 @@ Sebelum melaporkan kesiapan rilis ke `madzhair-coordinator`, divisi ini wajib me
 
 ## 5. Implementasi Wave 3A & Temuan Teknis (Next.js 16.4.6)
 - **`src/app/layout.tsx`**:
-  - Keempat font editorial (`Syne`, `Instrument_Serif`, `Plus_Jakarta_Sans`, `JetBrains_Mono`) dimuat dengan `display: 'swap'` dan dipasang sebagai CSS variables di `<html lang="id" className="... dark">`.
-  - `Metadata` API lengkap (`metadataBase`, `manifest: '/manifest.json'`, `icons`, `appleWebApp`, `openGraph` WhatsApp `1200x630`, `twitter`) dan `export const viewport: Viewport` (`width: 'device-width'`, `initialScale: 1`, `viewportFit: 'cover'`, `themeColor: '#0B0B0C'`).
+  - Keempat font editorial (`Syne`, `Instrument_Serif`, `Plus_Jakarta_Sans`, `JetBrains_Mono`) dimuat dengan `display: 'swap'` dan dipasang sebagai CSS variables di `<html lang="id" className="...">` (tanpa class `dark`) dengan `<body className="bg-alabaster text-ink antialiased min-h-[100dvh]">`.
+  - `Metadata` API lengkap (`metadataBase`, `manifest: '/manifest.json'`, `icons`, `appleWebApp` dengan `statusBarStyle: 'default'`, `openGraph` WhatsApp `1200x630`, `twitter`) dan `export const viewport: Viewport` (`width: 'device-width'`, `initialScale: 1`, `viewportFit: 'cover'`, `themeColor: '#EFE8DD'`).
 - **`src/components/seo/HairSalonJsonLd.tsx`**:
   - Komponen Server/Pure untuk schema.org `HairSalon` / `LocalBusiness` (`Madzhair Barber & Co`, alamat `Jalan Raya Sungai Kunyit, Gang Tani`, kisaran harga `Rp 30.000 - Rp 250.000`, `hasMap`, `openingHoursSpecification` dinamis dari `WeeklySchedule[]` dengan fallback `DEFAULT_WEEKLY_SCHEDULES`) dan sanitasi `</script>` (`replace(/</g, "\\u003c")`).
 - **`src/app/sitemap.ts` & `src/app/robots.ts`**:
@@ -44,7 +44,15 @@ Sebelum melaporkan kesiapan rilis ke `madzhair-coordinator`, divisi ini wajib me
   - Security headers (`SECURITY_HEADERS` dari `src/lib/security/headers.ts`) dan `Cache-Control: public, max-age=31536000, immutable` (`/icons/(.*)`, `/images/(.*)`) disinkronkan di `next.config.ts` dan `vercel.json`.
 - **`.env.example`**: Mendokumentasikan `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, dan `NEXT_PUBLIC_SITE_URL`.
 
-## 6. Protokol Laporan & Pembaruan Skill
+## 6. Pembaruan Tema Warm Alabaster `#EFE8DD` (Wave 1 Ops Alignment)
+- **`public/manifest.json`**: `background_color` dan `theme_color` diperbarui dari `#0B0B0C` menjadi `#EFE8DD` agar splash screen PWA dan bar browser seluler selaras dengan kanvas Warm Alabaster.
+- **`src/app/layout.tsx`**:
+  - Menghapus class `dark` pada `<html>` (mempertahankan 4 CSS font variable: `--font-syne`, `--font-instrument-serif`, `--font-plus-jakarta`, `--font-jetbrains-mono`).
+  - Memperbarui `<body>` menjadi `bg-alabaster text-ink antialiased min-h-[100dvh]`.
+  - Mengubah `viewport.themeColor` menjadi `#EFE8DD`.
+  - Mengubah `appleWebApp.statusBarStyle` menjadi `"default"` agar teks status bar iOS terbaca gelap dengan kontras baik di atas latar `#EFE8DD`.
+
+## 7. Protokol Laporan & Pembaruan Skill
 - Hasil audit build, skor estimasi performa mobile, dan status kesiapan domain wajib dilampirkan pada setiap laporan ke `madzhair-coordinator`.
 - Setiap temuan optimasi baru wajib ditambahkan ke `SKILL.md` ini.
 

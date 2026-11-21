@@ -22,11 +22,11 @@ description: Ketua Koordinator dan Lead Architect proyek Madzhair.co. Mengelola 
 5. **Laporan ke Atasan Tertinggi:** Sajikan ringkasan progres yang padat, terverifikasi, dan siap diuji.
 
 ## 3. Checklist Gerbang Persetujuan (Acceptance Gate)
-- [x] Seluruh kriteria di `docs/PRD.md` v1.0 (`Approved`) terpenuhi tanpa penyimpangan logika slot (`Haircut` 45m/60m vs `Hair Chemicals` 120m/120m, `Asia/Pontianak`, lead time 30m).
-- [x] Semua divisi terkait (`design`, `backend`, `customer`, `admin`, `security`, `ops`) telah memperbarui file `SKILL.md` masing-masing dengan kontrak/pola terbaru.
+- [x] Seluruh kriteria di `docs/PRD.md` v1.2 (`Approved`) terpenuhi tanpa penyimpangan logika slot (`Haircut` 45m/60m vs `Hair Chemicals` 120m/120m, `Asia/Pontianak`, lead time 30m).
+- [x] Semua divisi terkait (`design`, `backend`, `customer`, `admin`, `security`, `ops`) telah memperbarui file `SKILL.md` masing-masing dengan kontrak/pola terbaru (`Warm Alabaster #EFE8DD`, `Soft Ivory #F7F3EC`, `Deep Slate Charcoal #303841`, `Burnt Terracotta #C25934`).
 - [x] Tidak ada *error* TypeScript (`npx tsc --noEmit`), ESLint (`npm run lint`), atau *warning* build (`npm run build` Next.js 16.4.6 + `src/proxy.ts`).
-- [x] Kontrak `Database` di `src/types/database.ts` kompatibel dengan `@supabase/supabase-js` v2.119+ (menggunakan `type` alias + `__InternalSupabase`).
-- [x] Audit Anti-AI-Slop (0 font klise, 0 hero pill `rounded-full`) & Paritas Android/iOS (`100dvh`, `safe-area`, `min-h-[44px]`, input `>= 16px`) lulus.
+- [x] Kontrak `Database`, RPC Supabase, API routes, dan logika/keamanan Smart Ticket `/tiket/[code]` tetap 100% utuh tanpa modifikasi.
+- [x] Audit Anti-AI-Slop (0 font klise, 0 pill `rounded-full` dekoratif, bahasa Soft-Editorial `rounded-2xl` / `rounded-xl`) & Paritas Android/iOS (`100dvh`, `safe-area`, `min-h-[44px]`, input `>= 16px`, manifest/themeColor `#EFE8DD`, Visual Timeline `>= 108px`/jam & `>= 216px`/2-jam) lulus.
 - [x] Simulasi E2E produksi (Booking → `MDZ-XXXX` + WA format → Smart Ticket mode publik zero-trust → `/admin` fail-closed → Honeypot + XSS + Rate Limit 429 + Double-Booking 409) berjalan mulus.
 
 ## 4. Protokol Pembaruan Skill Mandiri

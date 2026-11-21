@@ -52,10 +52,13 @@ Madzhair.co adalah aplikasi web reservasi dan manajemen operasional kasir berbas
 
 ### 4.1 Pengalaman Pelanggan (`/`)
 - **Tanpa Login & Tanpa Input No. HP:** Pelanggan cukup memilih **Layanan → Tanggal → Jam → Nama**.
+- **Hero Asimetris & Floating Segmented Booking Bar:** Komposisi hero editorial asimetris (foto `aspect-[4/5] rounded-2xl` tanpa bingkai kotak kaku) dilengkapi **Floating Segmented Booking Bar** (`rounded-2xl`, adaptif desktop horizontal & mobile maks 2 kolom/baris) di batas bawah hero yang menyatukan Layanan, Tanggal, Jam, dan Nama.
+- **Horizontal Date Scrubber & Live Booking Preview:** Pemilih tanggal menggunakan strip kalender horizontal *swipeable* (`rounded-xl`, `snap-x`) serta panel **Live Booking Preview** (`rounded-2xl`) yang terisi real-time sebelum modal konfirmasi.
+- **Lookbook & Galeri Full-Bleed:** Kartu foto (`aspect-[4/5]`) dan facade video TikTok/IG Reels (`aspect-[9/16]`) menggunakan `rounded-2xl` penuh dengan overlay gradasi scrim gelap di bawah (`from-[#1E2329]/90 via-[#303841]/55 to-transparent`, teks `#F7F3EC`).
 - **Konfirmasi Pra-Booking (Sebelum Kunci Slot):** Saat menekan tombol review booking, muncul ringkasan jadwal untuk konfirmasi akhir (**Batal / Ubah Jadwal** tidak menulis ke database; **Ya, Kunci Slot & Buka WA** baru mengunci slot dan membuka WhatsApp tanpa jeda).
 - **Penguncian Instan (`BOOKED`):** Saat konfirmasi akhir ditekan, transaksi memanggil fungsi RPC `create_booking_safe` (*advisory lock* per tanggal) untuk mencegah *double-booking* di milidetik yang sama. Slot langsung terkunci permanen tanpa timer hangus.
 - **Redirect WhatsApp Otomatis:** Sistem menghasilkan kode tiket unik acak **`MDZ-XXXX`** (non-sequential) dan mengarahkan pelanggan ke `https://wa.me/<nomor_admin>` dengan format pesan terisi otomatis beserta tautan tiket.
-- **Informasi Lokasi & Katalog:** Menampilkan status **Buka/Tutup Live** (dan indikator **Booking Aktif** sebelum jam buka), rincian harga, tombol arah Google Maps, serta galeri foto dan *lazy-loaded* video TikTok/IG Reels.
+- **Informasi Lokasi & Katalog:** Menampilkan status **Buka/Tutup Live** (dan indikator **Booking Aktif** sebelum jam buka), rincian harga, serta tombol arah Google Maps.
 
 ### 4.2 Link Tiket Pintar (`/tiket/[code]`)
 Satu URL netral yang menyesuaikan tampilan berdasarkan status autentikasi perangkat:
@@ -63,18 +66,18 @@ Satu URL netral yang menyesuaikan tampilan berdasarkan status autentikasi perang
 - **Mode Admin (Authenticated Session Terdeteksi):** Menampilkan kartu tiket yang sama ditambah **Panel Kontrol Cepat** di bagian bawah (pilihan jam pengganti untuk **Geser Jadwal** dalam 2 tap, serta tombol **Batalkan** untuk membebaskan slot).
 
 ### 4.3 Dashboard Kasir & Manajemen (`/admin`)
-- **Cross-Platform PWA:** Dapat di-install ke *Home Screen* di **Android (Chrome)** dan **iOS (Safari Add to Home Screen)** dengan tampilan *full-screen*.
-- **1-Tap Walk-in:** Dua tombol instan di bagian atas layar tanpa form ketik nama:
+- **Cross-Platform PWA:** Dapat di-install ke *Home Screen* di **Android (Chrome)** dan **iOS (Safari Add to Home Screen)** dengan tampilan *full-screen* selaras tema `#EFE8DD`.
+- **1-Tap Walk-in:** Dua tombol instan di zona jempol bawah (maks 2 tap tanpa ketik nama):
   - `+ Walk-in Haircut` (mengunci 1 blok jam aktif saat ini).
   - `+ Walk-in Chemicals` (mengunci 2 blok jam berurutan).
-- **Manajemen Antrean Harian:** Daftar booking hari ini dengan aksi cepat **Selesai**, **Geser Jadwal**, dan **Batalkan**.
-- **Kontrol Operasional & CMS:** Saklar **Tutup Darurat** (*force close*), blokir tanggal libur tertentu, editor jam buka harian, editor harga layanan, serta pengelola media (input link video TikTok/IG & upload foto/logo).
+- **Visual Time-Block Timeline:** Daftar jadwal harian ditampilkan sebagai timeline per jam (tinggi minimal `108px` per 60 menit; `216px` proporsional menyambung untuk Hair Chemicals 120 menit) dilengkapi garis indikator waktu aktif (`#C25934`), aksi cepat **Selesai**, **Geser**, dan **Batal**, serta pemisahan status `CANCELLED` ke daftar ringkas di bawah timeline.
+- **Kontrol Operasional & CMS:** Saklar **Tutup Darurat** (*force close*), blokir tanggal libur tertentu, editor jam buka harian, editor harga layanan, serta pengelola media (input link video TikTok/IG & upload foto WebP).
 
 ---
 
 ## 5. Standar Kualitas Wajib (Non-Negotiable)
-1. **Anti-AI-Slop UI:** Dilarang menggunakan *pill badge* dekoratif generik, font klise template AI (*Inter/Roboto/Space Grotesk* polos), atau grid kartu simetris membosankan.
-2. **Paritas Android & iOS:** Wajib mendukung `100dvh`, `env(safe-area-inset-*)`, area sentuh minimal `44x44px`, dan ikon PWA adaptif Android + Apple Touch Icon.
+1. **Palet Resmi Warm Alabaster 60–30–10 & Anti-AI-Slop UI:** Menggunakan kanvas `#EFE8DD` (Warm Alabaster), permukaan kartu `#F7F3EC` (Soft Ivory) + border `#DCD4C6`, teks utama `#303841` (Deep Slate Charcoal), sekunder `#5C646D` (Muted Slate), aksen `#C25934` (Burnt Terracotta, teks `#F7F3EC`), semantik `#2E6F56` & `#B83B3B`. Dilarang menggunakan *pill badge* dekoratif `rounded-full`, font klise template AI (*Inter/Roboto/Space Grotesk*), atau grid simetris membosankan; gunakan bahasa **Soft-Editorial** (`rounded-2xl` / `rounded-xl`) dengan tipografi `Syne`, `Instrument Serif`, `Plus Jakarta Sans`, dan `JetBrains Mono` (`tabular-nums`).
+2. **Paritas Android & iOS:** Wajib mendukung `100dvh`, `env(safe-area-inset-*)`, area sentuh minimal `44x44px` (`gap >= 8px`), input `>= 16px`, dan ikon PWA adaptif Android + Apple Touch Icon.
 3. **Zero-Trust Security:** Publik dilarang menulis langsung ke tabel `bookings` (wajib via RPC dengan *rate-limit* & *honeypot*). Aksi di Smart Ticket wajib divalidasi sesi adminnya di sisi server.
 4. **Zero-Error Deployment & SEO:** Wajib lulus strict `next build`, dilengkapi Open Graph preview untuk WhatsApp, JSON-LD `HairSalon`, dan skor performa mobile optimal.
 
@@ -102,4 +105,6 @@ Satu URL netral yang menyesuaikan tampilan berdasarkan status autentikasi perang
 | :--- | :--- | :--- | :--- |
 | `v1.0` | 2026-11-20 | `Approved` | Persetujuan resmi Atasan Tertinggi beserta penetapan data seed operasional (`Asia/Pontianak`, WA `62895701807228`, alamat Sungai Kunyit, tarif Haircut 30k–40k & Chemicals 250k). |
 | `v1.1` | 2026-11-20 | `Approved` | Penambahan dialog konfirmasi pra-booking sebelum mengunci slot DB & redirect WA instan tanpa delay, optimasi auth/query paralel (`/admin`, `/tiket`, `/`), Realtime status di `/tiket/[code]`, serta region Vercel `sin1`. |
+| `v1.2` | 2026-11-21 | `Approved` | Redesain UI/UX **Soft-Editorial** dengan palet resmi **Warm Alabaster (`#EFE8DD`)**, **Soft Ivory (`#F7F3EC`)**, **Deep Slate Charcoal (`#303841`)**, & **Burnt Terracotta (`#C25934`)**; Floating Segmented Booking Bar, Horizontal Date Scrubber, Live Booking Preview, Lookbook full-bleed `rounded-2xl`, serta Visual Time-Block Timeline (`108px/jam`) di `/admin`. |
+
 
