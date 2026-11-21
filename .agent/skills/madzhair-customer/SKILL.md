@@ -9,21 +9,19 @@ description: Pengembang halaman publik Madzhair.co (/), Split Hero Asimetris & F
 - Membangun pengalaman pelanggan bergaya **Soft-Editorial Editorial Minimalist (v1.4)** (palet 60–30–10 **Warm Alabaster `#EFE8DD`**, **Soft Ivory `#F7F3EC`**, **Deep Slate Charcoal `#303841`**, & **Burnt Terracotta `#C25934`**) yang instan, tanpa login, dan paritas penuh Android/iOS (`100dvh`, `env(safe-area-inset-*)`, touch target minimal `44x44px`, input `>= 16px` / `text-base`).
 - Mengimplementasikan kalkulator slot real-time, sinkronisasi Supabase Realtime, dan halaman **Link Tiket Pintar (`/tiket/[code]`)**.
 
-## 2. Spesifikasi Fitur & Implementasi (v1.4 — Soft-Editorial Travorra Minimalist)
+## 2. Spesifikasi Fitur & Implementasi (v1.5 — Travorra Full-Bleed Hero & Capsule Dock)
 1. **Halaman Utama (`src/app/page.tsx` & `src/components/customer/BookingExperience.tsx`):**
    - `export const dynamic = "force-dynamic"` dengan fallback aman ke `DEFAULT_*` (`src/lib/seed.ts`) dan `defaultGalleryItems` (`src/config/media.ts`) ketika env Supabase belum aktif.
-   - **Navbar Atas Minimalis Satu Baris (Tanpa Kotak Pembungkus):**
-     - Kiri: `BrandMark` (`variant="compact"` di `< sm`, `variant="full"` di `sm:`, wordmark Sentence Case `Madzhair.co`).
-     - Tengah (`hidden md:flex items-center gap-7`): 4 tautan teks bersih Sentence Case `Layanan` (`#layanan`), `Galeri` (`#galeri`), `Reservasi` (`#reservasi`), `Lokasi` (`#lokasi`) (`font-sans font-medium min-h-[44px]`).
-     - Kanan: `LiveStatusTag` (`compact`) teks bersih tanpa kotak pembungkus dengan indikator lingkaran halus (`w-2 h-2 rounded-full`) + teks Sentence Case (`Booking besok aktif · 05:00 – 20:00 WIB`).
-   - **Split Hero Asimetris (Travorra-Inspired):** Kanvas `bg-alabaster text-ink` tanpa *pill badge* maupun prefiks kode `00 /`. Kiri: eyebrow kecil bersih (`Studio cukur satu kursi · Jalan Raya Sungai Kunyit, Gang Tani`), judul `Instrument Serif` dengan aksen *italic* (`text-3xl sm:text-4xl lg:text-5xl`), subjudul `Plus Jakarta Sans`, CTA Terracotta **Pilih Jadwal** (`#reservasi`), tautan lokasi, dan ringkasan studio Sentence Case. Kanan: foto potongan rambut utama berbingkai asimetris organik (`rounded-tl-[72px] rounded-br-[72px] rounded-tr-3xl rounded-bl-3xl`, tanpa border kaku) + **1 kartu mengambang kecil** di sudut kanan atas berisi jam operasional hari ini & kapasitas 1 kursi.
-   - **Floating Horizontal Dock (`#layanan`, `rounded-3xl bg-surface shadow-xl` tanpa border kaku):**
-     - Menggantikan form booking ganda di batas bawah hero (`-mt-8 lg:-mt-12`).
-     - Berisi 4 segmen horizontal bersih (`lg:grid-cols-[minmax(0,1.45fr)_0.85fr_0.95fr_auto]`):
-       (a) **Layanan & Pricelist Interaktif:** Tab `Haircut` (`Rp 30k – 40k`) & `Hair Chemicals` (`Rp 250k`) (`rounded-2xl min-h-[48px]`) yang sinkron ke `selectedServiceId`, plus rincian varian.
-       (b) **Jam Operasional Hari Ini:** Jam buka/tutup (`tabular-nums`) dan status lingkaran semantik Sentence Case.
-       (c) **Location:** `Jalan Raya Sungai Kunyit, Gang Tani` klikabel menuju `settings.google_maps_url` (`min-h-[44px]`).
-       (d) **Tombol Aksi `Pilih Jadwal`:** `bg-terracotta text-surface rounded-2xl min-h-[48px]` untuk *smooth scroll* ke `#reservasi`.
+   - **Navbar Atas Transparan Menyatu (Desktop `lg:absolute`) & Ringkas (Mobile `< lg`):**
+     - Kiri: `BrandMark` (`variant="compact"` di `< sm`, `variant="full"` di `sm:`, Sentence Case `Madzhair.co`) + tautan teks Sentence Case `Layanan`, `Galeri`, `Reservasi`, `Lokasi` (`hidden md:flex`) terkelompok di sisi Alabaster `#EFE8DD`.
+     - Kanan: `LiveStatusTag` (`compact`, `surfaceTone="overlayDesktop"`) teks bersih tanpa kotak pembungkus dengan indikator lingkaran halus (`w-2 h-2 rounded-full`).
+   - **Full-Bleed Top-Right Hero & Organic Curve Mask:**
+     - Wrapper `relative w-full overflow-hidden`.
+     - Kiri: eyebrow kecil bersih, `h1` `Instrument Serif` tegas (`text-4xl sm:text-5xl lg:text-[62px] leading-[1.06] tracking-tight`), baris kedua *italic* Terracotta, subjudul ringkas, dan tombol CTA kapsul penuh (`rounded-full px-7 py-3.5 bg-terracotta text-surface`) dengan ikon panah melingkar putih (tanpa grid metadata datar 3-kolom di bawah CTA).
+     - Kanan (Desktop `lg:`): foto utama menempel penuh ke sisi kanan dan atas layar (`lg:w-[54%] lg:min-h-[620px]`) dengan lengkungan organik kiri (`lg:rounded-bl-[180px] lg:rounded-br-none`) menyatu di belakang navbar transparan + kartu mengambang `Jam operasional hari ini` menembus garis batas kiri foto (`lg:-left-10 lg:top-28 shadow-xl bg-[#F7F3EC] rounded-2xl`). Pada mobile (`< lg`): foto tampil di bawah CTA (`h-[280px] rounded-3xl rounded-b-[40px]`).
+   - **Floating Horizontal Capsule Dock (`#layanan`, Above the Fold):**
+     - Menjembatani dan menindih batas bawah foto hero (`-mt-8 mx-4 sm:mx-6 lg:-mt-12 lg:max-w-5xl lg:mx-auto`), berbentuk kapsul di desktop (`lg:rounded-full`) dan `rounded-3xl grid-cols-1 sm:grid-cols-2` di mobile (`bg-[#F7F3EC] shadow-[0_20px_50px_-12px_rgba(48,56,65,0.14)]`).
+     - Berisi 4 segmen bersih: (1) Toggle `Haircut (Rp 30k–40k)` & `Hair Chemicals (Rp 250k)` yang sinkron ke `selectedServiceId` (plus baris rincian varian ringkas tepat di bawah dock), (2) `Jam buka` hari ini (`tabular-nums`), (3) `Location` (`Jalan Raya Sungai Kunyit, Gang Tani` klikabel Google Maps), dan (4) Tombol CTA kapsul Terracotta `Pilih Jadwal →`.
    - **Urutan `<main>`:** Hero → `<BookingExperience ... gallerySection={<SocialGalleryFacade items={galleryItems} />} />` → Footer (`id="lokasi"` `scroll-mt-24`).
    - **Area Reservasi (`#reservasi` — Bebas Tabrakan Desktop):**
      - Grid desktop menggunakan `lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-8` dengan `min-w-0` pada kolom kiri dan tiap `<fieldset>` agar Horizontal Date Scrubber tidak pernah bertabrakan dengan kartu sticky `Live booking preview`.

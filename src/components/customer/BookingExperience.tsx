@@ -686,155 +686,150 @@ export function BookingExperience({
   return (
     <div className="bg-alabaster text-ink">
       {/* =====================================================================
-          FLOATING HORIZONTAL INFO & PRICELIST DOCK (BATAS BAWAH HERO)
+          FLOATING HORIZONTAL DOCK (MENINDIH BATAS BAWAH FOTO HERO)
       ===================================================================== */}
       <section
         id="layanan"
-        aria-label="Layanan, Pricelist, dan Info Studio"
-        className="relative z-20 -mt-8 scroll-mt-28 px-safe sm:scroll-mt-24 lg:-mt-12"
+        aria-label="Layanan, Tarif, Jam Buka, dan Lokasi Studio"
+        className="relative z-20 -mt-8 mx-4 scroll-mt-24 pb-8 sm:mx-6 sm:pb-10 lg:mx-auto lg:-mt-12 lg:max-w-5xl lg:pb-12"
       >
-        <div className="mx-auto max-w-6xl rounded-3xl bg-surface p-5 shadow-xl sm:p-6">
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.45fr)_0.85fr_0.95fr_auto] lg:items-start lg:gap-6">
-            {/* Segmen 1: Layanan & Pricelist Interaktif */}
-            <div className="min-w-0 space-y-3 sm:col-span-2 lg:col-span-1">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-sans text-xs font-medium text-terracotta">
-                  Layanan &amp; daftar harga
-                </p>
-
-                {selectedService ? (
-                  <span className="inline-flex items-center gap-1.5 font-sans text-xs text-muted">
-                    {activeServiceBlocks === 1 ? (
-                      <Scissors className="h-3.5 w-3.5 text-terracotta" />
-                    ) : (
-                      <Sparkles className="h-3.5 w-3.5 text-terracotta" />
-                    )}
-                    <span>
-                      {formatServiceDuration(
-                        selectedService.display_duration_minutes
-                      )}{" "}
-                      · {activeServiceBlocks} blok kursi
+        <div className="grid grid-cols-1 gap-4 rounded-3xl bg-[#F7F3EC] p-4 shadow-[0_20px_50px_-12px_rgba(48,56,65,0.14)] sm:grid-cols-2 sm:p-5 lg:flex lg:items-center lg:justify-between lg:gap-3 lg:rounded-full lg:px-5 lg:py-3">
+          {/* 1) Segmen Layanan & Tarif Toggle Cepat */}
+          <div className="min-w-0 sm:col-span-2 lg:shrink-0">
+            <p className="mb-1.5 font-sans text-[11px] font-medium text-muted lg:pl-2">
+              Layanan &amp; tarif
+            </p>
+            <div
+              role="tablist"
+              aria-label="Pilih kategori layanan"
+              className="grid grid-cols-2 gap-1.5 rounded-2xl bg-alabaster/70 p-1 lg:flex lg:items-center lg:rounded-full"
+            >
+              {activeServices.map((service) => {
+                const isTabActive = selectedService?.id === service.id;
+                return (
+                  <button
+                    key={service.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isTabActive}
+                    onClick={() => handleSelectService(service.id)}
+                    className={`flex min-h-[44px] flex-col items-start justify-center rounded-xl px-3 py-1.5 text-left transition-colors lg:flex-row lg:items-center lg:gap-1.5 lg:rounded-full lg:px-3 lg:whitespace-nowrap ${
+                      isTabActive
+                        ? "bg-ink text-surface shadow-xs"
+                        : "text-ink hover:text-terracotta"
+                    }`}
+                  >
+                    <span className="font-sans text-xs font-semibold">
+                      {service.name}
                     </span>
-                  </span>
-                ) : null}
-              </div>
-
-              {/* Pilihan Tab Layanan Interaktif (Sinkron ke selectedServiceId) */}
-              <div
-                role="tablist"
-                aria-label="Pilih kategori layanan"
-                className="grid grid-cols-2 gap-2.5"
-              >
-                {activeServices.map((service) => {
-                  const isTabActive = selectedService?.id === service.id;
-                  return (
-                    <button
-                      key={service.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={isTabActive}
-                      onClick={() => handleSelectService(service.id)}
-                      className={`flex min-h-[48px] flex-col items-start justify-center rounded-2xl px-3.5 py-2.5 text-left transition-colors sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:px-4 ${
-                        isTabActive
-                          ? "bg-ink text-surface shadow-xs"
-                          : "bg-alabaster/75 text-ink hover:bg-surface-elevated/80 hover:text-terracotta"
+                    <span
+                      className={`font-mono text-[11px] font-semibold tabular-nums ${
+                        isTabActive ? "text-surface/85" : "text-terracotta"
                       }`}
                     >
-                      <span className="font-sans text-xs font-semibold sm:text-sm">
-                        {service.name}
-                      </span>
-                      <span
-                        className={`font-mono text-xs font-semibold tabular-nums ${
-                          isTabActive ? "text-surface/90" : "text-terracotta"
-                        }`}
-                      >
-                        {service.price_display}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Rincian Varian & Durasi Layanan Aktif */}
-              {selectedService ? (
-                <div className="rounded-2xl bg-alabaster/65 px-4 py-2.5">
-                  <ul className="divide-y divide-hairline">
-                    {selectedService.price_variants.map((variant) => (
-                      <li
-                        key={variant.label}
-                        className="flex items-center justify-between gap-3 py-2 font-sans text-sm"
-                      >
-                        <span className="font-medium text-ink">
-                          {variant.label}
-                        </span>
-                        <span className="shrink-0 font-mono text-xs font-semibold text-ink tabular-nums sm:text-sm">
-                          Rp {variant.display}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-1.5 border-t border-hairline/70 pt-2 font-sans text-xs leading-relaxed text-muted">
-                    {activeServiceBlocks >= 2
-                      ? `Mengunci ${activeServiceBlocks} blok berurutan (${
-                          activeServiceBlocks * 60
-                        } menit sistem). Konsultasi gaya dilakukan di kursi.`
-                      : "Konsultasi gaya di kursi + 15 menit jeda sanitasi antar pelanggan."}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Segmen 2: Jam Operasional Hari Ini */}
-            <div className="rounded-2xl bg-alabaster/65 px-4 py-3.5">
-              <p className="font-sans text-xs font-medium text-muted">
-                Jam operasional hari ini
-              </p>
-              <p className="mt-1.5 font-mono text-sm font-semibold text-ink tabular-nums">
-                {todayHoursLabel}
-              </p>
-              <span
-                className={`mt-2 inline-flex items-center gap-1.5 font-sans text-xs font-medium ${liveBadgeSummary.textClass}`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`h-2 w-2 rounded-full ${liveBadgeSummary.dotClass}`}
-                />
-                <span>{liveBadgeSummary.label}</span>
-              </span>
-            </div>
-
-            {/* Segmen 3: Location (Klikabel menuju Google Maps) */}
-            <a
-              href={settings.google_maps_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex min-h-[44px] flex-col justify-between rounded-2xl bg-alabaster/65 px-4 py-3.5 transition-colors hover:bg-surface-elevated/80"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-sans text-xs font-medium text-muted">
-                  Location
-                </span>
-                <ArrowUpRight className="h-3.5 w-3.5 text-muted transition-colors group-hover:text-terracotta" />
-              </div>
-              <span className="mt-1.5 inline-flex items-start gap-2 font-sans text-sm font-medium leading-snug text-ink group-hover:text-terracotta">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
-                <span>{settings.short_address}</span>
-              </span>
-            </a>
-
-            {/* Segmen 4: Tombol CTA Terracotta Pilih Jadwal */}
-            <div className="sm:col-span-2 lg:col-span-1 lg:self-center">
-              <button
-                type="button"
-                onClick={handleScrollToBooking}
-                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-terracotta px-6 py-3.5 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 lg:w-auto"
-              >
-                <span>Pilih Jadwal</span>
-                <ArrowRight className="h-4 w-4 shrink-0" />
-              </button>
+                      ({service.price_display})
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          <span
+            aria-hidden="true"
+            className="hidden h-10 w-px shrink-0 bg-hairline lg:block"
+          />
+
+          {/* 2) Segmen Jam Buka Hari Ini */}
+          <div className="min-w-0 rounded-2xl bg-alabaster/60 px-3.5 py-2.5 lg:shrink-0 lg:bg-transparent lg:px-1 lg:py-0">
+            <p className="font-sans text-[11px] font-medium text-muted">
+              Jam buka
+            </p>
+            <p className="mt-0.5 font-mono text-xs font-semibold whitespace-nowrap text-ink tabular-nums sm:text-[13px]">
+              {todayHoursLabel}
+            </p>
+            <span
+              className={`mt-1 inline-flex items-center gap-1.5 font-sans text-[11px] font-medium ${liveBadgeSummary.textClass}`}
+            >
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${liveBadgeSummary.dotClass}`}
+              />
+              <span>{liveBadgeSummary.label}</span>
+            </span>
+          </div>
+
+          <span
+            aria-hidden="true"
+            className="hidden h-10 w-px shrink-0 bg-hairline lg:block"
+          />
+
+          {/* 3) Segmen Location (Klikabel ke Google Maps) */}
+          <a
+            href={settings.google_maps_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={settings.short_address}
+            className="group flex min-h-[44px] min-w-0 flex-col justify-center rounded-2xl bg-alabaster/60 px-3.5 py-2.5 transition-colors hover:bg-surface-elevated/80 lg:flex-1 lg:bg-transparent lg:px-1 lg:py-0 lg:hover:bg-transparent"
+          >
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="font-sans text-[11px] font-medium text-muted">
+                Location
+              </span>
+              <ArrowUpRight className="h-3 w-3 shrink-0 text-muted transition-colors group-hover:text-terracotta lg:hidden" />
+            </div>
+            <span className="mt-0.5 inline-flex items-center gap-1.5 font-sans text-xs font-semibold text-ink group-hover:text-terracotta sm:text-[13px]">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-terracotta" />
+              <span className="truncate">
+                {settings.short_address
+                  .replace(/^Jalan\b/i, "Jl.")
+                  .replace(/\bGang\b/i, "Gg.")}
+              </span>
+            </span>
+          </a>
+
+          {/* 4) Tombol Aksi Kapsul Terracotta */}
+          <div className="sm:col-span-2 lg:shrink-0">
+            <button
+              type="button"
+              onClick={handleScrollToBooking}
+              className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-terracotta px-6 py-3 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 lg:w-auto"
+            >
+              <span>Pilih Jadwal</span>
+              <ArrowRight className="h-4 w-4 shrink-0" />
+            </button>
+          </div>
         </div>
+
+        {/* Rincian Varian Layanan Aktif (Ringkas di bawah Capsule Dock) */}
+        {selectedService ? (
+          <div className="mt-3.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 px-2 font-sans text-xs text-muted">
+            <span className="inline-flex items-center gap-1.5 font-medium text-ink">
+              {activeServiceBlocks === 1 ? (
+                <Scissors className="h-3.5 w-3.5 text-terracotta" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 text-terracotta" />
+              )}
+              <span>
+                {selectedService.name} ·{" "}
+                {formatServiceDuration(
+                  selectedService.display_duration_minutes
+                )}
+              </span>
+            </span>
+            {selectedService.price_variants.map((variant) => (
+              <span
+                key={variant.label}
+                className="inline-flex items-center gap-1"
+              >
+                <span>{variant.label}</span>
+                <span className="font-mono font-semibold text-ink tabular-nums">
+                  Rp {variant.display}
+                </span>
+              </span>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       {/* =====================================================================

@@ -208,16 +208,6 @@ export default async function HomePage() {
 
   const heroImageUrl = settings.hero_image_url?.trim() || brand.heroImage;
 
-  const activeServices = services.filter((s) => s.is_active);
-  const minPriceK =
-    activeServices.length > 0
-      ? Math.round(Math.min(...activeServices.map((s) => s.price_min)) / 1000)
-      : 30;
-  const maxPriceK =
-    activeServices.length > 0
-      ? Math.round(Math.max(...activeServices.map((s) => s.price_max)) / 1000)
-      : 250;
-
   const todayHoursLabel = settings.is_force_closed
     ? "Tutup sementara"
     : liveStatus.openTime && liveStatus.closeTime
@@ -229,77 +219,79 @@ export default async function HomePage() {
       <HairSalonJsonLd schedules={schedules} storeSettings={settings} />
 
       {/* =====================================================================
-          NAVBAR ATAS MINIMALIS SATU BARIS (TANPA KOTAK PEMBUNGKUS)
+          WRAPPER HERO & NAVBAR TRANSPARAN (TRAVORRA FULL-BLEED TOP-RIGHT)
       ===================================================================== */}
-      <header className="sticky top-0 z-40 bg-alabaster/95 pt-safe backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-safe py-3 sm:gap-4 sm:py-3.5">
-          {/* Kiri: BrandMark */}
-          <div className="shrink-0">
-            <div className="sm:hidden">
-              <BrandMark variant="compact" size="sm" href="/" />
-            </div>
-            <div className="hidden sm:block">
-              <BrandMark variant="full" size="sm" href="/" />
-            </div>
-          </div>
+      <div className="relative w-full overflow-hidden">
+        {/* Top Navbar: Ringkas di mobile (< lg), menyatu transparan di atas hero desktop (lg:) */}
+        <header className="relative z-30 bg-transparent pt-safe lg:absolute lg:inset-x-0 lg:top-0">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-safe py-3.5 sm:gap-4 lg:py-5">
+            {/* Kiri: BrandMark + Nav Links tetap di atas sisi Alabaster kiri */}
+            <div className="flex items-center gap-7 xl:gap-9">
+              <div className="shrink-0">
+                <div className="sm:hidden">
+                  <BrandMark variant="compact" size="sm" href="/" />
+                </div>
+                <div className="hidden sm:block">
+                  <BrandMark variant="full" size="sm" href="/" />
+                </div>
+              </div>
 
-          {/* Tengah: Tautan Navigasi Bersih (Sentence Case, Desktop) */}
-          <nav
-            aria-label="Navigasi utama"
-            className="hidden items-center gap-7 md:flex"
-          >
-            {NAV_LINKS.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="inline-flex min-h-[44px] items-center font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta"
+              <nav
+                aria-label="Navigasi utama"
+                className="hidden items-center gap-5 md:flex xl:gap-7"
               >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-
-          {/* Kanan: Indikator Status Teks Ringan */}
-          <div className="min-w-0">
-            <div className="sm:hidden">
-              <LiveStatusTag
-                isOpen={liveStatus.isOpen}
-                isForceClosed={settings.is_force_closed}
-                reason={liveStatus.reason}
-                compact
-              />
+                {NAV_LINKS.map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className="inline-flex min-h-[44px] items-center font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta"
+                  >
+                    {item.label}
+                  </a>
+                ))}
+              </nav>
             </div>
-            <div className="hidden sm:block">
-              <LiveStatusTag
-                isOpen={liveStatus.isOpen}
-                isForceClosed={settings.is_force_closed}
-                reason={liveStatus.reason}
-                scheduleNote={scheduleNote}
-                compact
-              />
+
+            {/* Kanan: LiveStatusTag (kontras terang di lg: saat menindih sisi foto top-right) */}
+            <div className="min-w-0">
+              <div className="sm:hidden">
+                <LiveStatusTag
+                  isOpen={liveStatus.isOpen}
+                  isForceClosed={settings.is_force_closed}
+                  reason={liveStatus.reason}
+                  surfaceTone="overlayDesktop"
+                  compact
+                />
+              </div>
+              <div className="hidden sm:block">
+                <LiveStatusTag
+                  isOpen={liveStatus.isOpen}
+                  isForceClosed={settings.is_force_closed}
+                  reason={liveStatus.reason}
+                  scheduleNote={scheduleNote}
+                  surfaceTone="overlayDesktop"
+                  compact
+                />
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main>
-        {/* ===================================================================
-            SPLIT HERO ASIMETRIS (TRAVORRA-INSPIRED SOFT EDITORIAL)
-        =================================================================== */}
+        {/* Split Hero Full-Bleed Top-Right */}
         <section
           aria-labelledby="hero-heading"
-          className="px-safe pt-5 pb-14 sm:pt-10 sm:pb-18 lg:pt-12 lg:pb-24"
+          className="relative w-full lg:min-h-[620px]"
         >
-          <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 lg:grid-cols-12 lg:gap-12">
-            {/* Kolom Kiri: Eyebrow Bersih, Instrument Serif Headline, Subtitle, CTA */}
-            <div className="lg:col-span-7">
+          {/* Kolom Kiri (Tipografi Berani + Tombol Kapsul) */}
+          <div className="relative z-10 mx-auto max-w-6xl px-safe pt-3 pb-6 lg:flex lg:min-h-[620px] lg:items-center lg:pt-24 lg:pb-20">
+            <div className="lg:w-[46%] lg:pr-14 xl:pr-16">
               <p className="font-sans text-xs font-medium text-terracotta sm:text-sm">
                 Studio cukur satu kursi · {settings.short_address}
               </p>
 
               <h1
                 id="hero-heading"
-                className="mt-3 font-serif text-3xl leading-[1.12] font-normal tracking-tight text-ink sm:text-4xl lg:text-5xl"
+                className="mt-3 font-serif text-4xl leading-[1.06] font-normal tracking-tight text-ink sm:text-5xl lg:text-[62px]"
               >
                 Presisi Satu Kursi,{" "}
                 <span className="block italic text-terracotta">
@@ -307,91 +299,80 @@ export default async function HomePage() {
                 </span>
               </h1>
 
-              <p className="mt-4 max-w-lg font-sans text-sm leading-relaxed text-muted sm:text-base">
+              <p className="mt-4 max-w-md font-sans text-sm leading-relaxed text-muted sm:text-base">
                 Sesi cukur privat satu barber di {settings.brand_tagline}. Pilih
                 layanan, kunci slot jam bulat secara real-time, dan konfirmasi
-                via WhatsApp tanpa daftar akun.
+                langsung via WhatsApp tanpa daftar akun.
               </p>
 
-              {/* CTA Terracotta + Tautan Peta Ringkas */}
-              <div className="mt-6 flex flex-col gap-2.5 sm:mt-7 sm:flex-row sm:items-center sm:gap-4">
+              {/* CTA Kapsul Penuh Terracotta dengan Ikon Panah Melingkar */}
+              <div className="mt-6 flex flex-wrap items-center gap-3 sm:mt-7 sm:gap-4">
                 <a
                   href="#reservasi"
-                  className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-terracotta px-6 py-3 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90"
+                  className="inline-flex min-h-[52px] items-center justify-center gap-3 rounded-full bg-terracotta px-7 py-3.5 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90"
                 >
-                  Pilih Jadwal
-                  <ArrowDownRight className="h-4 w-4" />
+                  <span>Pilih Jadwal</span>
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-surface text-terracotta"
+                  >
+                    <ArrowDownRight className="h-4 w-4" />
+                  </span>
                 </a>
 
                 <a
                   href={settings.google_maps_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta sm:min-h-[48px]"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-full px-3 py-2 font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta"
                 >
                   <MapPin className="h-4 w-4 text-terracotta" />
                   <span>Lihat Lokasi</span>
                   <ArrowUpRight className="h-3.5 w-3.5 text-muted" />
                 </a>
               </div>
+            </div>
+          </div>
 
-              {/* Ringkasan Studio Clean Sentence Case */}
-              <dl className="mt-7 grid grid-cols-2 gap-4 border-t border-hairline pt-5 sm:mt-8 sm:grid-cols-3">
-                <div>
-                  <dt className="font-sans text-xs text-muted">Lokasi studio</dt>
-                  <dd className="mt-1 font-sans text-xs font-semibold leading-snug text-ink sm:text-sm">
-                    {settings.short_address}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-sans text-xs text-muted">
-                    Kapasitas kursi
-                  </dt>
-                  <dd className="mt-1 font-sans text-xs font-semibold text-ink sm:text-sm">
-                    <span className="font-mono tabular-nums">1</span> kursi ·
-                    Slot <span className="font-mono tabular-nums">60</span> mnt
-                  </dd>
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <dt className="font-sans text-xs text-muted">Tarif mulai</dt>
-                  <dd className="mt-1 font-mono text-xs font-bold text-terracotta tabular-nums sm:text-sm">
-                    Rp {minPriceK}k – {maxPriceK}k
-                  </dd>
-                </div>
-              </dl>
+          {/* Kanan / Mobile Bawah CTA: Full-Bleed Top-Right Visual + Organic Curve Mask */}
+          <div className="relative mx-4 sm:mx-6 lg:absolute lg:top-0 lg:right-0 lg:mx-0 lg:h-full lg:min-h-[620px] lg:w-[54%]">
+            {/* Bingkai lengkungan organik (full edge kanan & atas desktop) */}
+            <div className="relative h-[280px] w-full overflow-hidden rounded-3xl rounded-b-[40px] bg-ink shadow-xl sm:h-[340px] lg:h-full lg:min-h-[620px] lg:rounded-none lg:rounded-bl-[180px] lg:rounded-br-none">
+              <Image
+                src={heroImageUrl}
+                alt={brand.heroAlt}
+                fill
+                priority
+                sizes="(max-width: 1023px) 100vw, 54vw"
+                className="object-cover"
+              />
+
+              {/* Scrim atas halus khusus desktop agar status LiveStatusTag di kanan atas selalu terbaca */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 hidden h-28 bg-gradient-to-b from-[#1E2329]/75 via-[#1E2329]/25 to-transparent lg:block"
+              />
             </div>
 
-            {/* Kolom Kanan: Foto Asimetris Organik Tanpa Border + 1 Kartu Kecil Sudut Kanan Atas */}
-            <div className="relative mx-auto w-full max-w-md lg:col-span-5 lg:max-w-none">
-              <div className="relative aspect-[4/5] w-full overflow-hidden rounded-tl-[72px] rounded-br-[72px] rounded-tr-3xl rounded-bl-3xl bg-ink shadow-xl">
-                <Image
-                  src={heroImageUrl}
-                  alt={brand.heroAlt}
-                  fill
-                  priority
-                  sizes="(max-width: 1024px) 100vw, 42vw"
-                  className="object-cover"
-                />
-              </div>
-
-              {/* 1 Kartu Mengambang Kecil di Sudut Kanan Atas Foto */}
-              <div className="absolute top-4 right-4 z-10 rounded-2xl bg-surface/95 px-4 py-3 shadow-lg backdrop-blur-md sm:-right-3 sm:top-6">
-                <p className="font-sans text-xs font-medium text-muted">
-                  Jam operasional hari ini
-                </p>
-                <p className="mt-0.5 font-mono text-sm font-semibold text-ink tabular-nums">
-                  {todayHoursLabel}
-                </p>
-                <p className="mt-0.5 font-sans text-xs font-medium text-terracotta">
-                  1 kursi privat · Tanpa antre
-                </p>
-              </div>
+            {/* Kartu Mengambang Kecil Menembus Batas Kiri Foto (Desktop) */}
+            <div className="hidden rounded-2xl bg-[#F7F3EC] px-4 py-3 shadow-xl lg:absolute lg:top-28 lg:-left-10 lg:z-20 lg:block">
+              <p className="font-sans text-xs font-medium text-muted">
+                Jam operasional hari ini
+              </p>
+              <p className="mt-0.5 font-mono text-sm font-semibold text-ink tabular-nums">
+                {todayHoursLabel}
+              </p>
+              <p className="mt-0.5 font-sans text-xs font-medium text-terracotta">
+                1 kursi privat · Tanpa antre
+              </p>
             </div>
           </div>
         </section>
+      </div>
 
+      <main>
         {/* ===================================================================
-            FLOATING DOCK + GALERI (4 FOTO + 2 REELS) + RESERVASI
+            FLOATING HORIZONTAL CAPSULE DOCK + GALERI + RESERVASI
         =================================================================== */}
         <BookingExperience
           initialSettings={settings}

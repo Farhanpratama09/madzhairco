@@ -22,12 +22,12 @@ description: Ketua Koordinator dan Lead Architect proyek Madzhair.co. Mengelola 
 5. **Laporan ke Atasan Tertinggi:** Sajikan ringkasan progres yang padat, terverifikasi, dan siap diuji.
 
 ## 3. Checklist Gerbang Persetujuan (Acceptance Gate)
-- [x] Seluruh kriteria di `docs/PRD.md` v1.4 (`Approved`) terpenuhi tanpa penyimpangan logika slot (`Haircut` 45m/60m vs `Hair Chemicals` 120m/120m, `Asia/Pontianak`, lead time 30m, dan pembebasan slot saat status `COMPLETED`).
-- [x] Semua divisi terkait (`design`, `backend`, `customer`, `admin`, `security`, `ops`) selaras dengan pembaruan `SKILL.md` v1.4 (`Warm Alabaster #EFE8DD`, `Soft Ivory #F7F3EC`, `Deep Slate Charcoal #303841`, `Burnt Terracotta #C25934`, serta Sentence Case UI + `Instrument Serif`).
+- [x] Seluruh kriteria di `docs/PRD.md` v1.5 (`Approved`) terpenuhi tanpa penyimpangan logika slot (`Haircut` 45m/60m vs `Hair Chemicals` 120m/120m, `Asia/Pontianak`, lead time 30m, dan pembebasan slot saat status `COMPLETED`).
+- [x] Semua divisi terkait (`design`, `backend`, `customer`, `admin`, `security`, `ops`) selaras dengan pembaruan `SKILL.md` v1.5 (`Warm Alabaster #EFE8DD`, `Soft Ivory #F7F3EC`, `Deep Slate Charcoal #303841`, `Burnt Terracotta #C25934`, serta Travorra Full-Bleed Hero & Capsule Dock).
 - [x] Tidak ada *error* TypeScript (`npx tsc --noEmit`), ESLint (`npm run lint`), atau *warning* build (`npm run build` Next.js 16.4.6 + `src/proxy.ts`).
-- [x] Bug slot `COMPLETED` teratasi di `src/lib/slots.ts`, `001_initial_schema.sql`, & `004_free_completed_slots.sql` tanpa merusak keamanan RLS, API routes, maupun Smart Ticket `/tiket/[code]`.
-- [x] Audit Anti-AI-Slop & v1.4 (0 kode prefiks `01 //`, 0 `font-mono` / ALL-CAPS pada label UI, `LiveStatusTag` teks bersih + lingkaran `w-2 h-2 rounded-full`, Navbar 1 baris, Split Hero foto asimetris `rounded-tl-[72px] rounded-br-[72px] rounded-tr-3xl rounded-bl-3xl`, Floating Dock `rounded-3xl`, `#reservasi` `lg:grid-cols-[minmax(0,1fr)_360px]` bebas tabrakan, Timeline Kasir `BOOKED` aktif + Riwayat selesai) lulus.
-- [x] Simulasi E2E produksi (Slot `COMPLETED` terbebas → Booking → `MDZ-XXXX` + WA format → Smart Ticket mode publik zero-trust → `/admin` fail-closed → Honeypot + XSS + Rate Limit 429 + Double-Booking 409) berjalan mulus.
+- [x] Zero unintended edits pada backend (`slots.ts`, `supabase/`, `src/app/api/**`) maupun Smart Ticket `/tiket/[code]` pada revisi UI Hero & Floating Dock v1.5.
+- [x] Audit Anti-AI-Slop & Travorra v1.5 (Hero wrapper `relative w-full overflow-hidden`, foto `lg:w-[54%] lg:min-h-[620px] lg:rounded-bl-[180px]`, kartu batas `lg:-left-10 lg:top-28`, `h1` `lg:text-[62px]` `Instrument Serif`, tombol kapsul `rounded-full`, **Floating Capsule Dock** `lg:rounded-full -mt-12` above-the-fold & mobile `h-[280px] rounded-3xl` -> `-mt-8 mx-4`, 0 kode `01 //`, `#reservasi` `lg:grid-cols-[minmax(0,1fr)_360px]`) lulus.
+- [x] Simulasi E2E produksi (`/`, `/admin` fail-closed, `/tiket/MDZ-8K4P`, `POST /api/bookings`) berjalan mulus.
 
 ## 4. Protokol Pembaruan Skill Mandiri
 Setiap kali terjadi perubahan alur kerja atau penambahan standar evaluasi baru, Ketua Koordinator wajib memperbarui bagian **Checklist Gerbang Persetujuan** di file ini sebelum menutup sesi.

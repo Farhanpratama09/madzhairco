@@ -13,6 +13,8 @@ export interface LiveStatusTagProps {
   scheduleNote?: string;
   /** Tampilan lebih ringkas untuk header mobile */
   compact?: boolean;
+  /** 'overlayDesktop': teks terang kontras di lg: saat menindih foto gelap top-right hero */
+  surfaceTone?: "default" | "overlayDesktop";
   className?: string;
 }
 
@@ -23,6 +25,7 @@ export function LiveStatusTag({
   statusText,
   scheduleNote,
   compact = false,
+  surfaceTone = "default",
   className = "",
 }: LiveStatusTagProps) {
   const isLiveOpen = isOpen && !isForceClosed;
@@ -44,22 +47,38 @@ export function LiveStatusTag({
               : "Sedang tutup");
 
   const accentBg = isLiveOpen
-    ? "bg-emerald-live"
+    ? surfaceTone === "overlayDesktop"
+      ? "bg-emerald-live lg:bg-[#6EE7B7]"
+      : "bg-emerald-live"
     : isPreOpenOrAfterHours
-      ? "bg-terracotta"
-      : "bg-crimson-alert";
+      ? surfaceTone === "overlayDesktop"
+        ? "bg-terracotta lg:bg-[#F59E79]"
+        : "bg-terracotta"
+      : surfaceTone === "overlayDesktop"
+        ? "bg-crimson-alert lg:bg-[#FCA5A5]"
+        : "bg-crimson-alert";
 
   const accentPing = isLiveOpen
-    ? "bg-emerald-live/45"
+    ? surfaceTone === "overlayDesktop"
+      ? "bg-emerald-live/45 lg:bg-[#6EE7B7]/45"
+      : "bg-emerald-live/45"
     : isPreOpenOrAfterHours
-      ? "bg-terracotta/40"
+      ? surfaceTone === "overlayDesktop"
+        ? "bg-terracotta/40 lg:bg-[#F59E79]/45"
+        : "bg-terracotta/40"
       : "";
 
   const accentText = isLiveOpen
-    ? "text-emerald-live"
+    ? surfaceTone === "overlayDesktop"
+      ? "text-emerald-live lg:text-[#A7F3D0]"
+      : "text-emerald-live"
     : isPreOpenOrAfterHours
-      ? "text-terracotta"
-      : "text-crimson-alert";
+      ? surfaceTone === "overlayDesktop"
+        ? "text-terracotta lg:text-[#FDBA74]"
+        : "text-terracotta"
+      : surfaceTone === "overlayDesktop"
+        ? "text-crimson-alert lg:text-[#FECACA]"
+        : "text-crimson-alert";
 
   return (
     <div
@@ -88,8 +107,21 @@ export function LiveStatusTag({
       </span>
 
       {scheduleNote ? (
-        <span className="inline-flex items-center gap-2 text-muted whitespace-nowrap">
-          <span aria-hidden="true" className="text-muted/60">
+        <span
+          className={`inline-flex items-center gap-2 whitespace-nowrap ${
+            surfaceTone === "overlayDesktop"
+              ? "text-muted lg:text-[#F7F3EC]/90"
+              : "text-muted"
+          }`}
+        >
+          <span
+            aria-hidden="true"
+            className={
+              surfaceTone === "overlayDesktop"
+                ? "text-muted/60 lg:text-[#F7F3EC]/55"
+                : "text-muted/60"
+            }
+          >
             ·
           </span>
           <span className="font-mono text-xs tabular-nums">{scheduleNote}</span>
