@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   CalendarOff,
   Check,
+  ChevronRight,
   Clock,
   ExternalLink,
   ImagePlus,
@@ -88,8 +89,36 @@ const DAY_LABELS = [
 
 const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1200;
-/** Tinggi minimal track 60 menit (wajib >= 108px agar 2-jam merentang >= 216px & info + tombol 44px rapi di 360px) */
-const HOUR_ROW_HEIGHT_PX = 128;
+/** Tinggi track 60 menit (88px/jam: 1x Haircut ~80px, 2x Hair Chemicals ~168px proporsional) */
+const HOUR_ROW_HEIGHT_PX = 88;
+
+const MONTH_NAMES_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "Mei",
+  "Jun",
+  "Jul",
+  "Agu",
+  "Sep",
+  "Okt",
+  "Nov",
+  "Des",
+] as const;
+
+function formatIndonesianDateShort(dateStr: string): string {
+  const [yStr, mStr, dStr] = dateStr.split("-");
+  const year = Number.parseInt(yStr ?? "", 10);
+  const month = Number.parseInt(mStr ?? "", 10);
+  const day = Number.parseInt(dStr ?? "", 10);
+  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
+    return dateStr;
+  }
+  const dayName = DAY_LABELS[getDayOfWeekFromDateStr(dateStr)] ?? "Hari";
+  const monthName = MONTH_NAMES_SHORT[month - 1] ?? "";
+  return `${dayName}, ${day} ${monthName} ${year}`;
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -280,13 +309,37 @@ export function AdminCashierDashboard({
   } | null>(null);
   const [submittingWalkin, setSubmittingWalkin] = useState(false);
 
-  // Queue item action states
+  // Queue item action & Bottom Sheet Detail states
   const [busyBookingId, setBusyBookingId] = useState<string | null>(null);
-  const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(
     null
   );
-  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [detailSheetMode, setDetailSheetMode] = useState<
+    "detail" | "reschedule" | "cancel"
+  >("detail");
   const [refreshing, setRefreshing] = useState(false);
+
+  const openBookingDetail = useCallback((bookingId: string) => {
+    setPendingWalkin(null);
+    setSelectedBookingId(bookingId);
+    setDetailSheetMode("detail");
+  }, []);
+
+  const closeBookingDetail = useCallback(() => {
+    setSelectedBookingId(null);
+    setDetailSheetMode("detail");
+  }, []);
+
+  useEffect(() => {
+    if (!selectedBookingId) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busyBookingId) {
+        closeBookingDetail();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedBookingId, busyBookingId, closeBookingDetail]);
 
   // CMS States: Weekly Schedules
   const [scheduleDrafts, setScheduleDrafts] =
@@ -663,38 +716,33 @@ export function AdminCashierDashboard({
       HOUR_ROW_HEIGHT_PX
     : 0;
 
-  const activeRescheduleBooking = useMemo(
+  // Turunkan selectedBooking langsung dari bookings agar selalu sinkron live dengan Realtime
+  const selectedBooking = useMemo(
     () =>
-      rescheduleBookingId
-        ? timelineBookings.find(
-            (b) => b.id === rescheduleBookingId && b.status === "BOOKED"
-          ) ?? null
+      selectedBookingId
+        ? bookings.find((b) => b.id === selectedBookingId) ?? null
         : null,
-    [rescheduleBookingId, timelineBookings]
+    [bookings, selectedBookingId]
   );
 
-  const activeCancelBooking = useMemo(
-    () =>
-      cancelConfirmId
-        ? timelineBookings.find(
-            (b) => b.id === cancelConfirmId && b.status === "BOOKED"
-          ) ?? null
-        : null,
-    [cancelConfirmId, timelineBookings]
-  );
+  const selectedBookingRescheduleSlots = useMemo(() => {
+    if (!selectedBooking || selectedBooking.status !== "BOOKED") return [];
 
-  const activeRescheduleSlots = useMemo(() => {
-    if (!activeRescheduleBooking) return [];
+    const fallbackDuration = Math.max(
+      60,
+      parseTimeToMinutes(selectedBooking.end_time) -
+        parseTimeToMinutes(selectedBooking.start_time)
+    );
 
     const matchedService =
-      services.find((s) => s.id === activeRescheduleBooking.service_id) ??
-      services.find((s) => s.name === activeRescheduleBooking.service_name) ??
-      haircutService;
-
-    if (!matchedService) return [];
+      services.find((s) => s.id === selectedBooking.service_id) ??
+      services.find(
+        (s) =>
+          s.name.toLowerCase() === selectedBooking.service_name.toLowerCase()
+      ) ?? { slot_duration_minutes: fallbackDuration };
 
     return calculateAvailableSlots({
-      date: activeRescheduleBooking.booking_date,
+      date: selectedBooking.booking_date,
       service: matchedService,
       schedules,
       closedDates,
@@ -702,16 +750,15 @@ export function AdminCashierDashboard({
       settings,
       nowParts,
       ignoreLeadTime: true,
-      excludeBookingId: activeRescheduleBooking.id,
+      excludeBookingId: selectedBooking.id,
     }).filter(
       (slot) =>
         slot.available &&
-        slot.time !== formatTimeHHMM(activeRescheduleBooking.start_time)
+        slot.time !== formatTimeHHMM(selectedBooking.start_time)
     );
   }, [
-    activeRescheduleBooking,
+    selectedBooking,
     services,
-    haircutService,
     schedules,
     closedDates,
     bookings,
@@ -829,8 +876,7 @@ export function AdminCashierDashboard({
       }
 
       setBookings((prev) => upsertBooking(prev, data.booking!));
-      setRescheduleBookingId(null);
-      setCancelConfirmId(null);
+      closeBookingDetail();
 
       if (payload.action === "complete") {
         showToast("success", `Sesi ${data.booking.ticket_code} ditandai selesai.`);
@@ -1241,17 +1287,15 @@ export function AdminCashierDashboard({
   };
 
   const isQueueTab = activeTab === "queue";
-  const hasActiveBottomDrawer = Boolean(
-    pendingWalkin || activeRescheduleBooking || activeCancelBooking
-  );
+  const hasActiveBottomDrawer = Boolean(pendingWalkin);
 
   return (
     <div
       className={`min-h-[100dvh] bg-alabaster text-ink pt-safe ${
         isQueueTab
           ? hasActiveBottomDrawer
-            ? "pb-72 sm:pb-64"
-            : "pb-44 sm:pb-36"
+            ? "pb-60 sm:pb-52"
+            : "pb-36 sm:pb-32"
           : "pb-safe"
       }`}
     >
@@ -1466,7 +1510,7 @@ export function AdminCashierDashboard({
             ) : null}
 
             {/* Horizontal Date Scrubber (Hari Ini + 7 Hari ke Depan) */}
-            <div className="mb-5 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 no-scrollbar">
+            <div className="mb-4 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 no-scrollbar">
               {upcomingDates.map((d) => {
                 const isSelected = d.dateStr === selectedDate;
                 const count = activeCountByDate.get(d.dateStr) ?? 0;
@@ -1476,8 +1520,7 @@ export function AdminCashierDashboard({
                     type="button"
                     onClick={() => {
                       setSelectedDate(d.dateStr);
-                      setRescheduleBookingId(null);
-                      setCancelConfirmId(null);
+                      closeBookingDetail();
                     }}
                     className={`flex min-h-[48px] shrink-0 snap-start items-center gap-2.5 rounded-xl border px-3.5 py-2 text-left transition-colors ${
                       isSelected
@@ -1513,29 +1556,29 @@ export function AdminCashierDashboard({
               })}
             </div>
 
-            {/* Ringkasan Statistik Hari Terpilih */}
-            <div className="mb-5 grid grid-cols-3 divide-x divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
-              <div className="px-3 py-3 sm:px-4">
-                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
+            {/* Ringkasan Statistik Hari Terpilih (Ringkas & Tabular) */}
+            <div className="mb-4 grid grid-cols-3 divide-x divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
+              <div className="px-3 py-2.5 sm:px-4">
+                <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
                   Menunggu
                 </p>
-                <p className="mt-1 font-mono text-xl font-bold text-terracotta tabular-nums">
+                <p className="mt-0.5 font-mono text-sm font-bold text-terracotta tabular-nums sm:text-base">
                   {dayCounts.booked}
                 </p>
               </div>
-              <div className="px-3 py-3 sm:px-4">
-                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
+              <div className="px-3 py-2.5 sm:px-4">
+                <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
                   Selesai
                 </p>
-                <p className="mt-1 font-mono text-xl font-bold text-emerald-live tabular-nums">
+                <p className="mt-0.5 font-mono text-sm font-bold text-emerald-live tabular-nums sm:text-base">
                   {dayCounts.completed}
                 </p>
               </div>
-              <div className="px-3 py-3 sm:px-4">
-                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
+              <div className="px-3 py-2.5 sm:px-4">
+                <p className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
                   Batal
                 </p>
-                <p className="mt-1 font-mono text-xl font-bold text-muted tabular-nums">
+                <p className="mt-0.5 font-mono text-sm font-bold text-muted tabular-nums sm:text-base">
                   {dayCounts.cancelled}
                 </p>
               </div>
@@ -1717,11 +1760,15 @@ export function AdminCashierDashboard({
                       className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-hairline"
                     />
 
-                    {/* Layer 2: Blok Booking Proporsional (60m >= 108px, 120m >= 216px) */}
+                    {/* Layer 2: Blok Booking Minimalis Proporsional (60m ~80px, 120m ~168px) */}
                     {timelineBookings.map((booking) => {
                       const startMin = parseTimeToMinutes(booking.start_time);
                       const endMin = parseTimeToMinutes(booking.end_time);
                       const durationMin = Math.max(60, endMin - startMin);
+                      const blockCount = Math.max(
+                        1,
+                        Math.round(durationMin / 60)
+                      );
                       const topPx =
                         ((startMin - timelineRange.startMinutes) / 60) *
                         HOUR_ROW_HEIGHT_PX;
@@ -1730,25 +1777,26 @@ export function AdminCashierDashboard({
 
                       const isBooked = booking.status === "BOOKED";
                       const isWalkin = booking.source === "WALKIN";
-                      const isBusy = busyBookingId === booking.id;
-                      const isRescheduling = rescheduleBookingId === booking.id;
-                      const isConfirmingCancel = cancelConfirmId === booking.id;
+                      const isSelected = selectedBookingId === booking.id;
 
                       return (
-                        <article
+                        <button
                           key={booking.id}
+                          type="button"
+                          onClick={() => openBookingDetail(booking.id)}
+                          aria-label={`Detail jadwal ${booking.customer_name}, ${booking.service_name}, ${formatTimeHHMM(
+                            booking.start_time
+                          )} sampai ${formatTimeHHMM(booking.end_time)}`}
                           style={{
                             top: `${topPx + 4}px`,
-                            height: `${Math.max(108, heightPx - 8)}px`,
+                            height: `${Math.max(76, heightPx - 8)}px`,
                           }}
-                          className={`absolute inset-x-0 z-10 overflow-hidden rounded-xl border transition-shadow ${
-                            isBooked
-                              ? isRescheduling
-                                ? "border-terracotta bg-surface ring-2 ring-terracotta/25"
-                                : isConfirmingCancel
-                                  ? "border-crimson-alert bg-surface ring-2 ring-crimson-alert/25"
-                                  : "border-hairline bg-surface shadow-xs"
-                              : "border-hairline bg-surface-elevated/85"
+                          className={`group absolute inset-x-0 z-10 overflow-hidden rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? "border-terracotta bg-surface ring-2 ring-terracotta/25"
+                              : isBooked
+                                ? "border-hairline bg-surface shadow-xs hover:border-terracotta/70"
+                                : "border-hairline bg-surface-elevated/85 hover:border-emerald-live/60"
                           }`}
                         >
                           {/* Bar aksen vertikal kiri */}
@@ -1763,148 +1811,70 @@ export function AdminCashierDashboard({
                             }`}
                           />
 
-                          <div className="flex h-full flex-col justify-between gap-1.5 p-2 pl-3 sm:p-2.5 sm:pl-4">
-                            {/* Baris Atas: Nama, Badge ONLINE/WALK-IN, Jam + Layanan, Kode Tiket */}
-                            <div className="flex min-w-0 items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex min-w-0 items-center gap-1.5">
-                                  <p className="truncate font-display text-sm font-bold leading-tight text-ink sm:text-base">
-                                    {booking.customer_name}
-                                  </p>
-                                  <span
-                                    className={`inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase ${
-                                      isWalkin
-                                        ? "border-ink bg-ink text-surface"
-                                        : "border-terracotta/40 bg-terracotta/12 text-terracotta"
-                                    }`}
-                                  >
-                                    {isWalkin ? "WALK-IN" : "ONLINE"}
-                                  </span>
-                                </div>
+                          <div className="flex h-full flex-col justify-between px-3 py-2 pl-3.5 sm:px-3.5 sm:py-2.5 sm:pl-4">
+                            {/* Baris Atas: Jam + Tag ONLINE/WALK-IN + Status/Petunjuk Detail */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-mono text-[11px] font-semibold tracking-tight text-ink tabular-nums sm:text-xs">
+                                {formatTimeHHMM(booking.start_time)}–
+                                {formatTimeHHMM(booking.end_time)}
+                              </span>
 
-                                <p className="mt-0.5 truncate font-mono text-[11px] text-muted tabular-nums">
-                                  {formatTimeHHMM(booking.start_time)}–
-                                  {formatTimeHHMM(booking.end_time)} ·{" "}
-                                  {booking.service_name}
-                                </p>
-                              </div>
-
-                              <Link
-                                href={`/tiket/${booking.ticket_code}`}
-                                className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-xl border border-hairline bg-alabaster/75 px-2.5 font-mono text-[11px] font-semibold tracking-wide text-ink tabular-nums transition-colors hover:border-terracotta hover:text-terracotta"
-                              >
-                                <span>{booking.ticket_code}</span>
-                                <ExternalLink
-                                  aria-hidden="true"
-                                  className="h-3 w-3 text-muted"
-                                />
-                              </Link>
-                            </div>
-
-                            {/* Info Tambahan untuk Blok 2 Jam (Hair Chemicals 120 menit) */}
-                            {isMultiBlock ? (
-                              <div className="my-auto flex items-center justify-between gap-2 rounded-xl border border-hairline/85 bg-alabaster/65 px-3 py-2">
-                                <span className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-wider uppercase text-muted">
-                                  <Sparkles
-                                    aria-hidden="true"
-                                    className="h-3.5 w-3.5 text-terracotta"
-                                  />
-                                  <span>2 Blok Berurutan (120 Menit)</span>
-                                </span>
+                              <div className="flex shrink-0 items-center gap-1.5">
                                 <span
-                                  className={`font-mono text-[11px] font-semibold tracking-wider uppercase ${
-                                    isBooked
-                                      ? "text-terracotta"
-                                      : "text-emerald-live"
+                                  className={`inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase ${
+                                    isWalkin
+                                      ? "border-ink bg-ink text-surface"
+                                      : "border-terracotta/40 bg-terracotta/12 text-terracotta"
                                   }`}
                                 >
-                                  {isBooked ? "BOOKED" : "SELESAI"}
+                                  {isWalkin ? "WALK-IN" : "ONLINE"}
+                                </span>
+
+                                {!isBooked ? (
+                                  <span className="inline-flex items-center rounded-md border border-emerald-live/40 bg-emerald-live/12 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase text-emerald-live">
+                                    SELESAI
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-0.5 font-mono text-[10px] font-medium tracking-wider uppercase text-muted group-hover:text-terracotta">
+                                    <span>Detail</span>
+                                    <ChevronRight
+                                      aria-hidden="true"
+                                      className="h-3 w-3"
+                                    />
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Tengah: Nama Pelanggan & Layanan */}
+                            <div className="min-w-0">
+                              <p className="truncate font-display text-sm font-bold leading-tight text-ink sm:text-[15px]">
+                                {booking.customer_name}
+                              </p>
+                              <p className="mt-0.5 truncate text-xs leading-tight text-muted">
+                                {booking.service_name}
+                              </p>
+                            </div>
+
+                            {/* Indikator Blok 2 Jam (Hair Chemicals 120 Menit) */}
+                            {isMultiBlock ? (
+                              <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-hairline/80 bg-alabaster/70 px-2.5 py-1.5">
+                                <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium tracking-wider uppercase text-ink tabular-nums">
+                                  <Sparkles
+                                    aria-hidden="true"
+                                    className="h-3 w-3 shrink-0 text-terracotta"
+                                  />
+                                  <span>
+                                    {blockCount} Blok · {durationMin}m
+                                  </span>
+                                </span>
+                                <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                                  {blockCount}x Durasi
                                 </span>
                               </div>
                             ) : null}
-
-                            {/* Baris Bawah: 3 Tombol Aksi Cepat (BOOKED) atau Label Selesai (COMPLETED) */}
-                            {isBooked ? (
-                              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-                                <button
-                                  type="button"
-                                  disabled={isBusy}
-                                  onClick={() =>
-                                    void handleBookingMutation(booking.id, {
-                                      action: "complete",
-                                    })
-                                  }
-                                  className="inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl border border-emerald-live/50 bg-emerald-live/10 px-1.5 font-mono text-[11px] font-semibold tracking-wider uppercase text-emerald-live transition-colors hover:bg-emerald-live hover:text-surface disabled:opacity-50 sm:gap-1.5 sm:px-2 sm:text-xs"
-                                >
-                                  <Check
-                                    aria-hidden="true"
-                                    className="h-3.5 w-3.5 shrink-0"
-                                  />
-                                  <span>Selesai</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  disabled={isBusy}
-                                  onClick={() => {
-                                    setPendingWalkin(null);
-                                    setCancelConfirmId(null);
-                                    setRescheduleBookingId((prev) =>
-                                      prev === booking.id ? null : booking.id
-                                    );
-                                  }}
-                                  className={`inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl border px-1.5 font-mono text-[11px] font-semibold tracking-wider uppercase transition-colors disabled:opacity-50 sm:gap-1.5 sm:px-2 sm:text-xs ${
-                                    isRescheduling
-                                      ? "border-terracotta bg-terracotta text-surface"
-                                      : "border-hairline bg-alabaster/80 text-ink hover:border-terracotta hover:text-terracotta"
-                                  }`}
-                                >
-                                  <Clock
-                                    aria-hidden="true"
-                                    className="h-3.5 w-3.5 shrink-0"
-                                  />
-                                  <span>Geser</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  disabled={isBusy}
-                                  onClick={() => {
-                                    setPendingWalkin(null);
-                                    setRescheduleBookingId(null);
-                                    setCancelConfirmId((prev) =>
-                                      prev === booking.id ? null : booking.id
-                                    );
-                                  }}
-                                  className={`inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl border px-1.5 font-mono text-[11px] font-semibold tracking-wider uppercase transition-colors disabled:opacity-50 sm:gap-1.5 sm:px-2 sm:text-xs ${
-                                    isConfirmingCancel
-                                      ? "border-crimson-alert bg-crimson-alert text-surface"
-                                      : "border-hairline bg-alabaster/80 text-muted hover:border-crimson-alert hover:text-crimson-alert"
-                                  }`}
-                                >
-                                  <X
-                                    aria-hidden="true"
-                                    className="h-3.5 w-3.5 shrink-0"
-                                  />
-                                  <span>Batal</span>
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between border-t border-hairline/70 pt-1.5">
-                                <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-emerald-live">
-                                  <Check
-                                    aria-hidden="true"
-                                    className="h-3.5 w-3.5"
-                                  />
-                                  <span>Sesi Selesai</span>
-                                </span>
-                                <span className="font-mono text-[11px] text-muted tabular-nums">
-                                  {durationMin} Menit
-                                </span>
-                              </div>
-                            )}
                           </div>
-                        </article>
+                        </button>
                       );
                     })}
 
@@ -1944,9 +1914,11 @@ export function AdminCashierDashboard({
 
                 <div className="divide-y divide-hairline">
                   {cancelledBookings.map((booking) => (
-                    <div
+                    <button
                       key={booking.id}
-                      className="flex flex-wrap items-center justify-between gap-2.5 py-2.5 first:pt-0 last:pb-0"
+                      type="button"
+                      onClick={() => openBookingDetail(booking.id)}
+                      className="flex min-h-[48px] w-full items-center justify-between gap-2.5 py-2.5 text-left transition-colors first:pt-0 last:pb-0 hover:text-terracotta"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1966,14 +1938,11 @@ export function AdminCashierDashboard({
                         </p>
                       </div>
 
-                      <Link
-                        href={`/tiket/${booking.ticket_code}`}
-                        className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl border border-hairline bg-alabaster/70 px-3 font-mono text-xs font-medium tracking-wider text-muted tabular-nums transition-colors hover:border-terracotta hover:text-terracotta"
-                      >
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-2.5 py-1.5 font-mono text-xs font-medium tracking-wider text-muted tabular-nums">
                         <span>{booking.ticket_code}</span>
-                        <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
-                      </Link>
-                    </div>
+                        <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+                      </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -2687,111 +2656,12 @@ export function AdminCashierDashboard({
       </main>
 
       {/* ================================================================ */}
-      {/* THUMB-ZONE BAR AKSI INSTAN & SUB-DRAWER GESER / BATAL            */}
+      {/* THUMB-ZONE BAR AKSI INSTAN (+ WALK-IN 1-TAP / 2-TAP MAX)          */}
       {/* ================================================================ */}
       {isQueueTab ? (
         <div className="fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t border-hairline bg-surface/95 px-4 pt-3 pb-safe backdrop-blur-md">
           <div className="mx-auto w-full max-w-4xl space-y-2.5">
-            {/* Sub-Drawer 1: Pilihan Jam Pengganti untuk Geser Jadwal */}
-            {activeRescheduleBooking ? (
-              <div className="max-h-[45dvh] overflow-y-auto rounded-2xl border border-terracotta/60 bg-alabaster/90 p-3.5 shadow-sm">
-                <div className="mb-2.5 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-terracotta">
-                      Geser Jadwal • {activeRescheduleBooking.ticket_code}
-                    </p>
-                    <p className="truncate text-xs font-medium text-ink">
-                      {activeRescheduleBooking.customer_name} (
-                      {activeRescheduleBooking.service_name}) — pilih jam baru:
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setRescheduleBookingId(null)}
-                    aria-label="Tutup panel geser jadwal"
-                    className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface text-muted transition-colors hover:text-ink"
-                  >
-                    <X aria-hidden="true" className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {activeRescheduleSlots.length === 0 ? (
-                  <p className="rounded-xl border border-hairline bg-surface px-3 py-2.5 text-xs text-muted">
-                    Tidak ada slot kosong lain pada tanggal ini.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                    {activeRescheduleSlots.map((slot) => (
-                      <button
-                        key={slot.time}
-                        type="button"
-                        disabled={busyBookingId === activeRescheduleBooking.id}
-                        onClick={() =>
-                          void handleBookingMutation(
-                            activeRescheduleBooking.id,
-                            {
-                              action: "reschedule",
-                              newStartTime: slot.time,
-                            }
-                          )
-                        }
-                        className="flex min-h-[44px] items-center justify-center rounded-xl border border-hairline bg-surface font-mono text-sm font-semibold text-ink tabular-nums transition-colors hover:border-terracotta hover:bg-terracotta hover:text-surface disabled:opacity-50"
-                      >
-                        {slot.time}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {/* Sub-Drawer 2: Konfirmasi Pembatalan Jadwal */}
-            {activeCancelBooking ? (
-              <div className="flex flex-col gap-2.5 rounded-2xl border border-crimson-alert/60 bg-crimson-alert/10 p-3.5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-crimson-alert">
-                    Konfirmasi Pembatalan
-                  </p>
-                  <p className="text-sm font-medium text-ink">
-                    Batalkan{" "}
-                    <span className="font-mono font-bold">
-                      {activeCancelBooking.ticket_code}
-                    </span>{" "}
-                    ({activeCancelBooking.customer_name}) &amp; bebaskan slot{" "}
-                    <span className="font-mono font-semibold tabular-nums">
-                      {formatTimeHHMM(activeCancelBooking.start_time)}
-                    </span>
-                    ?
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
-                  <button
-                    type="button"
-                    disabled={busyBookingId === activeCancelBooking.id}
-                    onClick={() =>
-                      void handleBookingMutation(activeCancelBooking.id, {
-                        action: "cancel",
-                      })
-                    }
-                    className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-crimson-alert px-3.5 font-mono text-xs font-semibold uppercase text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
-                  >
-                    {busyBookingId === activeCancelBooking.id
-                      ? "Proses..."
-                      : "Ya, Batalkan"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCancelConfirmId(null)}
-                    className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-hairline bg-surface px-3.5 font-mono text-xs font-semibold uppercase text-muted hover:text-ink"
-                  >
-                    Tidak
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Sub-Drawer 3: Konfirmasi Tap ke-2 Walk-in */}
+            {/* Sub-Drawer: Konfirmasi Tap ke-2 Walk-in */}
             {pendingWalkin ? (
               <div className="flex flex-col gap-2 rounded-2xl border border-terracotta bg-alabaster/90 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
@@ -2843,8 +2713,7 @@ export function AdminCashierDashboard({
                 disabled={!haircutService || !haircutWalkinSlot || submittingWalkin}
                 onClick={() => {
                   if (haircutService && haircutWalkinSlot) {
-                    setRescheduleBookingId(null);
-                    setCancelConfirmId(null);
+                    closeBookingDetail();
                     setPendingWalkin({
                       service: haircutService,
                       slot: haircutWalkinSlot,
@@ -2876,8 +2745,7 @@ export function AdminCashierDashboard({
                 }
                 onClick={() => {
                   if (chemicalsService && chemicalsWalkinSlot) {
-                    setRescheduleBookingId(null);
-                    setCancelConfirmId(null);
+                    closeBookingDetail();
                     setPendingWalkin({
                       service: chemicalsService,
                       slot: chemicalsWalkinSlot,
@@ -2905,6 +2773,286 @@ export function AdminCashierDashboard({
           </div>
         </div>
       ) : null}
+
+      {/* ================================================================ */}
+      {/* BOTTOM SHEET / MODAL DETAIL BLOK JADWAL                          */}
+      {/* ================================================================ */}
+      {selectedBooking
+        ? (() => {
+            const startMin = parseTimeToMinutes(selectedBooking.start_time);
+            const endMin = parseTimeToMinutes(selectedBooking.end_time);
+            const durationMin = Math.max(60, endMin - startMin);
+            const blockCount = Math.max(1, Math.round(durationMin / 60));
+            const isBooked = selectedBooking.status === "BOOKED";
+            const isCompleted = selectedBooking.status === "COMPLETED";
+            const isWalkin = selectedBooking.source === "WALKIN";
+            const isBusy = busyBookingId === selectedBooking.id;
+
+            return (
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="booking-detail-sheet-title"
+                onClick={() => {
+                  if (!isBusy) closeBookingDetail();
+                }}
+                className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 backdrop-blur-xs sm:items-center sm:p-4"
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-hairline bg-surface px-4 pt-3 pb-safe shadow-2xl sm:rounded-2xl sm:p-6"
+                >
+                  {/* Grab bar mobile */}
+                  <div
+                    aria-hidden="true"
+                    className="mx-auto mb-3 h-1 w-10 rounded-[2px] bg-hairline sm:hidden"
+                  />
+
+                  {/* Header Sheet: Jam, Layanan, Badge ONLINE/WALK-IN, Status & Tombol Tutup */}
+                  <div className="flex items-start justify-between gap-3 border-b border-hairline pb-3.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={`inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase ${
+                            isWalkin
+                              ? "border-ink bg-ink text-surface"
+                              : "border-terracotta/40 bg-terracotta/12 text-terracotta"
+                          }`}
+                        >
+                          {isWalkin ? "WALK-IN" : "ONLINE"}
+                        </span>
+
+                        <span
+                          className={`inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase ${
+                            isBooked
+                              ? "border-terracotta/40 bg-terracotta/12 text-terracotta"
+                              : isCompleted
+                                ? "border-emerald-live/40 bg-emerald-live/12 text-emerald-live"
+                                : "border-crimson-alert/40 bg-crimson-alert/12 text-crimson-alert"
+                          }`}
+                        >
+                          {selectedBooking.status}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 font-mono text-xs font-semibold text-terracotta tabular-nums">
+                        {formatTimeHHMM(selectedBooking.start_time)}–
+                        {formatTimeHHMM(selectedBooking.end_time)} WIB ·{" "}
+                        {selectedBooking.service_name}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={closeBookingDetail}
+                      aria-label="Tutup detail jadwal"
+                      className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-hairline bg-alabaster/75 text-muted transition-colors hover:border-ink hover:text-ink disabled:opacity-50"
+                    >
+                      <X aria-hidden="true" className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Detail Pelanggan, Kode Tiket, Durasi Kursi & Tanggal */}
+                  <div className="py-4">
+                    <h3
+                      id="booking-detail-sheet-title"
+                      className="font-display text-lg font-bold leading-snug text-ink"
+                    >
+                      {selectedBooking.customer_name}
+                    </h3>
+
+                    <dl className="mt-3 grid grid-cols-2 gap-2.5 rounded-xl border border-hairline bg-alabaster/65 p-3">
+                      <div>
+                        <dt className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                          Kode Tiket
+                        </dt>
+                        <dd className="mt-0.5 font-mono text-sm font-bold text-terracotta tabular-nums">
+                          {selectedBooking.ticket_code}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                          Durasi Kursi
+                        </dt>
+                        <dd className="mt-0.5 font-mono text-sm font-semibold text-ink tabular-nums">
+                          {durationMin} Menit
+                          {blockCount > 1 ? ` (${blockCount} Blok)` : ""}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                          Tanggal
+                        </dt>
+                        <dd className="mt-0.5 text-sm font-medium text-ink">
+                          {formatIndonesianDateShort(
+                            selectedBooking.booking_date
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                          Sumber
+                        </dt>
+                        <dd className="mt-0.5 text-sm font-medium text-ink">
+                          {isWalkin ? "Walk-in Studio" : "Booking Online"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  {/* Aksi Booking (BOOKED: Selesai, Geser Jadwal, Batalkan) */}
+                  <div className="space-y-2.5">
+                    {isBooked ? (
+                      detailSheetMode === "reschedule" ? (
+                        <div className="rounded-xl border border-terracotta/50 bg-alabaster/75 p-3.5">
+                          <div className="mb-3 flex items-center justify-between gap-2">
+                            <div>
+                              <p className="font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-terracotta">
+                                Pilih Jam Pengganti
+                              </p>
+                              <p className="text-xs text-muted">
+                                Tap slot kosong di bawah untuk menggeser langsung.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => setDetailSheetMode("detail")}
+                              className="inline-flex min-h-[44px] shrink-0 items-center rounded-xl border border-hairline bg-surface px-3 font-mono text-xs font-semibold uppercase text-muted hover:text-ink disabled:opacity-50"
+                            >
+                              Kembali
+                            </button>
+                          </div>
+
+                          {selectedBookingRescheduleSlots.length === 0 ? (
+                            <p className="rounded-xl border border-hairline bg-surface px-3 py-3 text-sm text-muted">
+                              Tidak ada slot kosong lain pada tanggal ini.
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                              {selectedBookingRescheduleSlots.map((slot) => (
+                                <button
+                                  key={slot.time}
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() =>
+                                    void handleBookingMutation(
+                                      selectedBooking.id,
+                                      {
+                                        action: "reschedule",
+                                        newStartTime: slot.time,
+                                      }
+                                    )
+                                  }
+                                  className="flex min-h-[48px] items-center justify-center rounded-xl border border-hairline bg-surface font-mono text-sm font-semibold text-ink tabular-nums transition-colors hover:border-terracotta hover:bg-terracotta hover:text-surface disabled:opacity-50"
+                                >
+                                  {slot.time}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : detailSheetMode === "cancel" ? (
+                        <div className="rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5">
+                          <p className="font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-crimson-alert">
+                            Konfirmasi Pembatalan
+                          </p>
+                          <p className="mt-1 text-sm text-ink">
+                            Batalkan{" "}
+                            <span className="font-mono font-bold">
+                              {selectedBooking.ticket_code}
+                            </span>{" "}
+                            dan bebaskan slot jam{" "}
+                            <span className="font-mono font-semibold tabular-nums">
+                              {formatTimeHHMM(selectedBooking.start_time)}
+                            </span>
+                            ?
+                          </p>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() =>
+                                void handleBookingMutation(selectedBooking.id, {
+                                  action: "cancel",
+                                })
+                              }
+                              className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-crimson-alert px-4 font-mono text-xs font-semibold tracking-wider uppercase text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
+                            >
+                              {isBusy ? "Memproses..." : "Ya, Batalkan"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => setDetailSheetMode("detail")}
+                              className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-hairline bg-surface px-4 font-mono text-xs font-semibold tracking-wider uppercase text-ink hover:border-ink disabled:opacity-50"
+                            >
+                              Kembali
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() =>
+                              void handleBookingMutation(selectedBooking.id, {
+                                action: "complete",
+                              })
+                            }
+                            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-live px-4 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-surface transition-opacity hover:opacity-95 disabled:opacity-50"
+                          >
+                            <Check aria-hidden="true" className="h-4 w-4" />
+                            <span>
+                              {isBusy ? "Menyimpan..." : "Tandai Selesai"}
+                            </span>
+                          </button>
+
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => setDetailSheetMode("reschedule")}
+                              className="inline-flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl border border-hairline bg-alabaster/80 px-3 font-mono text-xs font-semibold tracking-wider uppercase text-ink transition-colors hover:border-terracotta hover:text-terracotta disabled:opacity-50"
+                            >
+                              <Clock aria-hidden="true" className="h-4 w-4" />
+                              <span>Geser Jadwal</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => setDetailSheetMode("cancel")}
+                              className="inline-flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl border border-crimson-alert/45 bg-crimson-alert/10 px-3 font-mono text-xs font-semibold tracking-wider uppercase text-crimson-alert transition-colors hover:bg-crimson-alert hover:text-surface disabled:opacity-50"
+                            >
+                              <X aria-hidden="true" className="h-4 w-4" />
+                              <span>Batalkan Booking</span>
+                            </button>
+                          </div>
+                        </>
+                      )
+                    ) : null}
+
+                    {/* Tautan Smart Ticket (Selalu tersedia untuk semua status) */}
+                    <Link
+                      href={`/tiket/${selectedBooking.ticket_code}`}
+                      className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-hairline bg-surface-elevated/70 px-4 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-ink transition-colors hover:border-terracotta hover:text-terracotta"
+                    >
+                      <span>Lihat Smart Ticket</span>
+                      <ExternalLink
+                        aria-hidden="true"
+                        className="h-3.5 w-3.5"
+                      />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
+        : null}
     </div>
   );
 }

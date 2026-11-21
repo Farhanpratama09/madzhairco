@@ -12,12 +12,7 @@ export interface SocialGalleryFacadeProps {
   items: GalleryItem[];
 }
 
-function normalizeGalleryItems(items: GalleryItem[]): GalleryItem[] {
-  const active = items.filter((item) => item.is_active);
-  if (active.length > 0) {
-    return active;
-  }
-
+function buildDefaultFallbackItems(): GalleryItem[] {
   return defaultGalleryItems.map((item, idx) => ({
     id: item.id,
     title: item.title,
@@ -29,6 +24,54 @@ function normalizeGalleryItems(items: GalleryItem[]): GalleryItem[] {
     is_active: true,
     created_at: "2026-11-20T00:00:00.000Z",
   }));
+}
+
+function resolveGalleryGroups(items: GalleryItem[]): {
+  photoItems: GalleryItem[];
+  videoItems: GalleryItem[];
+} {
+  const activeDbItems = items.filter((item) => item.is_active);
+  const fallbackAll = buildDefaultFallbackItems();
+
+  const dbPhotos = activeDbItems.filter((item) => item.media_type === "photo");
+  const dbVideos = activeDbItems.filter(
+    (item) => item.media_type === "tiktok" || item.media_type === "instagram"
+  );
+
+  const fallbackPhotos = fallbackAll.filter((item) => item.media_type === "photo");
+  const fallbackVideos = fallbackAll.filter(
+    (item) => item.media_type === "tiktok" || item.media_type === "instagram"
+  );
+
+  const photoItems: GalleryItem[] = [...dbPhotos];
+  const seenPhotoUrls = new Set(
+    photoItems.map((item) => item.media_url.trim())
+  );
+
+  for (const fallbackPhoto of fallbackPhotos) {
+    if (photoItems.length >= 4) break;
+    const urlKey = fallbackPhoto.media_url.trim();
+    if (!seenPhotoUrls.has(urlKey)) {
+      seenPhotoUrls.add(urlKey);
+      photoItems.push(fallbackPhoto);
+    }
+  }
+
+  const videoItems: GalleryItem[] = [...dbVideos];
+  const seenVideoUrls = new Set(
+    videoItems.map((item) => item.media_url.trim())
+  );
+
+  for (const fallbackVideo of fallbackVideos) {
+    if (videoItems.length >= 2) break;
+    const urlKey = fallbackVideo.media_url.trim();
+    if (!seenVideoUrls.has(urlKey)) {
+      seenVideoUrls.add(urlKey);
+      videoItems.push(fallbackVideo);
+    }
+  }
+
+  return { photoItems, videoItems };
 }
 
 function buildSafeEmbedIframeUrl(
@@ -82,14 +125,14 @@ function VideoReelCard({
       : null;
 
   return (
-    <article className="group relative aspect-[9/16] w-full overflow-hidden rounded-2xl bg-ink shadow-md">
+    <article className="group relative aspect-[9/16] w-[62vw] max-w-[240px] shrink-0 snap-start overflow-hidden rounded-2xl bg-ink shadow-md md:w-full md:max-w-none md:shrink">
       {!isLoaded ? (
         <>
           <Image
             src={thumbnailSrc}
             alt={item.title}
             fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            sizes="(max-width: 767px) 240px, (max-width: 1023px) 46vw, 420px"
             className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
           <div
@@ -97,22 +140,22 @@ function VideoReelCard({
             className="absolute inset-0 bg-gradient-to-t from-[#1E2329]/90 via-[#303841]/55 to-transparent"
           />
 
-          <div className="absolute inset-x-0 bottom-0 space-y-3.5 p-5 sm:p-6">
+          <div className="absolute inset-x-0 bottom-0 space-y-3 p-4 sm:p-5">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <span
                   aria-hidden="true"
                   className="h-1.5 w-1.5 rounded-[2px] bg-terracotta"
                 />
-                <p className="font-mono text-[11px] tracking-[0.18em] uppercase text-[#F7F3EC]/85 tabular-nums">
+                <p className="font-mono text-[11px] tracking-[0.16em] uppercase text-[#F7F3EC]/85 tabular-nums">
                   {indexNumber} {"//"} {platformLabel}
                 </p>
               </div>
-              <h3 className="font-display text-lg font-bold leading-snug text-[#F7F3EC]">
+              <h3 className="font-display text-base font-bold leading-snug text-[#F7F3EC] sm:text-lg">
                 {item.title}
               </h3>
               {item.caption ? (
-                <p className="line-clamp-2 text-xs leading-relaxed text-[#F7F3EC]/85">
+                <p className="line-clamp-2 text-sm leading-relaxed text-[#F7F3EC]/85">
                   {item.caption}
                 </p>
               ) : null}
@@ -122,7 +165,7 @@ function VideoReelCard({
               <button
                 type="button"
                 onClick={() => setIsLoaded(true)}
-                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2.5 rounded-xl bg-terracotta px-4 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-[#F7F3EC] shadow-sm transition-colors hover:bg-terracotta/90"
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-[#F7F3EC] shadow-sm transition-colors hover:bg-terracotta/90"
               >
                 <Play className="h-4 w-4 fill-[#F7F3EC]" />
                 Putar Video
@@ -147,7 +190,7 @@ function VideoReelCard({
           </button>
 
           {!validation.valid || !validation.url ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-5 text-center">
               <ShieldAlert className="h-7 w-7 text-crimson-alert" />
               <p className="text-sm font-semibold text-[#F7F3EC]">
                 Tautan video diblokir
@@ -178,14 +221,14 @@ function VideoReelCard({
               </a>
             </div>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+            <div className="flex h-full flex-col items-center justify-center gap-4 p-5 text-center">
               <p className="font-mono text-xs font-semibold tracking-[0.16em] uppercase text-terracotta">
                 {platformLabel}
               </p>
-              <h3 className="font-display text-lg font-bold text-[#F7F3EC]">
+              <h3 className="font-display text-base font-bold text-[#F7F3EC] sm:text-lg">
                 {item.title}
               </h3>
-              <p className="text-xs leading-relaxed text-[#F7F3EC]/80">
+              <p className="text-sm leading-relaxed text-[#F7F3EC]/80">
                 Tautan pendek terdeteksi. Buka langsung di aplikasi resmi untuk pemutaran penuh.
               </p>
               <a
@@ -206,114 +249,112 @@ function VideoReelCard({
 }
 
 export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
-  const normalizedItems = normalizeGalleryItems(items);
-  const photoItems = normalizedItems.filter((item) => item.media_type === "photo");
-  const videoItems = normalizedItems.filter(
-    (item) => item.media_type === "tiktok" || item.media_type === "instagram"
-  );
+  const { photoItems, videoItems } = resolveGalleryGroups(items);
 
   return (
     <section
       id="galeri"
       aria-labelledby="galeri-heading"
-      className="border-t border-hairline bg-alabaster px-safe py-14 sm:py-20"
+      className="scroll-mt-28 border-t border-hairline bg-alabaster px-safe py-10 sm:scroll-mt-24 sm:py-16"
     >
-      <div className="mx-auto max-w-6xl space-y-10">
+      <div className="mx-auto max-w-6xl space-y-8 sm:space-y-10">
         <EditorialSectionHeader
-          index="03"
+          index="02"
           label="GALERI & REELS"
           title="Hasil Cukur"
           accentTitle="& Transformasi"
           description="Arsip gaya rambut dari satu kursi Madzhair.co. Video TikTok & Reels dimuat hanya saat Anda tekan agar hemat kuota seluler."
         />
 
-        {/* Komposisi Asimetris Foto Full-Bleed (4:5) */}
+        {/* 4 Sample Foto Full-Bleed (4:5): Swipe horizontal di mobile (< md), grid 4 kolom di desktop */}
         {photoItems.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-12 md:gap-5">
-            {photoItems.map((item, index) => {
-              const mod = index % 3;
-              const isLead = mod === 0;
-              const colSpan = isLead
-                ? "md:col-span-6 lg:col-span-5"
-                : mod === 1
-                  ? "md:col-span-6 lg:col-span-4 md:mt-8"
-                  : "md:col-span-12 lg:col-span-3 lg:mt-16";
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-ink">
+                SAMPLE FOTO // 4:5 LOOKBOOK
+              </p>
+              <span className="font-mono text-[11px] text-muted md:hidden">
+                Geser →
+              </span>
+            </div>
 
-              const indexNumber = String(index + 1).padStart(2, "0");
-              const photoSrc = item.media_url?.trim() || "/images/style-fade.webp";
+            <div className="flex gap-3.5 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-2 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:pb-0 lg:grid-cols-4">
+              {photoItems.map((item, index) => {
+                const indexNumber = String(index + 1).padStart(2, "0");
+                const photoSrc = item.media_url?.trim() || "/images/style-fade.webp";
 
-              return (
-                <article
-                  key={item.id}
-                  className={`group relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-ink shadow-md ${colSpan}`}
-                >
-                  <Image
-                    src={photoSrc}
-                    alt={item.title}
-                    fill
-                    sizes={
-                      isLead
-                        ? "(max-width: 768px) 100vw, 45vw"
-                        : "(max-width: 768px) 100vw, 33vw"
-                    }
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                  />
-                  <div
-                    aria-hidden="true"
-                    className="absolute inset-0 bg-gradient-to-t from-[#1E2329]/90 via-[#303841]/55 to-transparent"
-                  />
+                return (
+                  <article
+                    key={`${item.id}-${index}`}
+                    className="group relative aspect-[4/5] w-[66vw] max-w-[260px] shrink-0 snap-start overflow-hidden rounded-2xl bg-ink shadow-md md:w-full md:max-w-none md:shrink"
+                  >
+                    <Image
+                      src={photoSrc}
+                      alt={item.title}
+                      fill
+                      sizes="(max-width: 767px) 260px, (max-width: 1023px) 48vw, 25vw"
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                    <div
+                      aria-hidden="true"
+                      className="absolute inset-0 bg-gradient-to-t from-[#1E2329]/90 via-[#303841]/55 to-transparent"
+                    />
 
-                  <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
-                    <div className="flex items-center gap-2">
-                      <span
-                        aria-hidden="true"
-                        className="h-1.5 w-1.5 rounded-[2px] bg-terracotta"
-                      />
-                      <span className="font-mono text-[11px] tracking-[0.18em] uppercase text-[#F7F3EC]/85 tabular-nums">
-                        {indexNumber} {"//"} FOTO STUDIO
-                      </span>
+                    <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+                      <div className="flex items-center gap-2">
+                        <span
+                          aria-hidden="true"
+                          className="h-1.5 w-1.5 rounded-[2px] bg-terracotta"
+                        />
+                        <span className="font-mono text-[11px] tracking-[0.16em] uppercase text-[#F7F3EC]/85 tabular-nums">
+                          {indexNumber} {"//"} FOTO STUDIO
+                        </span>
+                      </div>
+
+                      <h3 className="mt-1.5 font-display text-base font-bold leading-snug text-[#F7F3EC] sm:text-lg">
+                        {item.title}
+                      </h3>
+                      {item.caption ? (
+                        <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-[#F7F3EC]/85">
+                          {item.caption}
+                        </p>
+                      ) : null}
                     </div>
-
-                    <h3 className="mt-2 font-display text-lg font-bold leading-snug text-[#F7F3EC] sm:text-xl">
-                      {item.title}
-                    </h3>
-                    {item.caption ? (
-                      <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-[#F7F3EC]/85 sm:text-sm">
-                        {item.caption}
-                      </p>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })}
+                  </article>
+                );
+              })}
+            </div>
           </div>
         ) : null}
 
-        {/* Baris Editorial Reels Full-Bleed (9:16 Lazy Facade) */}
+        {/* 2 Sample Video Embed Reels Full-Bleed (9:16 Lazy Facade) */}
         {videoItems.length > 0 ? (
-          <div className="border-t border-hairline pt-8">
-            <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="font-mono text-xs font-semibold tracking-[0.2em] uppercase text-ink">
+          <div className="space-y-4 border-t border-hairline pt-7 sm:pt-8">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-ink">
                 VIDEO REELS // KLIK UNTUK MEMUAT
               </p>
-              <p className="font-mono text-[11px] text-muted">
+              <span className="font-mono text-[11px] text-muted md:hidden">
+                Geser →
+              </span>
+              <p className="hidden font-mono text-[11px] text-muted md:block">
                 Zero-script initial load · HTTPS verified
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-12 lg:gap-6">
+            <div className="flex max-w-4xl gap-3.5 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-2 md:grid md:grid-cols-2 md:gap-5 md:overflow-visible md:pb-0">
               {videoItems.map((item, idx) => {
                 const indexNumber = String(photoItems.length + idx + 1).padStart(
                   2,
                   "0"
                 );
-                const spanClass =
-                  idx % 2 === 0 ? "lg:col-span-5" : "lg:col-span-5 lg:mt-10";
 
                 return (
-                  <div key={item.id} className={spanClass}>
-                    <VideoReelCard item={item} indexNumber={indexNumber} />
-                  </div>
+                  <VideoReelCard
+                    key={`${item.id}-${idx}`}
+                    item={item}
+                    indexNumber={indexNumber}
+                  />
                 );
               })}
             </div>

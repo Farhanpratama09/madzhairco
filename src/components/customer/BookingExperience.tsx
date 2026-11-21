@@ -1,10 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import {
   AlertCircle,
   ArrowRight,
+  ArrowUpRight,
   Calendar,
   Check,
   Clock,
@@ -45,6 +53,7 @@ export interface BookingExperienceProps {
   initialServices: Service[];
   initialBookings: PublicBookingSlot[];
   initialDateStr: string;
+  gallerySection?: ReactNode;
 }
 
 const DAY_NAMES_FULL = [
@@ -95,13 +104,6 @@ function formatServiceDuration(displayMinutes: number): string {
   return `~${displayMinutes} Menit`;
 }
 
-function formatServiceDurationCompact(displayMinutes: number): string {
-  if (displayMinutes >= 60 && displayMinutes % 60 === 0) {
-    return `~${displayMinutes / 60}j`;
-  }
-  return `~${displayMinutes}m`;
-}
-
 function readDemoSessionBookings(): Booking[] {
   if (typeof window === "undefined") return [];
   try {
@@ -140,6 +142,7 @@ export function BookingExperience({
   initialServices,
   initialBookings,
   initialDateStr,
+  gallerySection,
 }: BookingExperienceProps) {
   const [settings, setSettings] = useState<StoreSettings>(initialSettings);
   const [schedules, setSchedules] = useState<WeeklySchedule[]>(initialSchedules);
@@ -208,7 +211,7 @@ export function BookingExperience({
     selectedDateRef.current = selectedDate;
   }, [selectedDate]);
 
-  const formSectionRef = useRef<HTMLDivElement | null>(null);
+  const formSectionRef = useRef<HTMLElement | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   const supabase = useMemo(() => createBrowserSupabase(), []);
@@ -288,7 +291,7 @@ export function BookingExperience({
     };
   }, [selectedDate, supabase]);
 
-  // Supabase Realtime subscription for bookings, store_settings, weekly_schedules, closed_dates
+  // Supabase Realtime subscription for bookings, store_settings, weekly_schedules, closed_dates, services
   useEffect(() => {
     if (!supabase) return;
 
@@ -386,7 +389,11 @@ export function BookingExperience({
     if (settings.is_force_closed) {
       return "Reservasi dijeda sementara";
     }
-    if (liveStatus.reason === "BEFORE_OPEN" && liveStatus.openTime && liveStatus.closeTime) {
+    if (
+      liveStatus.reason === "BEFORE_OPEN" &&
+      liveStatus.openTime &&
+      liveStatus.closeTime
+    ) {
       return `Buka ${liveStatus.openTime}–${liveStatus.closeTime} WIB`;
     }
     if (liveStatus.openTime && liveStatus.closeTime) {
@@ -394,6 +401,67 @@ export function BookingExperience({
     }
     return liveStatus.closedReason ?? undefined;
   }, [settings.is_force_closed, liveStatus]);
+
+  const todaySchedule = useMemo(
+    () => schedules.find((s) => s.day_of_week === nowParts.dayOfWeek) ?? null,
+    [schedules, nowParts.dayOfWeek]
+  );
+
+  const todayClosedEntry = useMemo(
+    () => closedDates.find((c) => c.closed_date === nowParts.dateStr) ?? null,
+    [closedDates, nowParts.dateStr]
+  );
+
+  const todayHoursLabel = useMemo(() => {
+    if (settings.is_force_closed) {
+      return "Tutup Sementara";
+    }
+    if (todayClosedEntry) {
+      return todayClosedEntry.reason?.trim() || "Libur Khusus";
+    }
+    if (!todaySchedule || !todaySchedule.is_open) {
+      return "Hari Ini Libur";
+    }
+    return `${formatTimeHHMM(todaySchedule.open_time)} – ${formatTimeHHMM(
+      todaySchedule.close_time
+    )} WIB`;
+  }, [settings.is_force_closed, todayClosedEntry, todaySchedule]);
+
+  const liveBadgeSummary = useMemo(() => {
+    if (settings.is_force_closed) {
+      return {
+        label: "Tutup Darurat",
+        dotClass: "bg-crimson-alert",
+        textClass: "text-crimson-alert",
+      };
+    }
+    if (liveStatus.isOpen) {
+      return {
+        label: "Buka Live",
+        dotClass: "bg-emerald-live",
+        textClass: "text-emerald-live",
+      };
+    }
+    if (liveStatus.reason === "BEFORE_OPEN") {
+      return {
+        label: "Booking Aktif",
+        dotClass: "bg-terracotta",
+        textClass: "text-terracotta",
+      };
+    }
+    if (liveStatus.reason === "AFTER_CLOSE") {
+      return {
+        label: "Booking Besok Aktif",
+        dotClass: "bg-terracotta",
+        textClass: "text-terracotta",
+      };
+    }
+    return {
+      label: "Hari Ini Libur",
+      dotClass: "bg-crimson-alert",
+      textClass: "text-crimson-alert",
+    };
+  }, [settings.is_force_closed, liveStatus.isOpen, liveStatus.reason]);
 
   const slots: SlotItem[] = useMemo(() => {
     if (!selectedService || !selectedDate) {
@@ -443,18 +511,25 @@ export function BookingExperience({
     [settings.is_force_closed, closedDates, schedules]
   );
 
-  const handleSelectServiceFromCatalog = (serviceId: string) => {
-    setSelectedServiceId(serviceId);
-    setSelectedTime("");
+  const handleSelectService = (serviceId: string) => {
+    if (serviceId !== selectedService?.id) {
+      setSelectedServiceId(serviceId);
+      setSelectedTime("");
+    }
     setErrorMessage(null);
     setConfirmedResult(null);
-    formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleScrollToBooking = () => {
+    formSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   };
 
   const handleSelectSlot = (slotTime: string) => {
     setSelectedTime(slotTime);
     setErrorMessage(null);
-    // Subtle focus helper only on desktop; avoid aggressive keyboard pop on mobile if unwanted
   };
 
   const buildWhatsAppUrl = (booking: Booking): string => {
@@ -596,20 +671,6 @@ export function BookingExperience({
   const trimmedCustomerName = customerName.trim();
   const isNameValid =
     trimmedCustomerName.length >= 2 && trimmedCustomerName.length <= 40;
-  const isDockReady =
-    !settings.is_force_closed &&
-    Boolean(selectedService) &&
-    Boolean(selectedDate) &&
-    Boolean(selectedSlotObj) &&
-    isNameValid;
-
-  const activeStep = !selectedService
-    ? 1
-    : !selectedDate
-      ? 2
-      : !selectedSlotObj
-        ? 3
-        : 4;
 
   const completedStepsCount = [
     Boolean(selectedService),
@@ -618,380 +679,194 @@ export function BookingExperience({
     isNameValid,
   ].filter(Boolean).length;
 
-  const handleDockAction = () => {
-    setErrorMessage(null);
-    setConfirmedResult(null);
-
-    if (isDockReady) {
-      setShowConfirmModal(true);
-      return;
-    }
-
-    formSectionRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  };
+  const activeServiceBlocks = selectedService
+    ? Math.max(1, Math.round(selectedService.slot_duration_minutes / 60))
+    : 1;
 
   return (
     <div className="bg-alabaster text-ink">
       {/* =====================================================================
-          FLOATING SEGMENTED BOOKING BAR (HERO OVERLAP DOCK)
+          01 // FLOATING INFO & PRICELIST DOCK (BATAS BAWAH HERO)
       ===================================================================== */}
-      <div className="relative z-20 -mt-8 px-safe lg:-mt-12">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-hairline bg-surface/95 p-4 shadow-xl backdrop-blur-md sm:p-5">
-          {/* Baris Atas: Tab Pilihan Cepat Layanan + Info Slot Real-Time */}
-          <div className="flex flex-col gap-3 border-b border-hairline pb-3.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              {activeServices.map((service) => {
-                const isTabActive = selectedService?.id === service.id;
-                return (
-                  <button
-                    key={service.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedServiceId(service.id);
-                      setSelectedTime("");
-                      setErrorMessage(null);
-                      setConfirmedResult(null);
-                    }}
-                    className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-3.5 py-2 font-mono text-xs font-semibold tracking-wide transition-colors ${
-                      isTabActive
-                        ? "border-terracotta bg-terracotta text-surface shadow-xs"
-                        : "border-hairline bg-alabaster/70 text-ink hover:border-terracotta hover:text-terracotta"
-                    }`}
-                  >
-                    <span>{service.name}</span>
-                    <span
-                      className={`tabular-nums ${
-                        isTabActive ? "text-surface/90" : "text-muted"
+      <section
+        id="layanan"
+        aria-label="Layanan, Pricelist, dan Info Studio"
+        className="relative z-20 -mt-8 scroll-mt-28 px-safe sm:scroll-mt-24 lg:-mt-12"
+      >
+        <div className="mx-auto max-w-6xl rounded-[28px] border border-hairline bg-surface/95 p-4 shadow-xl backdrop-blur-md sm:p-6">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6">
+            {/* (a) Segmen Layanan & Pricelist Interaktif (7 Col) */}
+            <div className="space-y-3.5 lg:col-span-7">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="h-1.5 w-1.5 rounded-[2px] bg-terracotta"
+                  />
+                  <p className="font-mono text-[11px] font-semibold tracking-[0.18em] uppercase text-muted tabular-nums">
+                    <span className="text-terracotta">01</span> / LAYANAN &amp; PRICELIST
+                  </p>
+                </div>
+
+                {selectedService ? (
+                  <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-muted tabular-nums">
+                    {activeServiceBlocks === 1 ? (
+                      <Scissors className="h-3.5 w-3.5 text-terracotta" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5 text-terracotta" />
+                    )}
+                    {formatServiceDuration(
+                      selectedService.display_duration_minutes
+                    )}{" "}
+                    · {activeServiceBlocks} Blok
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Pilihan Tab Layanan Interaktif (Sinkron ke selectedServiceId) */}
+              <div
+                role="tablist"
+                aria-label="Pilih kategori layanan"
+                className="grid grid-cols-2 gap-2.5"
+              >
+                {activeServices.map((service) => {
+                  const isTabActive = selectedService?.id === service.id;
+                  return (
+                    <button
+                      key={service.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isTabActive}
+                      onClick={() => handleSelectService(service.id)}
+                      className={`flex min-h-[48px] flex-col items-start justify-center rounded-xl border px-3.5 py-2 text-left transition-colors sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:px-4 ${
+                        isTabActive
+                          ? "border-ink bg-ink text-surface shadow-xs"
+                          : "border-hairline bg-alabaster/70 text-ink hover:border-terracotta hover:text-terracotta"
                       }`}
                     >
-                      {formatServiceDurationCompact(
-                        service.display_duration_minutes
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="font-mono text-[11px] tracking-[0.12em] uppercase text-muted tabular-nums">
-              {settings.is_force_closed
-                ? "Reservasi sedang dijeda"
-                : isLoadingSlots
-                  ? "Menyinkronkan jadwal..."
-                  : `${availableSlotCount} slot tersedia`}
-            </p>
-          </div>
-
-          {/* Segmen Input Adaptif: Mobile max 2 kolom/baris | Desktop sejajar */}
-          <div className="mt-3.5 grid grid-cols-2 gap-2.5 lg:grid-cols-12 lg:items-end lg:gap-3">
-            {/* Segmen 1: Layanan */}
-            <div className="col-span-1 lg:col-span-2">
-              <label
-                htmlFor="dock-service-select"
-                className="block font-mono text-[10px] tracking-[0.16em] uppercase text-muted"
-              >
-                Layanan
-              </label>
-              <select
-                id="dock-service-select"
-                value={selectedService?.id ?? ""}
-                onChange={(e) => {
-                  setSelectedServiceId(e.target.value);
-                  setSelectedTime("");
-                  setErrorMessage(null);
-                  setConfirmedResult(null);
-                }}
-                className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 py-2 text-base font-medium text-ink transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
-              >
-                {activeServices.map((service) => (
-                  <option key={service.id} value={service.id}>
-                    {service.name} (
-                    {formatServiceDurationCompact(
-                      service.display_duration_minutes
-                    )}
-                    )
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Segmen 2: Tanggal */}
-            <div className="col-span-1 lg:col-span-3">
-              <label
-                htmlFor="dock-date-select"
-                className="block font-mono text-[10px] tracking-[0.16em] uppercase text-muted"
-              >
-                Tanggal
-              </label>
-              <select
-                id="dock-date-select"
-                value={selectedDate}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
-                  setSelectedTime("");
-                  setErrorMessage(null);
-                  setConfirmedResult(null);
-                }}
-                className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 py-2 text-base font-medium text-ink transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
-              >
-                {upcomingDates.map((dateItem) => {
-                  const closedInfo = isDateClosed(dateItem.dateStr);
-                  const datePart =
-                    dateItem.labelShort.split(", ")[1] ?? dateItem.dateStr;
-                  const label = dateItem.isToday
-                    ? `Hari Ini (${datePart})`
-                    : dateItem.labelShort;
-                  return (
-                    <option key={dateItem.dateStr} value={dateItem.dateStr}>
-                      {closedInfo.closed ? `${label} — Tutup` : label}
-                    </option>
+                      <span className="font-display text-xs font-bold tracking-wide sm:text-sm">
+                        {service.name}
+                      </span>
+                      <span
+                        className={`font-mono text-[11px] font-semibold tabular-nums sm:text-xs ${
+                          isTabActive ? "text-surface/90" : "text-terracotta"
+                        }`}
+                      >
+                        {service.price_display}
+                      </span>
+                    </button>
                   );
                 })}
-              </select>
+              </div>
+
+              {/* Rincian Varian & Durasi Layanan Aktif */}
+              {selectedService ? (
+                <div className="rounded-2xl border border-hairline bg-alabaster/55 px-3.5 py-2.5 sm:px-4">
+                  <ul className="divide-y divide-hairline">
+                    {selectedService.price_variants.map((variant) => (
+                      <li
+                        key={variant.label}
+                        className="flex items-center justify-between gap-3 py-2 text-sm"
+                      >
+                        <span className="font-medium text-ink">
+                          {variant.label}
+                        </span>
+                        <span className="shrink-0 font-mono font-semibold text-ink tabular-nums">
+                          Rp {variant.display}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1.5 border-t border-hairline/70 pt-2 text-xs leading-relaxed text-muted">
+                    {activeServiceBlocks >= 2
+                      ? `Mengunci ${activeServiceBlocks} blok berurutan (${
+                          activeServiceBlocks * 60
+                        } menit sistem). Konsultasi gaya dilakukan di kursi.`
+                      : "Konsultasi gaya di kursi + 15 menit jeda sanitasi antar pelanggan."}
+                  </p>
+                </div>
+              ) : null}
             </div>
 
-            {/* Segmen 3: Jam */}
-            <div className="col-span-1 lg:col-span-2">
-              <label
-                htmlFor="dock-time-select"
-                className="block font-mono text-[10px] tracking-[0.16em] uppercase text-muted"
-              >
-                Jam
-              </label>
-              <select
-                id="dock-time-select"
-                value={selectedSlotObj ? selectedSlotObj.time : ""}
-                onChange={(e) => {
-                  handleSelectSlot(e.target.value);
-                  setConfirmedResult(null);
-                }}
-                className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 py-2 font-mono text-base font-medium text-ink tabular-nums transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
-              >
-                <option value="">
-                  {slots.length === 0 ? "Tutup" : "Pilih jam"}
-                </option>
-                {slots.map((slot) => (
-                  <option
-                    key={slot.time}
-                    value={slot.time}
-                    disabled={!slot.available}
-                  >
-                    {slot.available
-                      ? `${slot.time} WIB`
-                      : `${slot.time} (${
-                          slot.status === "BOOKED"
-                            ? "Terisi"
-                            : slot.status === "EXPIRED"
-                              ? "Lewat"
-                              : "< 2j"
-                        })`}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* (b) Jadwal Hari Ini, (c) Location, (d) CTA Terracotta Pilih Jadwal (5 Col) */}
+            <div className="flex flex-col justify-between gap-4 border-t border-hairline pt-4 lg:col-span-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                {/* (b) Segmen Jadwal Operasional Hari Ini */}
+                <div className="rounded-xl border border-hairline bg-alabaster/55 px-3.5 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
+                      Jadwal Hari Ini
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-[0.12em] uppercase ${liveBadgeSummary.textClass}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`h-1.5 w-1.5 rounded-[2px] ${liveBadgeSummary.dotClass}`}
+                      />
+                      {liveBadgeSummary.label}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 font-mono text-sm font-semibold text-ink tabular-nums">
+                    {todayHoursLabel}
+                  </p>
+                </div>
 
-            {/* Segmen 4: Input Nama (>= 16px text-base) */}
-            <div className="col-span-1 lg:col-span-3">
-              <label
-                htmlFor="dock-name-input"
-                className="block font-mono text-[10px] tracking-[0.16em] uppercase text-muted"
-              >
-                Nama Anda
-              </label>
-              <input
-                id="dock-name-input"
-                type="text"
-                minLength={2}
-                maxLength={40}
-                autoComplete="name"
-                value={customerName}
-                onChange={(e) => {
-                  setCustomerName(e.target.value);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                placeholder="Nama pelanggan"
-                className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3.5 py-2 text-base text-ink placeholder:text-muted/65 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
-              />
-            </div>
+                {/* (c) Segmen Location (Klikabel menuju Google Maps) */}
+                <a
+                  href={settings.google_maps_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex min-h-[44px] flex-col justify-center rounded-xl border border-hairline bg-alabaster/55 px-3.5 py-3 transition-colors hover:border-terracotta"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
+                      Location
+                    </span>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-muted transition-colors group-hover:text-terracotta" />
+                  </div>
+                  <span className="mt-1 inline-flex items-start gap-2 text-sm font-medium leading-snug text-ink group-hover:text-terracotta">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
+                    <span>{settings.short_address}</span>
+                  </span>
+                </a>
+              </div>
 
-            {/* Segmen 5: Tombol CTA Terracotta */}
-            <div className="col-span-2 lg:col-span-2">
+              {/* (d) Tombol CTA Terracotta Pilih Jadwal */}
               <button
                 type="button"
-                disabled={settings.is_force_closed}
-                onClick={handleDockAction}
-                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 py-3 font-display text-xs font-bold tracking-wide uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted"
+                onClick={handleScrollToBooking}
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-3 font-display text-sm font-bold tracking-wide uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90"
               >
-                <span>
-                  {settings.is_force_closed
-                    ? "Tutup"
-                    : isDockReady
-                      ? "Review Booking"
-                      : "Pilih Jadwal"}
-                </span>
+                <span>Pilih Jadwal</span>
                 <ArrowRight className="h-4 w-4 shrink-0" />
               </button>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* =====================================================================
-          01 // KATALOG LAYANAN SOFT-EDITORIAL ASIMETRIS
-      ===================================================================== */}
-      <section
-        id="layanan"
-        aria-labelledby="layanan-heading"
-        className="px-safe py-14 sm:py-20"
-      >
-        <div className="mx-auto max-w-6xl space-y-10">
-          <EditorialSectionHeader
-            index="01"
-            label="KATALOG LAYANAN"
-            title="Daftar Tarif"
-            accentTitle="& Durasi Kursi"
-            description="Konsultasi gaya rambut dilakukan langsung di kursi sebelum sesi dimulai. Harga transparan tanpa biaya tersembunyi."
-            action={
-              <LiveStatusTag
-                isOpen={liveStatus.isOpen}
-                isForceClosed={settings.is_force_closed}
-                reason={liveStatus.reason}
-                scheduleNote={scheduleNote}
-              />
-            }
-          />
-
-          {/* Grid Asimetris 12-Kolom dengan Hairline Dividers */}
-          <div className="grid grid-cols-1 overflow-hidden rounded-2xl border border-hairline bg-surface shadow-sm lg:grid-cols-12">
-            {activeServices.map((service, index) => {
-              const isPrimary = index === 0;
-              const blockCount = Math.max(
-                1,
-                Math.round(service.slot_duration_minutes / 60)
-              );
-              const isSelected = selectedService?.id === service.id;
-
-              return (
-                <article
-                  key={service.id}
-                  className={`flex flex-col justify-between p-6 sm:p-8 ${
-                    isPrimary
-                      ? "lg:col-span-7 lg:border-r lg:border-hairline"
-                      : "border-t border-hairline lg:col-span-5 lg:border-t-0"
-                  }`}
-                >
-                  <div>
-                    {/* Indeks Layanan & Tag Blok Sistem (rounded-xl) */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
-                      <div className="flex items-center gap-2.5">
-                        <span className="font-mono text-xs font-semibold tracking-[0.2em] text-terracotta tabular-nums">
-                          {String(index + 1).padStart(2, "0")}
-                        </span>
-                        <span className="text-muted/50">/</span>
-                        <span className="font-mono text-xs tracking-[0.16em] uppercase text-muted">
-                          {formatServiceDuration(service.display_duration_minutes)} ·{" "}
-                          {blockCount} Blok
-                        </span>
-                      </div>
-
-                      <span className="inline-flex items-center gap-1.5 rounded-xl border border-hairline bg-surface-elevated px-3 py-1.5 font-mono text-[11px] font-medium tracking-[0.12em] uppercase text-ink tabular-nums">
-                        {blockCount === 1 ? (
-                          <Scissors className="h-3.5 w-3.5 text-terracotta" />
-                        ) : (
-                          <Sparkles className="h-3.5 w-3.5 text-terracotta" />
-                        )}
-                        {blockCount * 60} Mnt Sistem
-                      </span>
-                    </div>
-
-                    {/* Nama Layanan & Subjudul */}
-                    <div className="mt-6 flex flex-col justify-between gap-2 sm:flex-row sm:items-baseline">
-                      <h3 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-                        {service.name}
-                      </h3>
-                      <p className="font-mono text-lg font-bold text-terracotta tabular-nums">
-                        {service.price_display}
-                      </p>
-                    </div>
-
-                    {service.subtitle ? (
-                      <p className="mt-2 text-sm leading-relaxed text-muted">
-                        {service.subtitle}
-                      </p>
-                    ) : null}
-
-                    {/* Daftar Varian Harga dengan Hairline Rows */}
-                    <ul className="mt-6 divide-y divide-hairline border-y border-hairline">
-                      {service.price_variants.map((variant) => (
-                        <li
-                          key={variant.label}
-                          className="flex items-center justify-between gap-4 py-3.5"
-                        >
-                          <span className="text-sm font-medium text-ink sm:text-base">
-                            {variant.label}
-                          </span>
-                          <span className="shrink-0 font-mono text-sm font-semibold text-ink tabular-nums sm:text-base">
-                            Rp {variant.display}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {blockCount >= 2 ? (
-                      <p className="mt-4 border-l-2 border-terracotta pl-3 text-xs leading-relaxed text-muted">
-                        Layanan 2 jam otomatis mengunci 2 blok waktu berurutan agar
-                        pengerjaan kimia rambut tidak terburu-buru.
-                      </p>
-                    ) : (
-                      <p className="mt-4 border-l-2 border-hairline pl-3 text-xs leading-relaxed text-muted">
-                        Sisa 15 menit dari blok 1 jam digunakan otomatis untuk sanitasi
-                        peralatan &amp; jeda barber.
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="mt-8 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectServiceFromCatalog(service.id)}
-                      className={`inline-flex min-h-[48px] w-full items-center justify-between rounded-xl border px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase transition-colors ${
-                        isSelected
-                          ? "border-terracotta bg-terracotta text-surface shadow-xs"
-                          : "border-hairline bg-alabaster/70 text-ink hover:border-terracotta hover:bg-terracotta hover:text-surface"
-                      }`}
-                    >
-                      <span>
-                        {isSelected ? "Dipilih untuk Reservasi" : `Pilih ${service.name}`}
-                      </span>
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </div>
       </section>
 
       {/* =====================================================================
-          02 // ALUR BOOKING 4 LANGKAH REAL-TIME
+          02 // SAMPLE MEDIA & VIDEO REELS (DISISIPKAN TEPAT SETELAH DOCK)
+      ===================================================================== */}
+      {gallerySection}
+
+      {/* =====================================================================
+          03 // AREA RESERVASI (ADAPTASI CINEMA SEAT MAP + LIVE PREVIEW)
       ===================================================================== */}
       <section
         id="reservasi"
         ref={formSectionRef}
-        aria-labelledby="reservasi-heading"
-        className="border-t border-hairline bg-surface-elevated/45 px-safe py-14 sm:py-20"
+        aria-label="Reservasi Kursi Madzhair.co"
+        className="scroll-mt-28 border-t border-hairline bg-surface-elevated/45 px-safe py-10 sm:scroll-mt-24 sm:py-16"
       >
-        <div className="mx-auto max-w-6xl space-y-8">
+        <div className="mx-auto max-w-6xl space-y-6 sm:space-y-8">
           <EditorialSectionHeader
-            index="02"
+            index="03"
             label="RESERVASI KURSI"
-            title="Booking 4 Langkah"
-            accentTitle="Tanpa Antre"
-            description="Pilih layanan, tanggal, dan jam bulat yang tersedia. Slot langsung terkunci permanen begitu Anda konfirmasi."
+            title="Pilih Jadwal"
+            accentTitle="Satu Kursi"
+            description="Pilih tanggal, layanan, dan jam bulat yang tersedia. Slot langsung terkunci permanen setelah Anda konfirmasi."
             action={
               <LiveStatusTag
                 isOpen={liveStatus.isOpen}
@@ -1022,70 +897,9 @@ export function BookingExperience({
             </div>
           ) : null}
 
-          {/* Bar Progres 4 Langkah Soft-Editorial */}
-          <ol className="grid grid-cols-2 overflow-hidden rounded-2xl border border-hairline bg-surface sm:grid-cols-4">
-            {[
-              { step: 1, title: "Layanan", value: selectedService?.name ?? "-" },
-              {
-                step: 2,
-                title: "Tanggal",
-                value:
-                  upcomingDates.find((d) => d.dateStr === selectedDate)
-                    ?.labelShort ?? selectedDate,
-              },
-              {
-                step: 3,
-                title: "Jam",
-                value: selectedSlotObj
-                  ? `${selectedSlotObj.time} WIB`
-                  : "Pilih jam",
-              },
-              {
-                step: 4,
-                title: "Nama",
-                value: trimmedCustomerName || "Isi nama",
-              },
-            ].map((item, idx) => {
-              const isDone =
-                item.step === 1
-                  ? Boolean(selectedService)
-                  : item.step === 2
-                    ? Boolean(selectedDate)
-                    : item.step === 3
-                      ? Boolean(selectedSlotObj)
-                      : isNameValid;
-              const isCurrent = activeStep === item.step;
-
-              return (
-                <li
-                  key={item.step}
-                  className={`flex flex-col justify-between p-3.5 sm:p-4 ${
-                    idx > 0
-                      ? "border-t border-hairline sm:border-t-0 sm:border-l"
-                      : ""
-                  } ${isCurrent ? "bg-surface-elevated/70" : ""}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[11px] tracking-[0.18em] uppercase text-muted tabular-nums">
-                      0{item.step} {"//"} {item.title}
-                    </span>
-                    <span
-                      className={`h-2 w-2 rounded-[2px] ${
-                        isDone ? "bg-terracotta" : "bg-hairline"
-                      }`}
-                    />
-                  </div>
-                  <p className="mt-2 truncate font-mono text-xs font-semibold text-ink tabular-nums">
-                    {item.value}
-                  </p>
-                </li>
-              );
-            })}
-          </ol>
-
           {/* Kartu Konfirmasi Berhasil + Auto Redirect WhatsApp */}
           {confirmedResult ? (
-            <div className="rounded-2xl border border-terracotta/50 bg-surface p-6 shadow-md sm:p-8">
+            <div className="rounded-2xl border border-terracotta/50 bg-surface p-5 shadow-md sm:p-8">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="space-y-4">
                   <div className="flex items-center gap-2.5">
@@ -1178,71 +992,22 @@ export function BookingExperience({
             <form
               onSubmit={handleSubmit}
               noValidate
-              className="grid grid-cols-1 gap-6 lg:grid-cols-12"
+              className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6"
             >
-              {/* Kolom Kiri (7 Col): Langkah 1, 2, 3 */}
-              <div className="space-y-6 lg:col-span-7">
-                {/* LANGKAH 1: PILIH LAYANAN */}
-                <fieldset className="rounded-2xl border border-hairline bg-surface p-5 shadow-xs sm:p-6">
-                  <legend className="px-1 font-mono text-xs font-semibold tracking-[0.2em] uppercase text-terracotta">
-                    Langkah 01 — Pilih Layanan
-                  </legend>
-                  <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                    {activeServices.map((service) => {
-                      const active = selectedService?.id === service.id;
-                      const blocks = Math.max(
-                        1,
-                        Math.round(service.slot_duration_minutes / 60)
-                      );
-                      return (
-                        <button
-                          key={service.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedServiceId(service.id);
-                            setSelectedTime("");
-                            setErrorMessage(null);
-                          }}
-                          className={`flex min-h-[56px] flex-col items-start justify-between rounded-xl border p-4 text-left transition-colors ${
-                            active
-                              ? "border-terracotta bg-surface-elevated shadow-xs"
-                              : "border-hairline bg-alabaster/55 hover:border-terracotta/70"
-                          }`}
-                        >
-                          <div className="flex w-full items-center justify-between gap-2">
-                            <span className="font-display text-base font-bold text-ink">
-                              {service.name}
-                            </span>
-                            <span
-                              className={`font-mono text-xs font-semibold tabular-nums ${
-                                active ? "text-terracotta" : "text-muted"
-                              }`}
-                            >
-                              {service.price_display}
-                            </span>
-                          </div>
-                          <span className="mt-1.5 font-mono text-[11px] tracking-[0.12em] uppercase text-muted tabular-nums">
-                            {formatServiceDuration(service.display_duration_minutes)} ·{" "}
-                            {blocks} Blok ({blocks * 60}m)
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-
-                {/* LANGKAH 2: HORIZONTAL DATE SCRUBBER */}
-                <fieldset className="rounded-2xl border border-hairline bg-surface p-5 shadow-xs sm:p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <legend className="px-1 font-mono text-xs font-semibold tracking-[0.2em] uppercase text-terracotta">
-                      Langkah 02 — Pilih Tanggal
+              {/* Kolom Kiri (7 Col): Strip Tanggal, Layanan Ringkas, Grid Slot Jam */}
+              <div className="space-y-4 sm:space-y-5 lg:col-span-7">
+                {/* 1. Strip Tanggal Horizontal (snap-x) */}
+                <fieldset className="rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <legend className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-terracotta">
+                      01 // Pilih Tanggal
                     </legend>
                     <span className="font-mono text-[11px] text-muted">
-                      Geser horizontal →
+                      Geser →
                     </span>
                   </div>
 
-                  <div className="mt-3 flex gap-2.5 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1">
+                  <div className="mt-3 flex gap-2 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1">
                     {upcomingDates.map((dateItem) => {
                       const active = selectedDate === dateItem.dateStr;
                       const dateClosedInfo = isDateClosed(dateItem.dateStr);
@@ -1256,7 +1021,7 @@ export function BookingExperience({
                             setSelectedTime("");
                             setErrorMessage(null);
                           }}
-                          className={`flex min-h-[60px] min-w-[78px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors ${
+                          className={`flex min-h-[58px] min-w-[74px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors ${
                             active
                               ? "border-terracotta bg-terracotta text-surface shadow-sm"
                               : dateClosedInfo.closed
@@ -1289,39 +1054,84 @@ export function BookingExperience({
                   </div>
                 </fieldset>
 
-                {/* LANGKAH 3: PILIH JAM (GRID 1 JAM) */}
-                <fieldset className="rounded-2xl border border-hairline bg-surface p-5 shadow-xs sm:p-6">
+                {/* 2. Pilihan Layanan Ringkas (Haircut / Hair Chemicals) */}
+                <fieldset className="rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
+                  <legend className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-terracotta">
+                    02 // Pilih Layanan
+                  </legend>
+                  <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                    {activeServices.map((service) => {
+                      const active = selectedService?.id === service.id;
+                      const blocks = Math.max(
+                        1,
+                        Math.round(service.slot_duration_minutes / 60)
+                      );
+                      return (
+                        <button
+                          key={service.id}
+                          type="button"
+                          onClick={() => handleSelectService(service.id)}
+                          className={`flex min-h-[52px] flex-col items-start justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
+                            active
+                              ? "border-terracotta bg-surface-elevated shadow-xs"
+                              : "border-hairline bg-alabaster/55 hover:border-terracotta/70"
+                          }`}
+                        >
+                          <div className="flex w-full items-center justify-between gap-2">
+                            <span className="font-display text-sm font-bold text-ink sm:text-base">
+                              {service.name}
+                            </span>
+                            <span
+                              className={`font-mono text-xs font-semibold tabular-nums ${
+                                active ? "text-terracotta" : "text-muted"
+                              }`}
+                            >
+                              {service.price_display}
+                            </span>
+                          </div>
+                          <span className="mt-1 font-mono text-[11px] tracking-[0.1em] uppercase text-muted tabular-nums">
+                            {formatServiceDuration(service.display_duration_minutes)} ·{" "}
+                            {blocks} Blok ({blocks * 60}m)
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                {/* 3. Grid Slot Jam Minimalis (Cinema Seat Map) */}
+                <fieldset className="rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <legend className="px-1 font-mono text-xs font-semibold tracking-[0.2em] uppercase text-terracotta">
-                      Langkah 03 — Pilih Jam ({settings.timezone})
+                    <legend className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-terracotta">
+                      03 // Pilih Jam ({settings.timezone})
                     </legend>
                     <span className="font-mono text-[11px] text-muted tabular-nums">
                       {isLoadingSlots
-                        ? "Menyinkronkan slot..."
+                        ? "Menyinkronkan..."
                         : `${availableSlotCount} slot tersedia`}
                     </span>
                   </div>
 
                   {slots.length === 0 ? (
-                    <div className="mt-4 rounded-xl border border-hairline bg-alabaster/60 p-5 text-center">
+                    <div className="mt-3 rounded-xl border border-hairline bg-alabaster/60 p-5 text-center">
                       <Calendar className="mx-auto h-5 w-5 text-muted" />
                       <p className="mt-2 text-sm font-semibold text-ink">
                         Tidak ada slot buka pada tanggal ini.
                       </p>
                       <p className="mt-1 text-xs text-muted">
                         {isDateClosed(selectedDate).label ||
-                          "Silakan pilih tanggal lain di Langkah 02."}
+                          "Silakan pilih tanggal lain di strip atas."}
                       </p>
                     </div>
                   ) : (
                     <>
-                      <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
+                      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
                         {slots.map((slot) => {
                           const isSelected =
                             selectedTime === slot.time && slot.available;
                           const isDisabled = !slot.available;
 
-                          let subLabel = "Kosong";
+                          let subLabel = "Tersedia";
                           if (slot.status === "BOOKED") subLabel = "Terisi";
                           else if (slot.status === "EXPIRED") subLabel = "Lewat";
                           else if (slot.status === "INSUFFICIENT_TIME")
@@ -1334,12 +1144,12 @@ export function BookingExperience({
                               disabled={isDisabled}
                               onClick={() => handleSelectSlot(slot.time)}
                               title={slot.reason}
-                              className={`flex min-h-[54px] flex-col items-center justify-center rounded-xl border px-2 py-2 font-mono transition-colors ${
+                              className={`flex min-h-[52px] flex-col items-center justify-center rounded-xl border px-2 py-2 font-mono transition-colors ${
                                 isSelected
                                   ? "border-terracotta bg-terracotta text-surface shadow-sm"
                                   : isDisabled
-                                    ? "cursor-not-allowed border-hairline bg-surface-elevated/55 text-muted/60"
-                                    : "border-hairline bg-alabaster/55 text-ink hover:border-terracotta hover:text-terracotta"
+                                    ? "cursor-not-allowed border-hairline bg-surface-elevated/60 text-muted/60"
+                                    : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
                               }`}
                             >
                               <span className="text-sm font-semibold tabular-nums">
@@ -1367,12 +1177,12 @@ export function BookingExperience({
                           Tersedia
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-[2px] bg-terracotta" />
-                          Dipilih
+                          <span className="h-2.5 w-2.5 rounded-[2px] bg-crimson-alert/60" />
+                          Terisi
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-[2px] bg-crimson-alert/60" />
-                          Terisi / Lewat
+                          <span className="h-2.5 w-2.5 rounded-[2px] bg-terracotta" />
+                          Dipilih
                         </span>
                       </div>
                     </>
@@ -1380,144 +1190,94 @@ export function BookingExperience({
                 </fieldset>
               </div>
 
-              {/* Kolom Kanan (5 Col): LIVE BOOKING PREVIEW STICKY PANEL */}
+              {/* Kolom Kanan (5 Col): LIVE BOOKING PREVIEW + INPUT NAMA + SUBMIT */}
               <div className="lg:col-span-5">
-                <div className="sticky top-20 rounded-2xl border border-hairline bg-surface p-6 shadow-sm">
-                  <div className="flex items-center justify-between gap-2 border-b border-hairline pb-4">
+                <div className="sticky top-24 rounded-2xl border border-hairline bg-surface p-4 shadow-sm sm:p-6">
+                  <div className="flex items-center justify-between gap-2 pb-3.5">
                     <div>
-                      <p className="font-mono text-xs font-semibold tracking-[0.2em] uppercase text-terracotta">
+                      <p className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-terracotta">
                         Live Booking Preview
                       </p>
-                      <p className="mt-0.5 text-xs text-muted">
-                        Langkah 04 — Ringkasan &amp; Nama Pelanggan
+                      <p className="mt-0.5 text-sm text-muted">
+                        Ringkasan jadwal &amp; nama Anda
                       </p>
                     </div>
-                    <span className="rounded-xl border border-hairline bg-surface-elevated px-2.5 py-1 font-mono text-[11px] font-semibold text-ink tabular-nums">
+                    <span className="rounded-xl border border-hairline bg-surface-elevated px-2.5 py-1 font-mono text-xs font-semibold text-ink tabular-nums">
                       {completedStepsCount}/4
                     </span>
                   </div>
 
-                  {/* Checklist Progres Vertikal 4 Titik Real-Time */}
-                  <ol className="mt-5 space-y-0">
-                    {[
-                      {
-                        step: 1,
-                        label: "Layanan",
-                        done: Boolean(selectedService),
-                        value: selectedService
-                          ? `${selectedService.name} · ${
-                              Math.max(
-                                1,
-                                Math.round(
-                                  selectedService.slot_duration_minutes / 60
-                                )
-                              ) * 60
-                            }m (${formatServiceDuration(
-                              selectedService.display_duration_minutes
-                            )})`
-                          : "Belum dipilih",
-                        badge: selectedService?.price_display ?? null,
-                      },
-                      {
-                        step: 2,
-                        label: "Tanggal",
-                        done: Boolean(selectedDate),
-                        value: selectedDate
-                          ? formatIndonesianDateFull(selectedDate)
-                          : "Belum dipilih",
-                        badge: null,
-                      },
-                      {
-                        step: 3,
-                        label: "Jam Kursi",
-                        done: Boolean(selectedSlotObj),
-                        value: selectedSlotObj
-                          ? `${selectedSlotObj.time} – ${selectedSlotObj.endTime} WIB`
-                          : "Belum dipilih",
-                        badge: selectedSlotObj ? "Tersedia" : null,
-                      },
-                      {
-                        step: 4,
-                        label: "Nama Pelanggan",
-                        done: isNameValid,
-                        value: isNameValid
-                          ? trimmedCustomerName
-                          : trimmedCustomerName
-                            ? `${trimmedCustomerName} (min. 2 huruf)`
-                            : "Isi nama Anda di bawah",
-                        badge: null,
-                      },
-                    ].map((node, index, arr) => {
-                      const isLast = index === arr.length - 1;
-                      const isCurrentNode = activeStep === node.step;
-
-                      return (
-                        <li key={node.step} className="flex items-stretch gap-3">
-                          <div className="flex flex-col items-center">
-                            <span
-                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg font-mono text-[11px] font-semibold tabular-nums transition-colors ${
-                                node.done
-                                  ? "bg-terracotta text-surface"
-                                  : isCurrentNode
-                                    ? "border border-terracotta bg-surface-elevated text-terracotta"
-                                    : "border border-hairline bg-alabaster text-muted"
-                              }`}
-                            >
-                              {node.done ? (
-                                <Check className="h-3.5 w-3.5" />
-                              ) : (
-                                node.step
-                              )}
+                  {/* Ringkasan Live Booking Preview (text-sm) */}
+                  <dl className="divide-y divide-hairline border-y border-hairline text-sm">
+                    <div className="flex items-start justify-between gap-3 py-2.5">
+                      <dt className="text-muted">Layanan</dt>
+                      <dd className="text-right font-semibold text-ink">
+                        {selectedService ? (
+                          <span>
+                            {selectedService.name}{" "}
+                            <span className="font-mono text-terracotta tabular-nums">
+                              ({selectedService.price_display})
                             </span>
-                            {!isLast ? (
-                              <span
-                                aria-hidden="true"
-                                className={`my-1 w-px flex-1 ${
-                                  node.done ? "bg-terracotta/50" : "bg-hairline"
-                                }`}
-                              />
-                            ) : null}
-                          </div>
+                          </span>
+                        ) : (
+                          <span className="font-normal text-muted">
+                            Belum dipilih
+                          </span>
+                        )}
+                      </dd>
+                    </div>
 
-                          <div className={`min-w-0 flex-1 ${isLast ? "pb-1" : "pb-4"}`}>
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-mono text-[11px] tracking-[0.14em] uppercase text-muted">
-                                {node.label}
-                              </span>
-                              {node.badge ? (
-                                <span
-                                  className={`font-mono text-[11px] font-semibold tabular-nums ${
-                                    node.step === 3
-                                      ? "text-emerald-live"
-                                      : "text-terracotta"
-                                  }`}
-                                >
-                                  {node.badge}
-                                </span>
-                              ) : null}
-                            </div>
-                            <p
-                              className={`mt-0.5 truncate text-sm ${
-                                node.done
-                                  ? "font-semibold text-ink"
-                                  : "text-muted"
-                              }`}
-                            >
-                              {node.value}
-                            </p>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ol>
+                    <div className="flex items-start justify-between gap-3 py-2.5">
+                      <dt className="text-muted">Tanggal</dt>
+                      <dd className="text-right font-medium text-ink">
+                        {selectedDate ? (
+                          formatIndonesianDateFull(selectedDate)
+                        ) : (
+                          <span className="font-normal text-muted">
+                            Belum dipilih
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-3 py-2.5">
+                      <dt className="text-muted">Jam Kursi</dt>
+                      <dd className="text-right font-mono tabular-nums">
+                        {selectedSlotObj ? (
+                          <span className="font-semibold text-emerald-live">
+                            {selectedSlotObj.time} – {selectedSlotObj.endTime} WIB
+                          </span>
+                        ) : (
+                          <span className="font-sans text-muted">
+                            Pilih jam di grid
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-3 py-2.5">
+                      <dt className="text-muted">Nama</dt>
+                      <dd className="max-w-[60%] truncate text-right font-semibold text-ink">
+                        {isNameValid ? (
+                          trimmedCustomerName
+                        ) : (
+                          <span className="font-normal text-muted">
+                            {trimmedCustomerName
+                              ? `${trimmedCustomerName} (min. 2)`
+                              : "Isi di bawah"}
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
 
                   {/* Input Nama Pelanggan (min 16px text-base anti-zoom iOS) */}
-                  <div className="mt-5 border-t border-hairline pt-5">
+                  <div className="mt-4">
                     <label
                       htmlFor="customer-name-input"
                       className="block font-mono text-xs font-semibold tracking-[0.14em] uppercase text-ink"
                     >
-                      Nama Anda (Tanpa No. HP / Login)
+                      Nama Anda
                     </label>
                     <input
                       ref={nameInputRef}
@@ -1534,10 +1294,10 @@ export function BookingExperience({
                         if (errorMessage) setErrorMessage(null);
                       }}
                       placeholder="Contoh: Farhan Pratama"
-                      className="mt-2 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-3 text-base text-ink placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+                      className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 text-base text-ink placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
                     />
                     <p className="mt-1.5 font-mono text-[11px] text-muted">
-                      2–40 karakter. Akan tercantum di tiket &amp; pesan WhatsApp.
+                      2–40 karakter · Tanpa login / tanpa no. HP
                     </p>
                   </div>
 
@@ -1567,7 +1327,7 @@ export function BookingExperience({
                   ) : null}
 
                   {/* Catatan Aturan Keterlambatan */}
-                  <div className="mt-5 flex items-start gap-2.5 rounded-xl border-l-2 border-terracotta bg-surface-elevated/70 p-3 text-xs leading-relaxed text-muted">
+                  <div className="mt-4 flex items-start gap-2.5 rounded-xl border-l-2 border-terracotta bg-surface-elevated/70 p-3 text-xs leading-relaxed text-muted">
                     <Clock className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
                     <span>
                       Toleransi keterlambatan maksimal{" "}
@@ -1585,7 +1345,7 @@ export function BookingExperience({
                       !selectedService ||
                       !selectedSlotObj
                     }
-                    className="mt-6 inline-flex min-h-[50px] w-full items-center justify-center gap-2.5 rounded-xl bg-terracotta px-5 py-3.5 font-display text-sm font-bold tracking-wide uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted"
+                    className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-3 font-display text-sm font-bold tracking-wide uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted"
                   >
                     {isSubmitting ? (
                       <>

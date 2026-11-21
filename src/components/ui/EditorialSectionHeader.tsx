@@ -46,7 +46,7 @@ export function EditorialSectionHeader({
       {/* Baris Judul Editorial & Aksi Opsional */}
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="max-w-2xl">
-          <Heading className="font-display text-2xl leading-[1.08] font-bold tracking-tight text-ink sm:text-3xl md:text-4xl">
+          <Heading className="font-display text-xl leading-[1.18] font-bold tracking-tight text-ink sm:text-2xl md:text-3xl">
             {title}
             {accentTitle ? (
               <>
@@ -59,7 +59,7 @@ export function EditorialSectionHeader({
           </Heading>
 
           {description ? (
-            <p className="mt-2.5 text-sm leading-relaxed text-muted sm:text-base">
+            <p className="mt-2.5 text-sm leading-relaxed text-muted">
               {description}
             </p>
           ) : null}

@@ -84,7 +84,17 @@ export const defaultGalleryItems: readonly GalleryItemConfig[] = [
     thumbnailUrl: "/images/style-perm.webp",
   },
   {
-    id: "gal-studio-03",
+    id: "gal-longtrim-03",
+    type: "image",
+    aspectRatio: "aspect-[4/5]",
+    category: "Haircut",
+    title: "Textured Longtrim & Scissor Taper",
+    caption: "Potongan rapi bertekstur alami dengan kontrol volume yang mudah ditata.",
+    mediaUrl: "/images/style-longtrim.webp",
+    thumbnailUrl: "/images/style-longtrim.webp",
+  },
+  {
+    id: "gal-studio-04",
     type: "image",
     aspectRatio: "aspect-[4/5]",
     category: "Studio",
