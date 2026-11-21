@@ -7,9 +7,9 @@ export interface LiveStatusTagProps {
   isForceClosed?: boolean;
   /** Detail status dari isStoreOpenLive agar web tetap menandakan Booking Aktif sebelum jam buka */
   reason?: StoreLiveClosedReason;
-  /** Override teks status utama */
+  /** Override teks status utama (Sentence Case) */
   statusText?: string;
-  /** Informasi jam buka hari ini atau keterangan singkat, mis. "12:00 – 21:00 WIB" */
+  /** Informasi jam buka hari ini, mis. "12:00 – 21:00 WIB" */
   scheduleNote?: string;
   /** Tampilan lebih ringkas untuk header mobile */
   compact?: boolean;
@@ -32,16 +32,16 @@ export function LiveStatusTag({
   const resolvedLabel =
     statusText ??
     (isForceClosed
-      ? "Tutup Darurat"
+      ? "Tutup darurat"
       : isLiveOpen
-        ? "Buka Live"
+        ? "Sedang buka"
         : reason === "BEFORE_OPEN"
-          ? "Booking Aktif"
+          ? "Booking aktif"
           : reason === "AFTER_CLOSE"
-            ? "Booking Besok Aktif"
+            ? "Booking besok aktif"
             : reason === "CLOSED_DATE" || reason === "DAY_OFF"
-              ? "Hari Ini Libur"
-              : "Sedang Tutup");
+              ? "Hari ini libur"
+              : "Sedang tutup");
 
   const accentBg = isLiveOpen
     ? "bg-emerald-live"
@@ -65,45 +65,36 @@ export function LiveStatusTag({
     <div
       role="status"
       aria-live="polite"
-      className={`inline-flex items-stretch overflow-hidden rounded-xl border border-hairline bg-surface ${className}`}
+      className={`inline-flex items-center gap-2 font-sans ${
+        compact ? "text-xs" : "text-xs sm:text-sm"
+      } ${className}`}
     >
-      {/* Garis aksen semantik vertikal 3px di sisi kiri — Soft-Editorial non-pill */}
-      <span aria-hidden="true" className={`w-[3px] shrink-0 ${accentBg}`} />
-
-      <div
-        className={`flex items-center gap-2.5 ${
-          compact ? "px-2.5 py-1.5" : "px-3 py-2"
-        }`}
-      >
-        {/* Titik status non-pill (#2E6F56, #C25934, atau #B83B3B) */}
-        <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-          {isLiveOpen || isPreOpenOrAfterHours ? (
-            <span
-              aria-hidden="true"
-              className={`absolute inset-0 animate-ping rounded-[2px] ${accentPing}`}
-            />
-          ) : null}
+      {/* Indikator lingkaran halus (non-box, non-pill) */}
+      <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+        {isLiveOpen || isPreOpenOrAfterHours ? (
           <span
             aria-hidden="true"
-            className={`relative block h-2 w-2 rounded-[2px] ${accentBg}`}
+            className={`absolute inset-0 animate-ping rounded-full ${accentPing}`}
           />
-        </span>
-
-        <span
-          className={`font-mono text-xs font-medium tracking-[0.14em] uppercase ${accentText}`}
-        >
-          {resolvedLabel}
-        </span>
-
-        {scheduleNote ? (
-          <>
-            <span aria-hidden="true" className="h-3 w-px bg-hairline" />
-            <span className="font-mono text-xs tracking-wide text-muted tabular-nums">
-              {scheduleNote}
-            </span>
-          </>
         ) : null}
-      </div>
+        <span
+          aria-hidden="true"
+          className={`relative block h-2 w-2 rounded-full ${accentBg}`}
+        />
+      </span>
+
+      <span className={`font-medium whitespace-nowrap ${accentText}`}>
+        {resolvedLabel}
+      </span>
+
+      {scheduleNote ? (
+        <span className="inline-flex items-center gap-2 text-muted whitespace-nowrap">
+          <span aria-hidden="true" className="text-muted/60">
+            ·
+          </span>
+          <span className="font-mono text-xs tabular-nums">{scheduleNote}</span>
+        </span>
+      ) : null}
     </div>
   );
 }

@@ -414,13 +414,13 @@ export function BookingExperience({
 
   const todayHoursLabel = useMemo(() => {
     if (settings.is_force_closed) {
-      return "Tutup Sementara";
+      return "Tutup sementara";
     }
     if (todayClosedEntry) {
-      return todayClosedEntry.reason?.trim() || "Libur Khusus";
+      return todayClosedEntry.reason?.trim() || "Libur khusus";
     }
     if (!todaySchedule || !todaySchedule.is_open) {
-      return "Hari Ini Libur";
+      return "Hari ini libur";
     }
     return `${formatTimeHHMM(todaySchedule.open_time)} – ${formatTimeHHMM(
       todaySchedule.close_time
@@ -430,34 +430,34 @@ export function BookingExperience({
   const liveBadgeSummary = useMemo(() => {
     if (settings.is_force_closed) {
       return {
-        label: "Tutup Darurat",
+        label: "Tutup darurat",
         dotClass: "bg-crimson-alert",
         textClass: "text-crimson-alert",
       };
     }
     if (liveStatus.isOpen) {
       return {
-        label: "Buka Live",
+        label: "Sedang buka",
         dotClass: "bg-emerald-live",
         textClass: "text-emerald-live",
       };
     }
     if (liveStatus.reason === "BEFORE_OPEN") {
       return {
-        label: "Booking Aktif",
+        label: "Booking aktif",
         dotClass: "bg-terracotta",
         textClass: "text-terracotta",
       };
     }
     if (liveStatus.reason === "AFTER_CLOSE") {
       return {
-        label: "Booking Besok Aktif",
+        label: "Booking besok aktif",
         dotClass: "bg-terracotta",
         textClass: "text-terracotta",
       };
     }
     return {
-      label: "Hari Ini Libur",
+      label: "Hari ini libur",
       dotClass: "bg-crimson-alert",
       textClass: "text-crimson-alert",
     };
@@ -686,39 +686,35 @@ export function BookingExperience({
   return (
     <div className="bg-alabaster text-ink">
       {/* =====================================================================
-          01 // FLOATING INFO & PRICELIST DOCK (BATAS BAWAH HERO)
+          FLOATING HORIZONTAL INFO & PRICELIST DOCK (BATAS BAWAH HERO)
       ===================================================================== */}
       <section
         id="layanan"
         aria-label="Layanan, Pricelist, dan Info Studio"
         className="relative z-20 -mt-8 scroll-mt-28 px-safe sm:scroll-mt-24 lg:-mt-12"
       >
-        <div className="mx-auto max-w-6xl rounded-[28px] border border-hairline bg-surface/95 p-4 shadow-xl backdrop-blur-md sm:p-6">
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6">
-            {/* (a) Segmen Layanan & Pricelist Interaktif (7 Col) */}
-            <div className="space-y-3.5 lg:col-span-7">
+        <div className="mx-auto max-w-6xl rounded-3xl bg-surface p-5 shadow-xl sm:p-6">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.45fr)_0.85fr_0.95fr_auto] lg:items-start lg:gap-6">
+            {/* Segmen 1: Layanan & Pricelist Interaktif */}
+            <div className="min-w-0 space-y-3 sm:col-span-2 lg:col-span-1">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span
-                    aria-hidden="true"
-                    className="h-1.5 w-1.5 rounded-[2px] bg-terracotta"
-                  />
-                  <p className="font-mono text-[11px] font-semibold tracking-[0.18em] uppercase text-muted tabular-nums">
-                    <span className="text-terracotta">01</span> / LAYANAN &amp; PRICELIST
-                  </p>
-                </div>
+                <p className="font-sans text-xs font-medium text-terracotta">
+                  Layanan &amp; daftar harga
+                </p>
 
                 {selectedService ? (
-                  <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-muted tabular-nums">
+                  <span className="inline-flex items-center gap-1.5 font-sans text-xs text-muted">
                     {activeServiceBlocks === 1 ? (
                       <Scissors className="h-3.5 w-3.5 text-terracotta" />
                     ) : (
                       <Sparkles className="h-3.5 w-3.5 text-terracotta" />
                     )}
-                    {formatServiceDuration(
-                      selectedService.display_duration_minutes
-                    )}{" "}
-                    · {activeServiceBlocks} Blok
+                    <span>
+                      {formatServiceDuration(
+                        selectedService.display_duration_minutes
+                      )}{" "}
+                      · {activeServiceBlocks} blok kursi
+                    </span>
                   </span>
                 ) : null}
               </div>
@@ -738,17 +734,17 @@ export function BookingExperience({
                       role="tab"
                       aria-selected={isTabActive}
                       onClick={() => handleSelectService(service.id)}
-                      className={`flex min-h-[48px] flex-col items-start justify-center rounded-xl border px-3.5 py-2 text-left transition-colors sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:px-4 ${
+                      className={`flex min-h-[48px] flex-col items-start justify-center rounded-2xl px-3.5 py-2.5 text-left transition-colors sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:px-4 ${
                         isTabActive
-                          ? "border-ink bg-ink text-surface shadow-xs"
-                          : "border-hairline bg-alabaster/70 text-ink hover:border-terracotta hover:text-terracotta"
+                          ? "bg-ink text-surface shadow-xs"
+                          : "bg-alabaster/75 text-ink hover:bg-surface-elevated/80 hover:text-terracotta"
                       }`}
                     >
-                      <span className="font-display text-xs font-bold tracking-wide sm:text-sm">
+                      <span className="font-sans text-xs font-semibold sm:text-sm">
                         {service.name}
                       </span>
                       <span
-                        className={`font-mono text-[11px] font-semibold tabular-nums sm:text-xs ${
+                        className={`font-mono text-xs font-semibold tabular-nums ${
                           isTabActive ? "text-surface/90" : "text-terracotta"
                         }`}
                       >
@@ -761,23 +757,23 @@ export function BookingExperience({
 
               {/* Rincian Varian & Durasi Layanan Aktif */}
               {selectedService ? (
-                <div className="rounded-2xl border border-hairline bg-alabaster/55 px-3.5 py-2.5 sm:px-4">
+                <div className="rounded-2xl bg-alabaster/65 px-4 py-2.5">
                   <ul className="divide-y divide-hairline">
                     {selectedService.price_variants.map((variant) => (
                       <li
                         key={variant.label}
-                        className="flex items-center justify-between gap-3 py-2 text-sm"
+                        className="flex items-center justify-between gap-3 py-2 font-sans text-sm"
                       >
                         <span className="font-medium text-ink">
                           {variant.label}
                         </span>
-                        <span className="shrink-0 font-mono font-semibold text-ink tabular-nums">
+                        <span className="shrink-0 font-mono text-xs font-semibold text-ink tabular-nums sm:text-sm">
                           Rp {variant.display}
                         </span>
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-1.5 border-t border-hairline/70 pt-2 text-xs leading-relaxed text-muted">
+                  <p className="mt-1.5 border-t border-hairline/70 pt-2 font-sans text-xs leading-relaxed text-muted">
                     {activeServiceBlocks >= 2
                       ? `Mengunci ${activeServiceBlocks} blok berurutan (${
                           activeServiceBlocks * 60
@@ -788,55 +784,50 @@ export function BookingExperience({
               ) : null}
             </div>
 
-            {/* (b) Jadwal Hari Ini, (c) Location, (d) CTA Terracotta Pilih Jadwal (5 Col) */}
-            <div className="flex flex-col justify-between gap-4 border-t border-hairline pt-4 lg:col-span-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                {/* (b) Segmen Jadwal Operasional Hari Ini */}
-                <div className="rounded-xl border border-hairline bg-alabaster/55 px-3.5 py-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-                      Jadwal Hari Ini
-                    </span>
-                    <span
-                      className={`inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-[0.12em] uppercase ${liveBadgeSummary.textClass}`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`h-1.5 w-1.5 rounded-[2px] ${liveBadgeSummary.dotClass}`}
-                      />
-                      {liveBadgeSummary.label}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 font-mono text-sm font-semibold text-ink tabular-nums">
-                    {todayHoursLabel}
-                  </p>
-                </div>
+            {/* Segmen 2: Jam Operasional Hari Ini */}
+            <div className="rounded-2xl bg-alabaster/65 px-4 py-3.5">
+              <p className="font-sans text-xs font-medium text-muted">
+                Jam operasional hari ini
+              </p>
+              <p className="mt-1.5 font-mono text-sm font-semibold text-ink tabular-nums">
+                {todayHoursLabel}
+              </p>
+              <span
+                className={`mt-2 inline-flex items-center gap-1.5 font-sans text-xs font-medium ${liveBadgeSummary.textClass}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-2 w-2 rounded-full ${liveBadgeSummary.dotClass}`}
+                />
+                <span>{liveBadgeSummary.label}</span>
+              </span>
+            </div>
 
-                {/* (c) Segmen Location (Klikabel menuju Google Maps) */}
-                <a
-                  href={settings.google_maps_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex min-h-[44px] flex-col justify-center rounded-xl border border-hairline bg-alabaster/55 px-3.5 py-3 transition-colors hover:border-terracotta"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-                      Location
-                    </span>
-                    <ArrowUpRight className="h-3.5 w-3.5 text-muted transition-colors group-hover:text-terracotta" />
-                  </div>
-                  <span className="mt-1 inline-flex items-start gap-2 text-sm font-medium leading-snug text-ink group-hover:text-terracotta">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
-                    <span>{settings.short_address}</span>
-                  </span>
-                </a>
+            {/* Segmen 3: Location (Klikabel menuju Google Maps) */}
+            <a
+              href={settings.google_maps_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex min-h-[44px] flex-col justify-between rounded-2xl bg-alabaster/65 px-4 py-3.5 transition-colors hover:bg-surface-elevated/80"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-sans text-xs font-medium text-muted">
+                  Location
+                </span>
+                <ArrowUpRight className="h-3.5 w-3.5 text-muted transition-colors group-hover:text-terracotta" />
               </div>
+              <span className="mt-1.5 inline-flex items-start gap-2 font-sans text-sm font-medium leading-snug text-ink group-hover:text-terracotta">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
+                <span>{settings.short_address}</span>
+              </span>
+            </a>
 
-              {/* (d) Tombol CTA Terracotta Pilih Jadwal */}
+            {/* Segmen 4: Tombol CTA Terracotta Pilih Jadwal */}
+            <div className="sm:col-span-2 lg:col-span-1 lg:self-center">
               <button
                 type="button"
                 onClick={handleScrollToBooking}
-                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-3 font-display text-sm font-bold tracking-wide uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90"
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-terracotta px-6 py-3.5 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 lg:w-auto"
               >
                 <span>Pilih Jadwal</span>
                 <ArrowRight className="h-4 w-4 shrink-0" />
@@ -847,23 +838,22 @@ export function BookingExperience({
       </section>
 
       {/* =====================================================================
-          02 // SAMPLE MEDIA & VIDEO REELS (DISISIPKAN TEPAT SETELAH DOCK)
+          SAMPLE MEDIA & VIDEO REELS (DISISIPKAN TEPAT SETELAH DOCK)
       ===================================================================== */}
       {gallerySection}
 
       {/* =====================================================================
-          03 // AREA RESERVASI (ADAPTASI CINEMA SEAT MAP + LIVE PREVIEW)
+          AREA RESERVASI + LIVE BOOKING PREVIEW
       ===================================================================== */}
       <section
         id="reservasi"
         ref={formSectionRef}
         aria-label="Reservasi Kursi Madzhair.co"
-        className="scroll-mt-28 border-t border-hairline bg-surface-elevated/45 px-safe py-10 sm:scroll-mt-24 sm:py-16"
+        className="scroll-mt-24 border-t border-hairline bg-surface-elevated/45 px-safe py-10 sm:py-16"
       >
         <div className="mx-auto max-w-6xl space-y-6 sm:space-y-8">
           <EditorialSectionHeader
-            index="03"
-            label="RESERVASI KURSI"
+            label="Reservasi kursi"
             title="Pilih Jadwal"
             accentTitle="Satu Kursi"
             description="Pilih tanggal, layanan, dan jam bulat yang tersedia. Slot langsung terkunci permanen setelah Anda konfirmasi."
@@ -882,16 +872,16 @@ export function BookingExperience({
           {settings.is_force_closed ? (
             <div
               role="alert"
-              className="flex items-start gap-3 rounded-2xl border border-crimson-alert/45 bg-surface p-4 text-sm text-ink shadow-xs"
+              className="flex items-start gap-3 rounded-2xl border border-crimson-alert/45 bg-surface p-4 font-sans text-sm text-ink shadow-xs"
             >
               <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-crimson-alert" />
               <div>
-                <p className="font-display font-bold text-crimson-alert">
-                  Toko Sedang Tutup Sementara (Mode Darurat)
+                <p className="font-semibold text-crimson-alert">
+                  Toko sedang tutup sementara (mode darurat)
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted">
-                  Reservasi online sementara dinonaktifkan oleh barber. Silakan cek
-                  kembali beberapa saat lagi atau hubungi via WhatsApp.
+                  Reservasi online sementara dinonaktifkan oleh barber. Silakan
+                  cek kembali beberapa saat lagi atau hubungi via WhatsApp.
                 </p>
               </div>
             </div>
@@ -906,82 +896,79 @@ export function BookingExperience({
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-live text-surface">
                       <Check className="h-4 w-4" />
                     </span>
-                    <span className="font-mono text-xs font-semibold tracking-[0.2em] uppercase text-emerald-live">
-                      SLOT BERHASIL DIKUNCI ({confirmedResult.booking.status})
+                    <span className="font-sans text-xs font-semibold text-emerald-live sm:text-sm">
+                      Slot berhasil dikunci ({confirmedResult.booking.status})
                     </span>
                   </div>
 
                   <div>
-                    <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">
-                      Kode Tiket Resmi
+                    <p className="font-sans text-xs font-medium text-muted">
+                      Kode tiket resmi
                     </p>
-                    <p className="mt-1 font-mono text-3xl font-bold tracking-[0.16em] text-terracotta tabular-nums sm:text-4xl">
+                    <p className="mt-1 font-mono text-3xl font-bold tracking-[0.14em] text-terracotta tabular-nums sm:text-4xl">
                       {confirmedResult.booking.ticket_code}
                     </p>
                   </div>
 
-                  <dl className="grid grid-cols-1 gap-3 border-t border-hairline pt-4 text-sm sm:grid-cols-3 sm:gap-6">
+                  <dl className="grid grid-cols-1 gap-3 border-t border-hairline pt-4 font-sans text-sm sm:grid-cols-3 sm:gap-6">
                     <div>
-                      <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
-                        Pelanggan
-                      </dt>
+                      <dt className="text-xs text-muted">Pelanggan</dt>
                       <dd className="mt-1 font-semibold text-ink">
                         {confirmedResult.booking.customer_name}
                       </dd>
                     </div>
                     <div>
-                      <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
-                        Layanan
-                      </dt>
+                      <dt className="text-xs text-muted">Layanan</dt>
                       <dd className="mt-1 font-semibold text-ink">
                         {confirmedResult.booking.service_name}
                       </dd>
                     </div>
                     <div>
-                      <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
-                        Jadwal
-                      </dt>
-                      <dd className="mt-1 font-mono font-semibold text-ink tabular-nums">
+                      <dt className="text-xs text-muted">Jadwal</dt>
+                      <dd className="mt-1 font-semibold text-ink">
                         {formatIndonesianDateFull(
                           confirmedResult.booking.booking_date
                         )}{" "}
-                        · {formatTimeHHMM(confirmedResult.booking.start_time)} WIB
+                        ·{" "}
+                        <span className="font-mono tabular-nums">
+                          {formatTimeHHMM(confirmedResult.booking.start_time)} WIB
+                        </span>
                       </dd>
                     </div>
                   </dl>
 
                   {confirmedResult.mode === "demo" ? (
-                    <p className="font-mono text-[11px] text-muted">
-                      * Mode Demo Lokal aktif: tiket tersimpan di sesi browser ini.
+                    <p className="font-sans text-xs text-muted">
+                      Mode demo lokal aktif: tiket tersimpan di sesi browser ini.
                     </p>
                   ) : null}
                 </div>
 
                 <div className="flex flex-col gap-3 sm:min-w-[280px]">
-                  <p className="font-mono text-xs font-medium text-terracotta">
+                  <p className="font-sans text-xs font-medium text-terracotta">
                     Mengalihkan otomatis ke WhatsApp...
                   </p>
                   <a
                     href={confirmedResult.waUrl}
-                    className="inline-flex min-h-[48px] items-center justify-center gap-2.5 rounded-xl bg-terracotta px-5 py-3 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90"
+                    className="inline-flex min-h-[48px] items-center justify-center gap-2.5 rounded-xl bg-terracotta px-5 py-3 font-sans text-xs font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 sm:text-sm"
                   >
                     <MessageCircle className="h-4 w-4" />
-                    Konfirmasi via WhatsApp
+                    <span>Konfirmasi via WhatsApp</span>
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
 
                   <Link
                     href={`/tiket/${confirmedResult.booking.ticket_code}`}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-hairline bg-alabaster/70 px-5 py-2.5 font-mono text-xs font-medium tracking-[0.14em] uppercase text-ink transition-colors hover:border-terracotta hover:text-terracotta"
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-hairline bg-alabaster/70 px-5 py-2.5 font-sans text-xs font-medium text-ink transition-colors hover:border-terracotta hover:text-terracotta sm:text-sm"
                   >
                     <Ticket className="h-4 w-4" />
-                    Buka Smart Ticket
+                    <span>Buka Smart Ticket</span>
                   </Link>
 
                   <button
                     type="button"
                     onClick={resetForNewBooking}
-                    className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-transparent px-4 py-2 font-mono text-xs tracking-[0.14em] uppercase text-muted transition-colors hover:bg-surface-elevated hover:text-ink"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-transparent px-4 py-2 font-sans text-xs font-medium text-muted transition-colors hover:bg-surface-elevated hover:text-ink sm:text-sm"
                   >
                     Buat Booking Baru
                   </button>
@@ -992,19 +979,17 @@ export function BookingExperience({
             <form
               onSubmit={handleSubmit}
               noValidate
-              className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6"
+              className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-8"
             >
-              {/* Kolom Kiri (7 Col): Strip Tanggal, Layanan Ringkas, Grid Slot Jam */}
-              <div className="space-y-4 sm:space-y-5 lg:col-span-7">
+              {/* Kolom Kiri (min-w-0 cegah overflow scrubber tabrak kolom kanan) */}
+              <div className="min-w-0 space-y-4 sm:space-y-5">
                 {/* 1. Strip Tanggal Horizontal (snap-x) */}
-                <fieldset className="rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
+                <fieldset className="min-w-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <legend className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-terracotta">
-                      01 // Pilih Tanggal
+                    <legend className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
+                      Pilih tanggal
                     </legend>
-                    <span className="font-mono text-[11px] text-muted">
-                      Geser →
-                    </span>
+                    <span className="font-sans text-xs text-muted">Geser →</span>
                   </div>
 
                   <div className="mt-3 flex gap-2 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1">
@@ -1021,7 +1006,7 @@ export function BookingExperience({
                             setSelectedTime("");
                             setErrorMessage(null);
                           }}
-                          className={`flex min-h-[58px] min-w-[74px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors ${
+                          className={`flex min-h-[60px] min-w-[78px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors ${
                             active
                               ? "border-terracotta bg-terracotta text-surface shadow-sm"
                               : dateClosedInfo.closed
@@ -1030,18 +1015,19 @@ export function BookingExperience({
                           }`}
                         >
                           <span
-                            className={`font-mono text-[10px] tracking-[0.14em] uppercase ${
+                            className={`font-sans text-xs font-medium ${
                               active ? "text-surface/85" : "text-muted"
                             }`}
                           >
-                            {dateItem.isToday ? "Hari Ini" : dateItem.dayNameShort}
+                            {dateItem.isToday ? "Hari ini" : dateItem.dayNameShort}
                           </span>
-                          <span className="mt-0.5 font-mono text-xs font-semibold tabular-nums">
-                            {dateItem.labelShort.split(", ")[1] ?? dateItem.dateStr}
+                          <span className="mt-0.5 font-sans text-sm font-semibold tabular-nums">
+                            {dateItem.labelShort.split(", ")[1] ??
+                              dateItem.dateStr}
                           </span>
                           {dateClosedInfo.closed ? (
                             <span
-                              className={`mt-0.5 font-mono text-[10px] uppercase ${
+                              className={`mt-0.5 font-sans text-[11px] font-medium ${
                                 active ? "text-surface" : "text-crimson-alert"
                               }`}
                             >
@@ -1055,9 +1041,9 @@ export function BookingExperience({
                 </fieldset>
 
                 {/* 2. Pilihan Layanan Ringkas (Haircut / Hair Chemicals) */}
-                <fieldset className="rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
-                  <legend className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-terracotta">
-                    02 // Pilih Layanan
+                <fieldset className="min-w-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
+                  <legend className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
+                    Pilih layanan
                   </legend>
                   <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                     {activeServices.map((service) => {
@@ -1078,7 +1064,7 @@ export function BookingExperience({
                           }`}
                         >
                           <div className="flex w-full items-center justify-between gap-2">
-                            <span className="font-display text-sm font-bold text-ink sm:text-base">
+                            <span className="font-sans text-sm font-semibold text-ink sm:text-base">
                               {service.name}
                             </span>
                             <span
@@ -1089,9 +1075,11 @@ export function BookingExperience({
                               {service.price_display}
                             </span>
                           </div>
-                          <span className="mt-1 font-mono text-[11px] tracking-[0.1em] uppercase text-muted tabular-nums">
-                            {formatServiceDuration(service.display_duration_minutes)} ·{" "}
-                            {blocks} Blok ({blocks * 60}m)
+                          <span className="mt-1 font-sans text-xs text-muted">
+                            {formatServiceDuration(
+                              service.display_duration_minutes
+                            )}{" "}
+                            · {blocks} blok ({blocks * 60} menit)
                           </span>
                         </button>
                       );
@@ -1099,13 +1087,13 @@ export function BookingExperience({
                   </div>
                 </fieldset>
 
-                {/* 3. Grid Slot Jam Minimalis (Cinema Seat Map) */}
-                <fieldset className="rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
+                {/* 3. Grid Slot Jam Minimalis */}
+                <fieldset className="min-w-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <legend className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-terracotta">
-                      03 // Pilih Jam ({settings.timezone})
+                    <legend className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
+                      Pilih jam ({settings.timezone})
                     </legend>
-                    <span className="font-mono text-[11px] text-muted tabular-nums">
+                    <span className="font-sans text-xs text-muted">
                       {isLoadingSlots
                         ? "Menyinkronkan..."
                         : `${availableSlotCount} slot tersedia`}
@@ -1113,7 +1101,7 @@ export function BookingExperience({
                   </div>
 
                   {slots.length === 0 ? (
-                    <div className="mt-3 rounded-xl border border-hairline bg-alabaster/60 p-5 text-center">
+                    <div className="mt-3 rounded-xl border border-hairline bg-alabaster/60 p-5 text-center font-sans">
                       <Calendar className="mx-auto h-5 w-5 text-muted" />
                       <p className="mt-2 text-sm font-semibold text-ink">
                         Tidak ada slot buka pada tanggal ini.
@@ -1135,7 +1123,7 @@ export function BookingExperience({
                           if (slot.status === "BOOKED") subLabel = "Terisi";
                           else if (slot.status === "EXPIRED") subLabel = "Lewat";
                           else if (slot.status === "INSUFFICIENT_TIME")
-                            subLabel = "< 2 Jam";
+                            subLabel = "< 2 jam";
 
                           return (
                             <button
@@ -1144,7 +1132,7 @@ export function BookingExperience({
                               disabled={isDisabled}
                               onClick={() => handleSelectSlot(slot.time)}
                               title={slot.reason}
-                              className={`flex min-h-[52px] flex-col items-center justify-center rounded-xl border px-2 py-2 font-mono transition-colors ${
+                              className={`flex min-h-[54px] flex-col items-center justify-center rounded-xl border px-2 py-2 transition-colors ${
                                 isSelected
                                   ? "border-terracotta bg-terracotta text-surface shadow-sm"
                                   : isDisabled
@@ -1152,11 +1140,11 @@ export function BookingExperience({
                                     : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
                               }`}
                             >
-                              <span className="text-sm font-semibold tabular-nums">
+                              <span className="font-mono text-sm font-semibold tabular-nums">
                                 {slot.time}
                               </span>
                               <span
-                                className={`mt-0.5 text-[10px] uppercase tracking-wider ${
+                                className={`mt-0.5 font-sans text-[11px] font-medium ${
                                   isSelected
                                     ? "text-surface/90"
                                     : slot.status === "BOOKED"
@@ -1171,18 +1159,18 @@ export function BookingExperience({
                         })}
                       </div>
 
-                      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-hairline pt-3 font-mono text-[11px] text-muted">
+                      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-hairline pt-3 font-sans text-xs text-muted">
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-[2px] border border-hairline bg-alabaster" />
-                          Tersedia
+                          <span className="h-2.5 w-2.5 rounded-full border border-hairline bg-alabaster" />
+                          <span>Tersedia</span>
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-[2px] bg-crimson-alert/60" />
-                          Terisi
+                          <span className="h-2.5 w-2.5 rounded-full bg-crimson-alert/70" />
+                          <span>Terisi</span>
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-[2px] bg-terracotta" />
-                          Dipilih
+                          <span className="h-2.5 w-2.5 rounded-full bg-terracotta" />
+                          <span>Dipilih</span>
                         </span>
                       </div>
                     </>
@@ -1190,15 +1178,15 @@ export function BookingExperience({
                 </fieldset>
               </div>
 
-              {/* Kolom Kanan (5 Col): LIVE BOOKING PREVIEW + INPUT NAMA + SUBMIT */}
-              <div className="lg:col-span-5">
-                <div className="sticky top-24 rounded-2xl border border-hairline bg-surface p-4 shadow-sm sm:p-6">
+              {/* Kolom Kanan (360px Sticky Preview — Bebas Tabrakan Desktop) */}
+              <div className="min-w-0">
+                <div className="rounded-2xl border border-hairline bg-surface p-4 shadow-sm sm:p-6 lg:sticky lg:top-24">
                   <div className="flex items-center justify-between gap-2 pb-3.5">
                     <div>
-                      <p className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-terracotta">
-                        Live Booking Preview
+                      <p className="font-sans text-sm font-semibold text-terracotta">
+                        Live booking preview
                       </p>
-                      <p className="mt-0.5 text-sm text-muted">
+                      <p className="mt-0.5 font-sans text-xs text-muted">
                         Ringkasan jadwal &amp; nama Anda
                       </p>
                     </div>
@@ -1207,8 +1195,8 @@ export function BookingExperience({
                     </span>
                   </div>
 
-                  {/* Ringkasan Live Booking Preview (text-sm) */}
-                  <dl className="divide-y divide-hairline border-y border-hairline text-sm">
+                  {/* Ringkasan Live Booking Preview */}
+                  <dl className="divide-y divide-hairline border-y border-hairline font-sans text-sm">
                     <div className="flex items-start justify-between gap-3 py-2.5">
                       <dt className="text-muted">Layanan</dt>
                       <dd className="text-right font-semibold text-ink">
@@ -1241,11 +1229,12 @@ export function BookingExperience({
                     </div>
 
                     <div className="flex items-start justify-between gap-3 py-2.5">
-                      <dt className="text-muted">Jam Kursi</dt>
-                      <dd className="text-right font-mono tabular-nums">
+                      <dt className="text-muted">Jam kursi</dt>
+                      <dd className="text-right">
                         {selectedSlotObj ? (
-                          <span className="font-semibold text-emerald-live">
-                            {selectedSlotObj.time} – {selectedSlotObj.endTime} WIB
+                          <span className="font-mono font-semibold text-emerald-live tabular-nums">
+                            {selectedSlotObj.time} – {selectedSlotObj.endTime}{" "}
+                            WIB
                           </span>
                         ) : (
                           <span className="font-sans text-muted">
@@ -1275,7 +1264,7 @@ export function BookingExperience({
                   <div className="mt-4">
                     <label
                       htmlFor="customer-name-input"
-                      className="block font-mono text-xs font-semibold tracking-[0.14em] uppercase text-ink"
+                      className="block font-sans text-xs font-semibold text-ink"
                     >
                       Nama Anda
                     </label>
@@ -1294,9 +1283,9 @@ export function BookingExperience({
                         if (errorMessage) setErrorMessage(null);
                       }}
                       placeholder="Contoh: Farhan Pratama"
-                      className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 text-base text-ink placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+                      className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
                     />
-                    <p className="mt-1.5 font-mono text-[11px] text-muted">
+                    <p className="mt-1.5 font-sans text-xs text-muted">
                       2–40 karakter · Tanpa login / tanpa no. HP
                     </p>
                   </div>
@@ -1319,7 +1308,7 @@ export function BookingExperience({
                   {errorMessage ? (
                     <div
                       role="alert"
-                      className="mt-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 text-xs text-crimson-alert"
+                      className="mt-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 font-sans text-xs text-crimson-alert"
                     >
                       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                       <span>{errorMessage}</span>
@@ -1327,7 +1316,7 @@ export function BookingExperience({
                   ) : null}
 
                   {/* Catatan Aturan Keterlambatan */}
-                  <div className="mt-4 flex items-start gap-2.5 rounded-xl border-l-2 border-terracotta bg-surface-elevated/70 p-3 text-xs leading-relaxed text-muted">
+                  <div className="mt-4 flex items-start gap-2.5 rounded-xl border-l-2 border-terracotta bg-surface-elevated/70 p-3 font-sans text-xs leading-relaxed text-muted">
                     <Clock className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
                     <span>
                       Toleransi keterlambatan maksimal{" "}
@@ -1345,16 +1334,16 @@ export function BookingExperience({
                       !selectedService ||
                       !selectedSlotObj
                     }
-                    className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-3 font-display text-sm font-bold tracking-wide uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted"
+                    className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-3 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted"
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Mengunci Slot...
+                        <span>Mengunci slot...</span>
                       </>
                     ) : (
                       <>
-                        Review &amp; Konfirmasi Booking
+                        <span>Review &amp; Konfirmasi Booking</span>
                         <ArrowRight className="h-4 w-4" />
                       </>
                     )}
@@ -1365,10 +1354,10 @@ export function BookingExperience({
                     href={settings.google_maps_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-mono text-xs tracking-[0.12em] uppercase text-muted transition-colors hover:border-terracotta hover:text-ink"
+                    className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-xs font-medium text-muted transition-colors hover:border-terracotta hover:text-ink"
                   >
                     <MapPin className="h-3.5 w-3.5 text-terracotta" />
-                    {settings.short_address}
+                    <span>{settings.short_address}</span>
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
@@ -1388,27 +1377,27 @@ export function BookingExperience({
         >
           <div className="w-full max-w-md rounded-2xl border border-hairline bg-surface p-5 shadow-2xl sm:p-6">
             <div className="flex items-center justify-between border-b border-hairline pb-3">
-              <span className="font-mono text-xs font-semibold tracking-[0.2em] uppercase text-terracotta">
-                Konfirmasi Akhir
+              <span className="font-sans text-xs font-semibold text-terracotta">
+                Konfirmasi akhir
               </span>
-              <span className="font-mono text-[11px] uppercase text-muted">
-                Belum Terkunci
+              <span className="font-sans text-xs text-muted">
+                Belum terkunci
               </span>
             </div>
 
             <h3
               id="prebooking-confirm-title"
-              className="mt-4 font-display text-xl font-bold text-ink"
+              className="mt-4 font-serif text-2xl font-normal text-ink"
             >
               Pastikan Jadwal Sudah Sesuai
             </h3>
-            <p className="mt-1.5 text-xs leading-relaxed text-muted">
+            <p className="mt-1.5 font-sans text-xs leading-relaxed text-muted">
               Jika Anda memilih batal sekarang, slot tidak akan dikunci. Setelah
               konfirmasi, kursi langsung terkunci dan pesan WhatsApp otomatis
               terbuka.
             </p>
 
-            <dl className="mt-4 space-y-2.5 border-y border-hairline py-4 text-sm">
+            <dl className="mt-4 space-y-2.5 border-y border-hairline py-4 font-sans text-sm">
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted">Nama</dt>
                 <dd className="text-right font-semibold text-ink">
@@ -1418,17 +1407,21 @@ export function BookingExperience({
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted">Layanan</dt>
                 <dd className="text-right font-semibold text-ink">
-                  {selectedService.name} ({selectedService.price_display})
+                  {selectedService.name} (
+                  <span className="font-mono tabular-nums">
+                    {selectedService.price_display}
+                  </span>
+                  )
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted">Tanggal</dt>
-                <dd className="text-right font-mono text-xs font-medium text-ink tabular-nums sm:text-sm">
+                <dd className="text-right font-medium text-ink">
                   {formatIndonesianDateFull(selectedDate)}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-muted">Jam Kursi</dt>
+                <dt className="text-muted">Jam kursi</dt>
                 <dd className="text-right font-mono font-bold text-terracotta tabular-nums">
                   {selectedSlotObj.time} – {selectedSlotObj.endTime} WIB
                 </dd>
@@ -1440,17 +1433,17 @@ export function BookingExperience({
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => void handleConfirmBookingAndOpenWa()}
-                className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-terracotta px-4 py-3 font-mono text-xs font-bold tracking-[0.12em] uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:opacity-50"
+                className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-terracotta px-4 py-3 font-sans text-xs font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:opacity-50 sm:text-sm"
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Mengunci Slot...
+                    <span>Mengunci slot...</span>
                   </>
                 ) : (
                   <>
                     <MessageCircle className="h-4 w-4" />
-                    Ya, Kunci &amp; Buka WA
+                    <span>Ya, Kunci &amp; Buka WA</span>
                   </>
                 )}
               </button>
@@ -1459,7 +1452,7 @@ export function BookingExperience({
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => setShowConfirmModal(false)}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-hairline bg-alabaster/70 px-4 py-2.5 font-mono text-xs font-medium tracking-[0.12em] uppercase text-ink transition-colors hover:border-ink disabled:opacity-50"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-hairline bg-alabaster/70 px-4 py-2.5 font-sans text-xs font-medium text-ink transition-colors hover:border-ink disabled:opacity-50 sm:text-sm"
               >
                 Batal / Ubah
               </button>

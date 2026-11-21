@@ -218,16 +218,22 @@ export default async function HomePage() {
       ? Math.round(Math.max(...activeServices.map((s) => s.price_max)) / 1000)
       : 250;
 
+  const todayHoursLabel = settings.is_force_closed
+    ? "Tutup sementara"
+    : liveStatus.openTime && liveStatus.closeTime
+      ? `${liveStatus.openTime} – ${liveStatus.closeTime} WIB`
+      : liveStatus.closedReason ?? "Jadwal khusus";
+
   return (
     <div className="min-h-[100dvh] bg-alabaster text-ink">
       <HairSalonJsonLd schedules={schedules} storeSettings={settings} />
 
       {/* =====================================================================
-          NAVBAR ATAS MINIMALIS + MOBILE SUB-NAV (v1.3)
+          NAVBAR ATAS MINIMALIS SATU BARIS (TANPA KOTAK PEMBUNGKUS)
       ===================================================================== */}
-      <header className="sticky top-0 z-40 border-b border-hairline bg-alabaster/95 pt-safe backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-safe py-2.5 sm:gap-4">
-          {/* Kiri: BrandMark (compact < sm, full >= sm) */}
+      <header className="sticky top-0 z-40 bg-alabaster/95 pt-safe backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-safe py-3 sm:gap-4 sm:py-3.5">
+          {/* Kiri: BrandMark */}
           <div className="shrink-0">
             <div className="sm:hidden">
               <BrandMark variant="compact" size="sm" href="/" />
@@ -237,23 +243,23 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Tengah: Tautan Navigasi Desktop */}
+          {/* Tengah: Tautan Navigasi Bersih (Sentence Case, Desktop) */}
           <nav
             aria-label="Navigasi utama"
-            className="hidden items-center gap-6 md:flex"
+            className="hidden items-center gap-7 md:flex"
           >
             {NAV_LINKS.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
-                className="inline-flex min-h-[44px] items-center font-mono text-xs font-medium tracking-[0.14em] uppercase text-ink transition-colors hover:text-terracotta"
+                className="inline-flex min-h-[44px] items-center font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta"
               >
                 {item.label}
               </a>
             ))}
           </nav>
 
-          {/* Kanan: LiveStatusTag compact */}
+          {/* Kanan: Indikator Status Teks Ringan */}
           <div className="min-w-0">
             <div className="sm:hidden">
               <LiveStatusTag
@@ -274,71 +280,46 @@ export default async function HomePage() {
             </div>
           </div>
         </div>
-
-        {/* Sub-Nav Mobile: Strip 4 Tautan Ringkas */}
-        <nav
-          aria-label="Navigasi mobile"
-          className="grid grid-cols-4 border-t border-hairline/70 px-safe md:hidden"
-        >
-          {NAV_LINKS.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="inline-flex min-h-[44px] items-center justify-center font-mono text-[11px] font-medium tracking-[0.12em] uppercase text-ink transition-colors hover:text-terracotta"
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
       </header>
 
       <main>
         {/* ===================================================================
-            HERO MINIMALIS SOFT-EDITORIAL (v1.3)
+            SPLIT HERO ASIMETRIS (TRAVORRA-INSPIRED SOFT EDITORIAL)
         =================================================================== */}
         <section
           aria-labelledby="hero-heading"
-          className="px-safe pt-6 pb-14 sm:pt-12 sm:pb-18 lg:pt-14 lg:pb-24"
+          className="px-safe pt-5 pb-14 sm:pt-10 sm:pb-18 lg:pt-12 lg:pb-24"
         >
-          <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-7 sm:gap-10 lg:grid-cols-12 lg:gap-12">
-            {/* Kolom Teks Editorial (7 Col) */}
+          <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 lg:grid-cols-12 lg:gap-12">
+            {/* Kolom Kiri: Eyebrow Bersih, Instrument Serif Headline, Subtitle, CTA */}
             <div className="lg:col-span-7">
-              <div className="flex items-center gap-3">
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 shrink-0 rounded-[2px] bg-terracotta"
-                />
-                <p className="font-mono text-[11px] tracking-[0.2em] uppercase text-muted tabular-nums sm:text-xs">
-                  <span className="font-semibold text-terracotta">00</span>
-                  <span className="mx-2 text-muted/50">/</span>
-                  <span>STUDIO SATU KURSI · SUNGAI KUNYIT</span>
-                </p>
-                <span aria-hidden="true" className="h-px flex-1 bg-hairline" />
-              </div>
+              <p className="font-sans text-xs font-medium text-terracotta sm:text-sm">
+                Studio cukur satu kursi · {settings.short_address}
+              </p>
 
               <h1
                 id="hero-heading"
-                className="mt-4 font-display text-[28px] leading-[1.15] font-extrabold tracking-tight text-ink sm:mt-5 sm:text-4xl lg:text-5xl"
+                className="mt-3 font-serif text-3xl leading-[1.12] font-normal tracking-tight text-ink sm:text-4xl lg:text-5xl"
               >
-                Presisi Satu Kursi.{" "}
-                <span className="block font-serif font-normal italic text-terracotta">
+                Presisi Satu Kursi,{" "}
+                <span className="block italic text-terracotta">
                   Tanpa Antre di Tempat.
                 </span>
               </h1>
 
-              <p className="mt-4 max-w-lg text-sm leading-relaxed text-muted sm:text-base">
+              <p className="mt-4 max-w-lg font-sans text-sm leading-relaxed text-muted sm:text-base">
                 Sesi cukur privat satu barber di {settings.brand_tagline}. Pilih
                 layanan, kunci slot jam bulat secara real-time, dan konfirmasi
-                langsung via WhatsApp tanpa daftar akun.
+                via WhatsApp tanpa daftar akun.
               </p>
 
-              {/* CTA Utama + Google Maps Ringkas */}
-              <div className="mt-6 flex flex-col gap-2.5 sm:mt-7 sm:flex-row sm:items-center sm:gap-3">
+              {/* CTA Terracotta + Tautan Peta Ringkas */}
+              <div className="mt-6 flex flex-col gap-2.5 sm:mt-7 sm:flex-row sm:items-center sm:gap-4">
                 <a
                   href="#reservasi"
-                  className="inline-flex min-h-[48px] items-center justify-center gap-2.5 rounded-xl bg-terracotta px-6 py-3 font-display text-sm font-bold tracking-wide uppercase text-surface shadow-sm transition-colors hover:bg-terracotta/90"
+                  className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-terracotta px-6 py-3 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90"
                 >
-                  Kunci Jadwal Sekarang
+                  Pilih Jadwal
                   <ArrowDownRight className="h-4 w-4" />
                 </a>
 
@@ -346,36 +327,33 @@ export default async function HomePage() {
                   href={settings.google_maps_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-hairline bg-surface px-4 py-2.5 font-mono text-xs font-medium tracking-[0.14em] uppercase text-ink transition-colors hover:border-terracotta hover:text-terracotta sm:min-h-[48px]"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta sm:min-h-[48px]"
                 >
                   <MapPin className="h-4 w-4 text-terracotta" />
-                  Google Maps
-                  <ArrowUpRight className="h-3.5 w-3.5" />
+                  <span>Lihat Lokasi</span>
+                  <ArrowUpRight className="h-3.5 w-3.5 text-muted" />
                 </a>
               </div>
 
-              {/* Metadata Studio Ringkas */}
+              {/* Ringkasan Studio Clean Sentence Case */}
               <dl className="mt-7 grid grid-cols-2 gap-4 border-t border-hairline pt-5 sm:mt-8 sm:grid-cols-3">
                 <div>
-                  <dt className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted">
-                    Lokasi Studio
-                  </dt>
-                  <dd className="mt-1 text-xs font-semibold leading-snug text-ink sm:text-sm">
+                  <dt className="font-sans text-xs text-muted">Lokasi studio</dt>
+                  <dd className="mt-1 font-sans text-xs font-semibold leading-snug text-ink sm:text-sm">
                     {settings.short_address}
                   </dd>
                 </div>
                 <div>
-                  <dt className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted">
-                    Kapasitas &amp; Grid
+                  <dt className="font-sans text-xs text-muted">
+                    Kapasitas kursi
                   </dt>
-                  <dd className="mt-1 font-mono text-xs font-semibold text-ink tabular-nums sm:text-sm">
-                    1 Kursi · Slot 60 Mnt
+                  <dd className="mt-1 font-sans text-xs font-semibold text-ink sm:text-sm">
+                    <span className="font-mono tabular-nums">1</span> kursi ·
+                    Slot <span className="font-mono tabular-nums">60</span> mnt
                   </dd>
                 </div>
                 <div className="col-span-2 sm:col-span-1">
-                  <dt className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted">
-                    Tarif Mulai
-                  </dt>
+                  <dt className="font-sans text-xs text-muted">Tarif mulai</dt>
                   <dd className="mt-1 font-mono text-xs font-bold text-terracotta tabular-nums sm:text-sm">
                     Rp {minPriceK}k – {maxPriceK}k
                   </dd>
@@ -383,9 +361,9 @@ export default async function HomePage() {
               </dl>
             </div>
 
-            {/* Kolom Foto Hero Borderless (5 Col, Aspect 4:5 Terkunci) */}
-            <div className="lg:col-span-5">
-              <div className="relative mx-auto aspect-[4/5] w-full max-w-md overflow-hidden rounded-2xl bg-ink shadow-lg lg:max-w-none">
+            {/* Kolom Kanan: Foto Asimetris Organik Tanpa Border + 1 Kartu Kecil Sudut Kanan Atas */}
+            <div className="relative mx-auto w-full max-w-md lg:col-span-5 lg:max-w-none">
+              <div className="relative aspect-[4/5] w-full overflow-hidden rounded-tl-[72px] rounded-br-[72px] rounded-tr-3xl rounded-bl-3xl bg-ink shadow-xl">
                 <Image
                   src={heroImageUrl}
                   alt={brand.heroAlt}
@@ -394,30 +372,26 @@ export default async function HomePage() {
                   sizes="(max-width: 1024px) 100vw, 42vw"
                   className="object-cover"
                 />
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 bg-gradient-to-t from-[#1E2329]/90 via-[#303841]/55 to-transparent"
-                />
-                <div className="absolute right-5 bottom-5 left-5 flex items-end justify-between gap-3 border-t border-[#F7F3EC]/25 pt-3.5">
-                  <div>
-                    <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-[#F7F3EC]/80">
-                      MADZHAIR CHAIR
-                    </p>
-                    <p className="mt-0.5 font-serif text-lg italic text-[#F7F3EC]">
-                      Private Grooming Session
-                    </p>
-                  </div>
-                  <span className="rounded-xl bg-terracotta px-2.5 py-1 font-mono text-[11px] font-semibold tracking-[0.14em] text-[#F7F3EC] tabular-nums">
-                    WIB
-                  </span>
-                </div>
+              </div>
+
+              {/* 1 Kartu Mengambang Kecil di Sudut Kanan Atas Foto */}
+              <div className="absolute top-4 right-4 z-10 rounded-2xl bg-surface/95 px-4 py-3 shadow-lg backdrop-blur-md sm:-right-3 sm:top-6">
+                <p className="font-sans text-xs font-medium text-muted">
+                  Jam operasional hari ini
+                </p>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-ink tabular-nums">
+                  {todayHoursLabel}
+                </p>
+                <p className="mt-0.5 font-sans text-xs font-medium text-terracotta">
+                  1 kursi privat · Tanpa antre
+                </p>
               </div>
             </div>
           </div>
         </section>
 
         {/* ===================================================================
-            FLOATING INFO & PRICELIST DOCK + GALERI (4 FOTO + 2 REELS) + RESERVASI
+            FLOATING DOCK + GALERI (4 FOTO + 2 REELS) + RESERVASI
         =================================================================== */}
         <BookingExperience
           initialSettings={settings}
@@ -445,16 +419,16 @@ export default async function HomePage() {
                 <BrandMark variant="full" size="md" href="/" />
               </div>
 
-              <p className="max-w-sm text-sm leading-relaxed text-surface/80">
-                Barbershop berkapasitas 1 kursi di Sungai Kunyit. Fokus pada detail
-                potongan dan kenyamanan sesi konsultasi tanpa antre.
+              <p className="max-w-sm font-sans text-sm leading-relaxed text-surface/80">
+                Barbershop berkapasitas 1 kursi di Sungai Kunyit. Fokus pada
+                detail potongan dan kenyamanan sesi konsultasi tanpa antre.
               </p>
 
               <div className="border-l-2 border-terracotta pl-4">
-                <p className="font-mono text-[11px] tracking-[0.18em] uppercase text-surface/70">
-                  Alamat Studio
+                <p className="font-sans text-xs font-medium text-surface/70">
+                  Alamat studio
                 </p>
-                <p className="mt-1 text-sm font-medium text-surface">
+                <p className="mt-1 font-sans text-sm font-medium text-surface">
                   {settings.short_address}
                 </p>
               </div>
@@ -463,32 +437,26 @@ export default async function HomePage() {
                 href={settings.google_maps_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-surface transition-colors hover:bg-terracotta/90"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-surface transition-colors hover:bg-terracotta/90 sm:text-sm"
               >
                 <MapPin className="h-4 w-4" />
-                Buka Rute Google Maps
+                <span>Buka Rute Google Maps</span>
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </a>
             </div>
 
             {/* Jadwal Operasional Mingguan */}
             <div className="lg:col-span-7">
-              <div className="flex items-center gap-2.5">
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-[2px] bg-terracotta"
-                />
-                <p className="font-mono text-xs font-semibold tracking-[0.2em] uppercase text-surface">
-                  Jam Operasional ({settings.timezone})
-                </p>
-              </div>
+              <p className="font-sans text-sm font-semibold text-surface">
+                Jam operasional studio ({settings.timezone})
+              </p>
               <dl className="mt-4 divide-y divide-surface/15 border-y border-surface/15">
                 {schedules.map((item) => (
                   <div
                     key={item.day_of_week}
                     className="flex items-center justify-between py-2.5 text-sm"
                   >
-                    <dt className="font-medium text-surface">
+                    <dt className="font-sans font-medium text-surface">
                       {DAY_LABELS[item.day_of_week] ?? `Hari ${item.day_of_week}`}
                     </dt>
                     <dd className="font-mono text-xs text-surface/80 tabular-nums sm:text-sm">
@@ -505,7 +473,7 @@ export default async function HomePage() {
           </div>
 
           <div className="flex flex-col items-start justify-between gap-3 border-t border-surface/15 pt-6 sm:flex-row sm:items-center">
-            <p className="font-mono text-xs text-surface/75">
+            <p className="font-sans text-xs text-surface/75">
               © {new Date().getFullYear()} {settings.store_name} ·{" "}
               {settings.brand_tagline}
             </p>
@@ -513,10 +481,10 @@ export default async function HomePage() {
             {/* Tautan Halus ke Dashboard Kasir /admin */}
             <Link
               href="/admin"
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-surface/20 px-4 py-2 font-mono text-xs tracking-[0.14em] uppercase text-surface/85 transition-colors hover:border-terracotta hover:bg-terracotta hover:text-surface"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-surface/20 px-4 py-2 font-sans text-xs font-medium text-surface/85 transition-colors hover:border-terracotta hover:bg-terracotta hover:text-surface"
             >
               <Lock className="h-3.5 w-3.5" />
-              Akses Kasir
+              <span>Akses Kasir</span>
             </Link>
           </div>
         </div>

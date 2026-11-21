@@ -284,12 +284,12 @@ BEGIN
     END IF;
   END IF;
 
-  -- Overlap detection (single chair)
+  -- Overlap detection (single chair, only active BOOKED slots block the chair)
   IF EXISTS (
     SELECT 1
     FROM public.bookings
     WHERE booking_date = p_booking_date
-      AND status IN ('BOOKED', 'COMPLETED')
+      AND status = 'BOOKED'
       AND start_time < v_end_time
       AND end_time > p_start_time
   ) THEN
@@ -418,13 +418,13 @@ BEGIN
     RAISE EXCEPTION 'OUTSIDE_OPERATING_HOURS';
   END IF;
 
-  -- Overlap check excluding current booking
+  -- Overlap check excluding current booking (only active BOOKED slots occupy the chair)
   IF EXISTS (
     SELECT 1
     FROM public.bookings
     WHERE booking_date = v_booking.booking_date
       AND id <> p_booking_id
-      AND status IN ('BOOKED', 'COMPLETED')
+      AND status = 'BOOKED'
       AND start_time < v_new_end_time
       AND end_time > p_new_start_time
   ) THEN
@@ -541,7 +541,7 @@ AS $$
     b.status
   FROM public.bookings b
   WHERE b.booking_date = p_date
-    AND b.status IN ('BOOKED', 'COMPLETED')
+    AND b.status = 'BOOKED'
   ORDER BY b.start_time ASC;
 $$;
 

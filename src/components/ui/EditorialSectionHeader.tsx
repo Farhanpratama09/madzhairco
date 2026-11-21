@@ -1,15 +1,15 @@
 import type { ReactNode } from "react";
 
 export interface EditorialSectionHeaderProps {
-  /** Nomor indeks section, contoh: "01", "02", "03" */
-  index: string;
-  /** Label kategori singkat di samping indeks, contoh: "LAYANAN", "RESERVASI" */
+  /** Deprecated: dipertahankan opsional agar kompatibel, tidak lagi ditampilkan sebagai kode nomor */
+  index?: string;
+  /** Label kategori singkat dalam Sentence Case, mis. "Layanan studio", "Galeri & lookbook" */
   label: string;
-  /** Judul utama section (Syne display) */
+  /** Judul utama section (Instrument Serif) */
   title: string;
   /** Kata/frasa aksen opsional dengan tipografi Instrument Serif italic */
   accentTitle?: string;
-  /** Keterangan singkat opsional di bawah judul */
+  /** Keterangan singkat opsional di bawah judul (Plus Jakarta Sans Sentence Case) */
   description?: string;
   /** Slot aksi opsional di sisi kanan pada layar lebar */
   action?: ReactNode;
@@ -18,7 +18,6 @@ export interface EditorialSectionHeaderProps {
 }
 
 export function EditorialSectionHeader({
-  index,
   label,
   title,
   accentTitle,
@@ -28,38 +27,25 @@ export function EditorialSectionHeader({
   className = "",
 }: EditorialSectionHeaderProps) {
   return (
-    <header className={`border-b border-hairline pb-5 ${className}`}>
-      {/* Baris Indeks Bernomor + Garis Hairline Editorial (Anti-Pill-Badge) */}
-      <div className="mb-3.5 flex items-center gap-3">
-        <span
-          aria-hidden="true"
-          className="h-1.5 w-1.5 shrink-0 rounded-[2px] bg-terracotta"
-        />
-        <p className="font-mono text-xs tracking-[0.22em] uppercase text-muted tabular-nums">
-          <span className="font-semibold text-terracotta">{index}</span>
-          <span className="mx-2 text-muted/50">/</span>
-          <span>{label}</span>
-        </p>
-        <span aria-hidden="true" className="h-px flex-1 bg-hairline" />
-      </div>
+    <header className={`border-b border-hairline pb-4 sm:pb-5 ${className}`}>
+      <p className="font-sans text-xs font-medium text-terracotta sm:text-sm">
+        {label}
+      </p>
 
-      {/* Baris Judul Editorial & Aksi Opsional */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="mt-1.5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="max-w-2xl">
-          <Heading className="font-display text-xl leading-[1.18] font-bold tracking-tight text-ink sm:text-2xl md:text-3xl">
+          <Heading className="font-serif text-2xl leading-[1.15] font-normal tracking-tight text-ink sm:text-3xl lg:text-[34px]">
             {title}
             {accentTitle ? (
               <>
                 {" "}
-                <span className="font-serif font-normal italic text-terracotta">
-                  {accentTitle}
-                </span>
+                <span className="italic text-terracotta">{accentTitle}</span>
               </>
             ) : null}
           </Heading>
 
           {description ? (
-            <p className="mt-2.5 text-sm leading-relaxed text-muted">
+            <p className="mt-2 font-sans text-sm leading-relaxed text-muted">
               {description}
             </p>
           ) : null}

@@ -74,19 +74,20 @@ export function BrandMark({
       {variant !== "monogram" && (
         <span className="flex flex-col leading-none">
           <span
-            className={`font-display font-bold uppercase text-ink ${styles.wordmark}`}
+            className={`font-display font-bold tracking-tight text-ink ${
+              size === "lg"
+                ? "text-xl"
+                : size === "md"
+                  ? "text-base"
+                  : "text-sm"
+            }`}
           >
-            MADZHAIR<span className="text-terracotta">.CO</span>
+            Madzhair<span className="text-terracotta">.co</span>
           </span>
 
           {variant === "full" && (
-            <span className="mt-1.5 flex items-center gap-2">
-              <span aria-hidden="true" className="h-px w-4 bg-terracotta/85" />
-              <span
-                className={`font-mono uppercase text-muted ${styles.subtitle}`}
-              >
-                BARBER &amp; CO
-              </span>
+            <span className="mt-1 font-sans text-[11px] font-medium text-muted">
+              Barber &amp; Co
             </span>
           )}
         </span>

@@ -32,7 +32,7 @@ export default async function AdminLoginPage() {
           <BrandMark variant="compact" size="sm" href="/" />
           <Link
             href="/"
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-hairline bg-surface px-3.5 font-mono text-xs tracking-[0.14em] uppercase text-muted transition-colors hover:border-terracotta hover:text-terracotta"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-hairline bg-surface px-3.5 font-sans text-xs font-medium text-muted transition-colors hover:border-terracotta hover:text-terracotta"
           >
             <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
             <span>Beranda</span>
@@ -44,8 +44,7 @@ export default async function AdminLoginPage() {
         <InstallPwaBanner className="mb-6" />
 
         <EditorialSectionHeader
-          index="ADMIN"
-          label="KASIR PWA"
+          label="Kasir PWA"
           title="Masuk Panel"
           accentTitle="Operasional"
           description="Akses khusus pemilik Madzhair Barber & Co untuk mencatat walk-in instan, mengelola antrean, dan mengatur jadwal toko."
@@ -55,8 +54,8 @@ export default async function AdminLoginPage() {
 
         <AdminLoginForm isConfigured={configured} />
 
-        <p className="mt-6 text-center font-mono text-[11px] tracking-[0.16em] uppercase text-muted">
-          MADZHAIR.CO • ZERO-TRUST SESSION GUARD
+        <p className="mt-6 text-center font-sans text-xs text-muted">
+          Madzhair.co · Perlindungan sesi terverifikasi
         </p>
       </main>
     </div>

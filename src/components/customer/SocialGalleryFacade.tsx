@@ -102,17 +102,12 @@ function buildSafeEmbedIframeUrl(
   }
 }
 
-function VideoReelCard({
-  item,
-  indexNumber,
-}: {
-  item: GalleryItem;
-  indexNumber: string;
-}) {
+function VideoReelCard({ item }: { item: GalleryItem }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   const validation = validateSocialEmbedUrl(item.media_url);
-  const platformLabel = item.media_type === "tiktok" ? "TIKTOK REEL" : "IG REELS";
+  const platformLabel =
+    item.media_type === "tiktok" ? "TikTok Reel" : "Instagram Reels";
   const thumbnailSrc =
     item.thumbnail_url?.trim() ||
     (item.media_type === "tiktok"
@@ -141,21 +136,15 @@ function VideoReelCard({
           />
 
           <div className="absolute inset-x-0 bottom-0 space-y-3 p-4 sm:p-5">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-[2px] bg-terracotta"
-                />
-                <p className="font-mono text-[11px] tracking-[0.16em] uppercase text-[#F7F3EC]/85 tabular-nums">
-                  {indexNumber} {"//"} {platformLabel}
-                </p>
-              </div>
-              <h3 className="font-display text-base font-bold leading-snug text-[#F7F3EC] sm:text-lg">
+            <div className="space-y-1">
+              <p className="font-sans text-xs font-medium text-[#F7F3EC]/85">
+                {platformLabel}
+              </p>
+              <h3 className="font-serif text-lg font-normal leading-snug text-[#F7F3EC] sm:text-xl">
                 {item.title}
               </h3>
               {item.caption ? (
-                <p className="line-clamp-2 text-sm leading-relaxed text-[#F7F3EC]/85">
+                <p className="line-clamp-2 font-sans text-sm leading-relaxed text-[#F7F3EC]/85">
                   {item.caption}
                 </p>
               ) : null}
@@ -165,13 +154,13 @@ function VideoReelCard({
               <button
                 type="button"
                 onClick={() => setIsLoaded(true)}
-                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-[#F7F3EC] shadow-sm transition-colors hover:bg-terracotta/90"
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 py-2.5 font-sans text-xs font-semibold text-[#F7F3EC] shadow-sm transition-colors hover:bg-terracotta/90 sm:text-sm"
               >
                 <Play className="h-4 w-4 fill-[#F7F3EC]" />
-                Putar Video
+                <span>Putar Video</span>
               </button>
             ) : (
-              <div className="flex items-center gap-2 rounded-xl border border-crimson-alert/60 bg-[#1E2329]/90 px-3 py-2.5 text-xs text-[#F7F3EC]">
+              <div className="flex items-center gap-2 rounded-xl border border-crimson-alert/60 bg-[#1E2329]/90 px-3 py-2.5 font-sans text-xs text-[#F7F3EC]">
                 <ShieldAlert className="h-4 w-4 shrink-0 text-crimson-alert" />
                 <span>URL embed tidak lolos validasi keamanan.</span>
               </div>
@@ -192,10 +181,10 @@ function VideoReelCard({
           {!validation.valid || !validation.url ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-5 text-center">
               <ShieldAlert className="h-7 w-7 text-crimson-alert" />
-              <p className="text-sm font-semibold text-[#F7F3EC]">
+              <p className="font-sans text-sm font-semibold text-[#F7F3EC]">
                 Tautan video diblokir
               </p>
-              <p className="text-xs text-[#F7F3EC]/80">
+              <p className="font-sans text-xs text-[#F7F3EC]/80">
                 Hanya URL HTTPS resmi TikTok dan Instagram Reels yang diizinkan.
               </p>
             </div>
@@ -214,30 +203,33 @@ function VideoReelCard({
                 href={validation.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 border-t border-hairline bg-surface px-4 py-2 font-mono text-[11px] font-semibold tracking-[0.14em] uppercase text-ink transition-colors hover:bg-surface-elevated hover:text-terracotta"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 border-t border-hairline bg-surface px-4 py-2 font-sans text-xs font-semibold text-ink transition-colors hover:bg-surface-elevated hover:text-terracotta"
               >
-                Buka di {item.media_type === "tiktok" ? "TikTok" : "Instagram"}
+                <span>
+                  Buka di {item.media_type === "tiktok" ? "TikTok" : "Instagram"}
+                </span>
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </a>
             </div>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-4 p-5 text-center">
-              <p className="font-mono text-xs font-semibold tracking-[0.16em] uppercase text-terracotta">
+              <p className="font-sans text-xs font-medium text-terracotta">
                 {platformLabel}
               </p>
-              <h3 className="font-display text-base font-bold text-[#F7F3EC] sm:text-lg">
+              <h3 className="font-serif text-lg font-normal text-[#F7F3EC] sm:text-xl">
                 {item.title}
               </h3>
-              <p className="text-sm leading-relaxed text-[#F7F3EC]/80">
-                Tautan pendek terdeteksi. Buka langsung di aplikasi resmi untuk pemutaran penuh.
+              <p className="font-sans text-sm leading-relaxed text-[#F7F3EC]/80">
+                Tautan pendek terdeteksi. Buka langsung di aplikasi resmi untuk
+                pemutaran penuh.
               </p>
               <a
                 href={validation.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-2.5 font-mono text-xs font-semibold tracking-[0.14em] uppercase text-[#F7F3EC] transition-colors hover:bg-terracotta/90"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-[#F7F3EC] transition-colors hover:bg-terracotta/90 sm:text-sm"
               >
-                Tonton Sekarang
+                <span>Tonton Sekarang</span>
                 <ArrowUpRight className="h-4 w-4" />
               </a>
             </div>
@@ -255,12 +247,11 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
     <section
       id="galeri"
       aria-labelledby="galeri-heading"
-      className="scroll-mt-28 border-t border-hairline bg-alabaster px-safe py-10 sm:scroll-mt-24 sm:py-16"
+      className="scroll-mt-24 border-t border-hairline bg-alabaster px-safe py-10 sm:py-16"
     >
       <div className="mx-auto max-w-6xl space-y-8 sm:space-y-10">
         <EditorialSectionHeader
-          index="02"
-          label="GALERI & REELS"
+          label="Galeri & lookbook"
           title="Hasil Cukur"
           accentTitle="& Transformasi"
           description="Arsip gaya rambut dari satu kursi Madzhair.co. Video TikTok & Reels dimuat hanya saat Anda tekan agar hemat kuota seluler."
@@ -270,18 +261,18 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
         {photoItems.length > 0 ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-ink">
-                SAMPLE FOTO // 4:5 LOOKBOOK
+              <p className="font-sans text-sm font-semibold text-ink">
+                Koleksi gaya rambut
               </p>
-              <span className="font-mono text-[11px] text-muted md:hidden">
+              <span className="font-sans text-xs text-muted md:hidden">
                 Geser →
               </span>
             </div>
 
             <div className="flex gap-3.5 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-2 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:pb-0 lg:grid-cols-4">
               {photoItems.map((item, index) => {
-                const indexNumber = String(index + 1).padStart(2, "0");
-                const photoSrc = item.media_url?.trim() || "/images/style-fade.webp";
+                const photoSrc =
+                  item.media_url?.trim() || "/images/style-fade.webp";
 
                 return (
                   <article
@@ -301,21 +292,15 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                     />
 
                     <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-                      <div className="flex items-center gap-2">
-                        <span
-                          aria-hidden="true"
-                          className="h-1.5 w-1.5 rounded-[2px] bg-terracotta"
-                        />
-                        <span className="font-mono text-[11px] tracking-[0.16em] uppercase text-[#F7F3EC]/85 tabular-nums">
-                          {indexNumber} {"//"} FOTO STUDIO
-                        </span>
-                      </div>
+                      <p className="font-sans text-xs font-medium text-[#F7F3EC]/80">
+                        Gaya studio
+                      </p>
 
-                      <h3 className="mt-1.5 font-display text-base font-bold leading-snug text-[#F7F3EC] sm:text-lg">
+                      <h3 className="mt-1 font-serif text-lg font-normal leading-snug text-[#F7F3EC] sm:text-xl">
                         {item.title}
                       </h3>
                       {item.caption ? (
-                        <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-[#F7F3EC]/85">
+                        <p className="mt-1 line-clamp-2 font-sans text-sm leading-relaxed text-[#F7F3EC]/85">
                           {item.caption}
                         </p>
                       ) : null}
@@ -331,32 +316,21 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
         {videoItems.length > 0 ? (
           <div className="space-y-4 border-t border-hairline pt-7 sm:pt-8">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-mono text-xs font-semibold tracking-[0.18em] uppercase text-ink">
-                VIDEO REELS // KLIK UNTUK MEMUAT
+              <p className="font-sans text-sm font-semibold text-ink">
+                Video transformasi &amp; reels
               </p>
-              <span className="font-mono text-[11px] text-muted md:hidden">
+              <span className="font-sans text-xs text-muted md:hidden">
                 Geser →
               </span>
-              <p className="hidden font-mono text-[11px] text-muted md:block">
-                Zero-script initial load · HTTPS verified
+              <p className="hidden font-sans text-xs text-muted md:block">
+                Ketuk video untuk memuat pemutar resmi
               </p>
             </div>
 
             <div className="flex max-w-4xl gap-3.5 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-2 md:grid md:grid-cols-2 md:gap-5 md:overflow-visible md:pb-0">
-              {videoItems.map((item, idx) => {
-                const indexNumber = String(photoItems.length + idx + 1).padStart(
-                  2,
-                  "0"
-                );
-
-                return (
-                  <VideoReelCard
-                    key={`${item.id}-${idx}`}
-                    item={item}
-                    indexNumber={indexNumber}
-                  />
-                );
-              })}
+              {videoItems.map((item, idx) => (
+                <VideoReelCard key={`${item.id}-${idx}`} item={item} />
+              ))}
             </div>
           </div>
         ) : null}

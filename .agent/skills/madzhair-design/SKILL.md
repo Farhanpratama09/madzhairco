@@ -1,68 +1,45 @@
 ---
 name: madzhair-design
-description: Spesialis UI/UX, identitas visual Soft-Editorial Madzhair Barber & Co (v1.3 Warm Alabaster Mobile-Minimalist), penegak standar Anti-AI-Slop, dan paritas tampilan Android serta iOS.
+description: Spesialis UI/UX, identitas visual Soft-Editorial Madzhair Barber & Co (v1.4 Warm Alabaster, Travorra-inspired Split Hero & Dock, Sentence Case UI), penegak standar Anti-AI-Slop, dan paritas tampilan Android serta iOS.
 ---
 
 # Skill: Divisi UI/UX & Design System (`madzhair-design`)
 
-## 1. Identitas Visual Madzhair Barber & Co (v1.3 — Soft-Editorial Mobile-Minimalist)
-- **Karakter:** Hangat editorial, maskulin berkelas, tajam secara tipografi namun ringkas di layar ponsel (`360px–430px`), taktil dan ramah disentuh, kontras tinggi di atas kanvas terang hangat—bukan tema template SaaS gelap generik.
+## 1. Identitas Visual Madzhair Barber & Co (v1.4 — Soft-Editorial Editorial Minimalist)
+- **Karakter:** Hangat editorial, modern berkelas, bersih tanpa jargon/kode developer, tajam secara kontras di atas kanvas terang hangat (`#EFE8DD`) — diadaptasi dari estetika studio privat (*Travorra-inspired Split Hero + Floating Dock*).
 - **Palet Warna Baku (Aturan 60–30–10):**
-  - **60% — Kanvas Utama (`--color-alabaster`):** `#EFE8DD` (Warm Alabaster) — latar belakang utama halaman.
-  - **30% — Permukaan Kartu, Dock & Sheet (`--color-surface`):** `#F7F3EC` (Soft Ivory) dengan garis batas tipis `1px solid #DCD4C6` (`--color-hairline`) untuk Elevated Card, Floating Info & Pricelist Dock, dan Bottom Sheet Detail.
-  - **Sub-Surface Lembut (`--color-surface-elevated`):** `#E6DDD0` (Warm Sand Tint) untuk area sekunder, *hover tint*, dan blok informasi pendukung.
+  - **60% — Kanvas Utama (`--color-alabaster`):** `#EFE8DD` (Warm Alabaster).
+  - **30% — Permukaan Kartu, Dock & Sheet (`--color-surface`):** `#F7F3EC` (Soft Ivory) dengan garis batas tipis `#DCD4C6` (`--color-hairline`) untuk kartu standar, atau tanpa border dengan soft shadow (`shadow-xl`) pada Floating Horizontal Dock (`rounded-3xl`).
+  - **Sub-Surface Lembut (`--color-surface-elevated`):** `#E6DDD0` (Warm Sand Tint).
   - **Teks Utama / Heading / Blok Aksen Gelap (`--color-ink`):** `#303841` (Deep Slate Charcoal).
   - **Teks Sekunder (`--color-muted`):** `#5C646D` (Muted Slate).
-  - **10% — Aksen Utama (`--color-terracotta`):** `#C25934` (Burnt Terracotta) dengan teks `#F7F3EC` — khusus untuk CTA utama, tanggal/slot terpilih (*Selected Date/Slot*), dan garis indikator waktu aktif (*Live Current-Time Line*).
+  - **10% — Aksen Utama (`--color-terracotta`):** `#C25934` (Burnt Terracotta) dengan teks `#F7F3EC`.
   - **Status Semantik:**
-    - `--color-emerald-live`: `#2E6F56` (Buka Live / Tersedia)
-    - `--color-crimson-alert`: `#B83B3B` (Tutup Darurat / Dibatalkan / Hari Ini Libur)
-  - **Overlay Media Lookbook & Reels Full-Bleed:** Gradasi scrim gelap bawah `from-[#1E2329]/90 via-[#303841]/55 to-transparent` dengan teks `#F7F3EC` agar keterbacaan teks di atas foto/video tetap tinggi tanpa menutupi bagian atas visual.
+    - `--color-emerald-live`: `#2E6F56` (Sedang buka / Tersedia / Selesai)
+    - `--color-crimson-alert`: `#B83B3B` (Tutup darurat / Dibatalkan / Hari ini libur)
+  - **Overlay Media Lookbook & Reels Full-Bleed:** Gradasi scrim gelap bawah `from-[#1E2329]/90 via-[#303841]/55 to-transparent` dengan teks `#F7F3EC`.
 
-## 2. Geometri Soft-Editorial, Skala Tipografi & Aturan Keras Anti-AI-Slop (Wajib Dipatuhi)
-1. **Geometri Dock Info & Hierarki Radius Soft-Editorial (v1.3):**
-   - `rounded-[28px]`: Digunakan untuk **Floating Info & Pricelist Dock** di `/` agar terasa seperti *floating capsule dock* taktil yang memisahkan ringkasan info studio & akses pricelist dari kanvas hero.
-   - `rounded-2xl`: Digunakan untuk **Lookbook / Preview / Modal** — mencakup panel *Live Booking Preview*, modal konfirmasi pra-booking, kartu utama, foto hero (`aspect-[4/5]`), kartu Lookbook & facade Reels full-bleed (`aspect-[4/5]` & `aspect-[9/16]`), serta **Bottom Sheet Detail** (`rounded-t-2xl` / `rounded-2xl`) di `/admin`.
-   - `rounded-xl`: Digunakan untuk **Scrubber / Slot / Timeline block / Tombol** — mencakup Horizontal Date Scrubber (`snap-x`), tombol slot jam, blok timeline kasir (`>= 108px/jam`), `LiveStatusTag`, kotak monogram `BrandMark`, dan tombol aksi.
-2. **Skala Tipografi Minimalis Mobile (v1.3 — Optimal Layar `360px–430px`):**
-   - **`h1` (Hero Utama):** `text-[28px] leading-[1.15] sm:text-4xl lg:text-5xl` (`font-display`) — menjaga judul hero tetap tegas namun proporsional di ponsel sempit tanpa mendorong elemen utama terlalu jauh ke bawah.
-   - **`h2` (Judul Section / `EditorialSectionHeader`):** `text-xl leading-[1.18] sm:text-2xl md:text-3xl` (`font-display`) dengan deskripsi `text-sm leading-relaxed text-muted` agar judul dan keterangan tidak menumpuk di layar HP `360px–430px`.
-   - **Teks Kartu & Konten Pendukung:** `text-sm` untuk badan teks kartu layanan, info ringkas, dan item daftar agar kepadatan informasi tetap lega.
-   - **Input Form & Kontrol Select:** Wajib minimal `16px` (`text-base` / `font-size: max(16px, 1rem)`) untuk mencegah auto-zoom paksa di Safari iOS.
-3. **BANNED — Pill Badge Dekoratif (`rounded-full`):** Dilarang menggunakan elemen pil bulat (`rounded-full`) dekoratif berisi teks klise di atas judul (contoh terlarang: *"✨ Premium Barbershop Experience"*). Gunakan indeks bernomor (`01 / LAYANAN`) dan garis *hairline* `#DCD4C6`.
-4. **BANNED — Tipografi Klise AI:** Dilarang menggunakan `Inter`, `Roboto`, atau `Space Grotesk` sebagai font utama. Wajib menggunakan pasangan:
-   - **Display / Judul:** `Syne` (`--font-display`)
-   - **Aksen Editorial Italic:** `Instrument Serif` (`--font-serif`)
-   - **Body / UI:** `Plus Jakarta Sans` (`--font-sans`)
-   - **Angka Jam, Harga & Kode Tiket:** `JetBrains Mono` (`--font-mono`, `tabular-nums` wajib aktif agar deretan jam sejajar presisi).
-5. **BANNED — Layout Simetris Membosankan:** Hindari grid 3 kolom identik dengan ikon di atas teks. Gunakan komposisi hero asimetris, pembagian baris editorial (*hairline dividers* `#DCD4C6`), dan fokus visual pada foto/video hasil cukur.
-6. **Placeholder Media Mudah Ganti:** Seluruh logo, foto hero, dan kartu galeri wajib terpusat pada `src/config/media.ts` dengan rasio aspek terkunci (`aspect-[4/5]` atau `aspect-[9/16]`).
+## 2. Tipografi Sentence Case, Geometri Organik & Aturan Keras Anti-AI-Slop (v1.4)
+1. **Pemetaan Font Ketat (Wajib):**
+   - **Judul Besar / Editorial Heading (`h1`, `h2`, judul kartu lookbook):** `Instrument Serif` (`--font-serif`) dengan aksen *italic* (`text-terracotta italic`), ukuran proporsional (`h1`: `text-3xl sm:text-4xl lg:text-5xl leading-[1.12]`, `h2`: `text-2xl sm:text-3xl lg:text-[34px]`).
+   - **Teks UI, Label Seksi, Subjudul, Status, Tombol & Deskripsi:** `Plus Jakarta Sans` (`--font-sans`) dalam **Sentence Case** (dilarang memakai `ALL CAPS` / `uppercase` pada label, tombol, tab, atau subjudul UI).
+   - **Wordmark Logo:** `Syne` (`--font-display`) pada `Madzhair.co` (Sentence Case).
+   - **Angka Jam, Harga & Kode Tiket SAJA (`--font-mono`, `tabular-nums`):** `JetBrains Mono` **HANYA** diizinkan untuk angka jam (`14:00`, `12:00 – 21:00 WIB`), nominal harga (`Rp 35k`, `Rp 30k–40k`), dan kode tiket (`MDZ-XXXX`) / tanggal angka pendek (`YYYY-MM-DD`). Dilarang menggunakan `font-mono` pada label teks, judul kartu, tombol, atau status.
+2. **DILARANG — Prefix Angka Developer & Titik Kotak:**
+   - Hapus total prefiks kode (`00 /`, `01 //`, `02 //`, `03 /`, `ADMIN /`) dari seluruh UI publik maupun admin.
+   - Hapus elemen kapsul/pill ber-border dengan garis kiri terpotong atau titik kotak `rounded-[2px]`. Gunakan indikator lingkaran halus (`w-2 h-2 rounded-full`) + teks Sentence Case bersih tanpa kotak pembungkus pada `LiveStatusTag`.
+3. **Geometri v1.4:**
+   - **Hero Foto Asimetris Organik:** `rounded-tl-[72px] rounded-br-[72px] rounded-tr-3xl rounded-bl-3xl`, tanpa border kaku, ditemani **1 kartu mengambang kecil** di sudut kanan atas berisi jam operasional & kapasitas 1 kursi.
+   - **Floating Horizontal Dock (`#layanan`):** `rounded-3xl bg-[#F7F3EC] p-5 sm:p-6 shadow-xl` tanpa border kaku, berisi 4 segmen bersih (Layanan & Pricelist interaktif, Jam Operasional Hari Ini, Location ke Maps, dan tombol CTA Terracotta `Pilih Jadwal`).
+   - **Grid Area Reservasi (`#reservasi`):** Desktop wajib memakai `lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-8` dengan `min-w-0` pada kolom kiri dan tiap `<fieldset>` agar Horizontal Date Scrubber (`overflow-x-auto`) tidak mendorong kolom grid dan tidak bertabrakan dengan kartu sticky `Live booking preview`.
+   - **Bottom Sheet & Timeline (`/admin`):** `HOUR_ROW_HEIGHT_PX = 88`, garis waktu aktif `#C25934` berujung lingkaran `rounded-full`, timeline menampilkan booking aktif `BOOKED` sementara `COMPLETED` dipisah ke kartu *Riwayat selesai* agar slot yang dibuka kembali dan di-booking ulang tidak pernah tumpang tindih.
+4. **Placeholder Media Terpusat:** Seluruh aset dikelola via `src/config/media.ts`.
 
 ## 3. Standar Paritas Android & iOS
-- **Color Scheme & PWA Theme:** `color-scheme: light` dengan kanvas `#EFE8DD` (Warm Alabaster) dan teks `#303841` (Deep Slate Charcoal).
-- **Viewport Dinamis:** Gunakan `min-h-[100dvh]` (bukan `100vh`) agar layout tidak terpotong oleh *address bar* dinamis Chrome Android maupun Safari iOS, serta `overscroll-behavior-y: contain`.
-- **Safe Area Insets:** Elemen yang menempel di tepi layar (termasuk Bottom Sheet Detail & bar aksi sticky bawah) wajib memakai `pt-safe`, `pb-safe`, `pb-safe-flush`, dan `px-safe` berbasis `env(safe-area-inset-*)` agar aman dari *Notch/Dynamic Island*, *Home Indicator* iOS, dan gestur navigasi Android.
-- **Touch Target:** Setiap tombol interaktif (slot jam, date scrubber, tombol Walk-in, aksi di Bottom Sheet Detail seperti Selesai/Geser/Batal) wajib berukuran minimal `44px x 44px` (`touch-target`) dengan jarak antar tombol minimal `8px`.
-- **Anti-Zoom Input iOS:** Ukuran font pada seluruh `<input>`, `<select>`, dan `<textarea>` wajib minimal `16px` (`font-size: max(16px, 1rem)`) agar Safari iOS tidak melakukan auto-zoom paksa.
-- **Horizontal Scroll Halus:** Gunakan utilitas `@utility no-scrollbar` untuk strip kalender horizontal (`snap-x`) agar scrollbar tersembunyi rapi di iOS Safari, Android Chrome, dan desktop sambil tetap *scrollable*.
+- `color-scheme: light`, `#EFE8DD`, `min-h-[100dvh]`, `overscroll-behavior-y: contain`.
+- `pt-safe`, `pb-safe`, `pb-safe-flush`, `px-safe` berbasis `env(safe-area-inset-*)`.
+- Touch target minimal `44px x 44px`; input `<input>`/`<select>` minimal `16px` (`text-base`) agar Safari iOS tidak auto-zoom.
+- Scroll horizontal Date Scrubber & Galeri mobile menggunakan `snap-x snap-mandatory no-scrollbar`.
 
-## 4. Implementasi Design System & Komponen Baku (v1.3)
-- **`src/app/globals.css` (Tailwind CSS v4 `@theme inline`):**
-  - Token warna: `--color-alabaster` (`#EFE8DD`), `--color-surface` (`#F7F3EC`), `--color-surface-elevated` (`#E6DDD0`), `--color-hairline` (`#DCD4C6`), `--color-ink` (`#303841`), `--color-muted` (`#5C646D`), `--color-terracotta` (`#C25934`), `--color-emerald-live` (`#2E6F56`), `--color-crimson-alert` (`#B83B3B`).
-  - Token tipografi: `--font-display` (`--font-syne`), `--font-serif` (`--font-instrument-serif`), `--font-sans` (`--font-plus-jakarta`), `--font-mono` (`--font-jetbrains-mono`).
-  - Base rules: `color-scheme: light`, background `#EFE8DD`, teks `#303841`, `min-height: 100dvh`, `overscroll-behavior-y: contain`, anti-zoom input `>= 16px`, `::selection` `rgba(194, 89, 52, 0.18)` dengan teks `#303841`, `:focus-visible` `2px solid #C25934`.
-  - Utilitas khusus: `no-scrollbar`, `pt-safe`, `pb-safe`, `pb-safe-flush`, `px-safe`, `tabular-nums`, `hairline-border`, `hairline-t`, `hairline-b`, `hairline-l`, `hairline-r` (`1px solid #DCD4C6`), dan `touch-target` (`min-width: 44px; min-height: 44px`).
-- **`src/config/media.ts`:**
-  - Konfigurasi terpusat `brand`, `defaultGalleryItems`, `ALLOWED_EMBED_HOSTS`, dan `isWhitelistedEmbedUrl()`.
-  - Mendukung rasio aspek terkunci `aspect-[4/5]` (foto lokal WebP) dan `aspect-[9/16]` (placeholder embed TikTok & Instagram Reels).
-- **Komponen UI Editorial (`src/components/ui/`):**
-  - `BrandMark`: Kotak monogram `rounded-xl bg-ink` (`#303841`) dengan huruf `M` `#F7F3EC` + garis presisi `#C25934`, wordmark `MADZHAIR` (`text-ink`) + `.CO` (`text-terracotta`) + `BARBER & CO` (`text-muted`), touch target `>= 44x44px` saat menjadi tautan.
-  - `EditorialSectionHeader`: Indeks bernomor `text-terracotta`, garis *hairline* `#DCD4C6`, judul `Syne` `text-ink` berskala v1.3 (`text-xl leading-[1.18] sm:text-2xl md:text-3xl`), `accentTitle` `Instrument Serif italic` `text-terracotta`, dan deskripsi `text-sm leading-relaxed text-muted` (tanpa pill `rounded-full`).
-  - `LiveStatusTag`: Kartu status `rounded-xl bg-surface border border-hairline` dengan aksen garis vertikal kiri (3px) dan status semantik `#2E6F56` (*Buka Live*), `#C25934` (*Booking Aktif* / *Booking Besok Aktif*), atau `#B83B3B` (*Tutup Darurat* / *Hari Ini Libur*) beserta jam `tabular-nums`.
-- **Pola Komponen Khusus Halaman (v1.3):**
-  - **Floating Info & Pricelist Dock (`/`):** Kontainer melayang `rounded-[28px] border border-hairline bg-surface` yang menyajikan ringkasan status/info operasional, akses cepat pricelist, dan CTA menuju alur reservasi secara ringkas di mobile maupun desktop.
-  - **Bottom Sheet Detail (`/admin`):** Pola *thumb-zone bottom sheet* (`rounded-t-2xl` / `rounded-2xl` dengan `pb-safe`) untuk inspeksi detail booking dan aksi jadwal (**Selesai**, **Geser**, **Batal**) saat kartu jadwal pada timeline diketuk, sehingga blok timeline tetap bersih, terbaca jelas (`text-sm`), dan tidak sesak di layar ponsel `360px–430px`.
-
-## 5. Protokol Laporan & Pembaruan Skill
-- Setiap komponen UI baru wajib diaudit terhadap checklist Soft-Editorial, Skala Tipografi Minimalis Mobile (v1.3), & Anti-AI-Slop sebelum disetor ke `madzhair-coordinator`.
-- Jika ditemukan token warna, pola komponen, atau penyesuaian *viewport* baru, agent ini wajib langsung memperbarui `SKILL.md` ini dan mencatatnya di laporan ke Koordinator.
+## 4. Protokol Laporan & Pembaruan Skill
+- Audit seluruh komponen terhadap aturan Sentence Case (`font-sans`), batasan ketat `font-mono` (hanya jam/harga/tiket), nol prefiks `01 //`, dan grid overlap sebelum diserahkan ke `madzhair-coordinator`.

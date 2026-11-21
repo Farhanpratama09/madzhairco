@@ -193,7 +193,7 @@ export interface CalculateAvailableSlotsInput {
 /**
  * Pure slot engine implementing PRD Section 3:
  * - Rounded 1-hour grid (e.g. 12:00, 13:00, ...)
- * - Overlap check: start < newEnd && end > newStart for BOOKED / COMPLETED
+ * - Overlap check: start < newEnd && end > newStart for BOOKED only (COMPLETED releases chair)
  * - 2-hour Hair Chemicals disables slots with < 120m before next booking or close_time
  * - Enforces lead_time_minutes (default 30m) on today's slots
  */
@@ -242,7 +242,7 @@ export function calculateAvailableSlots({
     .filter(
       (b) =>
         b.booking_date === date &&
-        (b.status === "BOOKED" || b.status === "COMPLETED") &&
+        b.status === "BOOKED" &&
         (!excludeBookingId || b.id !== excludeBookingId)
     )
     .map((b) => ({

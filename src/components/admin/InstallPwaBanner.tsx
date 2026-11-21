@@ -156,11 +156,9 @@ export function InstallPwaBanner({ className = "" }: { className?: string }) {
           )}
 
           {env.isIos ? (
-            <p className="truncate text-xs text-ink sm:text-sm">
-              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-terracotta">
-                iOS PWA
-              </span>{" "}
-              <span className="text-muted">•</span> Tap{" "}
+            <p className="truncate font-sans text-xs text-ink sm:text-sm">
+              <span className="font-semibold text-terracotta">iOS PWA</span>{" "}
+              <span className="text-muted">·</span> Tap{" "}
               <span className="font-semibold text-ink">Share</span>{" "}
               <span aria-hidden="true" className="text-muted">
                 →
@@ -170,19 +168,17 @@ export function InstallPwaBanner({ className = "" }: { className?: string }) {
               </span>
             </p>
           ) : deferredPrompt ? (
-            <p className="truncate text-xs text-ink sm:text-sm">
-              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-terracotta">
-                PWA Kasir
-              </span>{" "}
-              <span className="text-muted">•</span> Pasang di Home Screen untuk
+            <p className="truncate font-sans text-xs text-ink sm:text-sm">
+              <span className="font-semibold text-terracotta">PWA Kasir</span>{" "}
+              <span className="text-muted">·</span> Pasang di Home Screen untuk
               layar penuh
             </p>
           ) : (
-            <p className="truncate text-xs text-ink sm:text-sm">
-              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-terracotta">
-                {env.isAndroid ? "Android PWA" : "Aplikasi Kasir"}
+            <p className="truncate font-sans text-xs text-ink sm:text-sm">
+              <span className="font-semibold text-terracotta">
+                {env.isAndroid ? "Android PWA" : "Aplikasi kasir"}
               </span>{" "}
-              <span className="text-muted">•</span> Menu Chrome{" "}
+              <span className="text-muted">·</span> Menu Chrome{" "}
               <span className="font-mono font-semibold text-ink">⋮</span>{" "}
               <span aria-hidden="true" className="text-muted">
                 →
@@ -198,7 +194,7 @@ export function InstallPwaBanner({ className = "" }: { className?: string }) {
               type="button"
               onClick={handleInstallClick}
               disabled={installing}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-terracotta bg-terracotta/10 px-3 text-xs font-semibold tracking-wider uppercase text-terracotta transition-colors hover:bg-terracotta hover:text-surface disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-terracotta bg-terracotta/10 px-3 font-sans text-xs font-semibold text-terracotta transition-colors hover:bg-terracotta hover:text-surface disabled:opacity-50"
             >
               <Download aria-hidden="true" className="h-3.5 w-3.5" />
               <span>{installing ? "Memasang..." : "Install App"}</span>

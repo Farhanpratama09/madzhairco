@@ -28,29 +28,29 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
             aria-hidden="true"
             className="h-5 w-5 shrink-0 text-terracotta"
           />
-          <h2 className="font-display text-base font-bold tracking-wide uppercase text-ink">
+          <h2 className="font-serif text-lg font-normal text-ink">
             Supabase Belum Terhubung
           </h2>
         </div>
 
-        <p className="text-sm leading-relaxed text-muted">
+        <p className="font-sans text-sm leading-relaxed text-muted">
           Mode kasir admin mewajibkan autentikasi server Supabase Auth dan tidak
           memiliki mode bypass tanpa login. Lengkapi konfigurasi berikut untuk
           mengaktifkan login admin:
         </p>
 
-        <ol className="mt-4 space-y-3 border-l-2 border-terracotta/70 pl-4 text-sm text-ink">
+        <ol className="mt-4 space-y-3 border-l-2 border-terracotta/70 pl-4 font-sans text-sm text-ink">
           <li>
-            <span className="font-mono text-xs font-semibold uppercase tracking-wider text-terracotta">
-              01. Environment (.env.local)
+            <span className="text-xs font-semibold text-terracotta">
+              1. Environment (.env.local)
             </span>
             <pre className="mt-1.5 overflow-x-auto rounded-xl border border-hairline bg-surface-elevated p-3 font-mono text-xs text-ink">
               {`NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co\nNEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...`}
             </pre>
           </li>
           <li>
-            <span className="font-mono text-xs font-semibold uppercase tracking-wider text-terracotta">
-              02. Skema &amp; RLS SQL
+            <span className="text-xs font-semibold text-terracotta">
+              2. Skema &amp; RLS SQL
             </span>
             <p className="mt-1 text-xs leading-relaxed text-muted">
               Jalankan file{" "}
@@ -61,8 +61,8 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
             </p>
           </li>
           <li>
-            <span className="font-mono text-xs font-semibold uppercase tracking-wider text-terracotta">
-              03. Akun Admin
+            <span className="text-xs font-semibold text-terracotta">
+              3. Akun Admin
             </span>
             <p className="mt-1 text-xs leading-relaxed text-muted">
               Buat user email &amp; password pemilik barber di menu{" "}
@@ -128,23 +128,21 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
       <div className="mb-5 flex items-center justify-between border-b border-hairline pb-4">
         <div className="flex items-center gap-2.5">
           <Lock aria-hidden="true" className="h-4 w-4 text-terracotta" />
-          <span className="font-mono text-xs tracking-[0.18em] uppercase text-muted">
-            Otorisasi Kasir
+          <span className="font-sans text-xs font-medium text-ink">
+            Otorisasi kasir
           </span>
         </div>
-        <span className="font-mono text-[11px] tracking-wider uppercase text-muted">
-          Supabase Auth
-        </span>
+        <span className="font-sans text-xs text-muted">Supabase Auth</span>
       </div>
 
       {errorMessage ? (
         <div
           role="alert"
-          className="mb-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/45 bg-crimson-alert/10 px-3.5 py-3 text-sm text-ink"
+          className="mb-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/45 bg-crimson-alert/10 px-3.5 py-3 font-sans text-sm text-ink"
         >
           <span
             aria-hidden="true"
-            className="mt-1.5 h-2 w-2 shrink-0 rounded-[2px] bg-crimson-alert"
+            className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-crimson-alert"
           />
           <span>{errorMessage}</span>
         </div>
@@ -154,9 +152,9 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
         <div>
           <label
             htmlFor="admin-email"
-            className="mb-1.5 block font-mono text-xs tracking-[0.14em] uppercase text-muted"
+            className="mb-1.5 block font-sans text-xs font-medium text-muted"
           >
-            Email Admin
+            Email admin
           </label>
           <input
             id="admin-email"
@@ -168,16 +166,16 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="owner@madzhair.co"
-            className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3.5 py-2.5 text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
+            className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3.5 py-2.5 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
           />
         </div>
 
         <div>
           <label
             htmlFor="admin-password"
-            className="mb-1.5 block font-mono text-xs tracking-[0.14em] uppercase text-muted"
+            className="mb-1.5 block font-sans text-xs font-medium text-muted"
           >
-            Kata Sandi
+            Kata sandi
           </label>
           <div className="relative flex items-stretch">
             <input
@@ -189,7 +187,7 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 py-2.5 pr-12 pl-3.5 text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
+              className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 py-2.5 pr-12 pl-3.5 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
             />
             <button
               type="button"
@@ -212,10 +210,10 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
       <button
         type="submit"
         disabled={submitting}
-        className="mt-6 flex min-h-[48px] w-full items-center justify-center gap-2.5 rounded-xl bg-terracotta px-5 py-3 font-display text-sm font-bold tracking-[0.14em] uppercase text-surface transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-6 flex min-h-[48px] w-full items-center justify-center gap-2.5 rounded-xl bg-terracotta px-5 py-3 font-sans text-sm font-semibold text-surface transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <LogIn aria-hidden="true" className="h-4 w-4" />
-        <span>{submitting ? "Memverifikasi Sesi..." : "Masuk Kasir"}</span>
+        <span>{submitting ? "Memverifikasi sesi..." : "Masuk Kasir"}</span>
       </button>
     </form>
   );
