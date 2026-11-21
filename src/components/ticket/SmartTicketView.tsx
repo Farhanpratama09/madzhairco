@@ -17,6 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { BrandMark } from "@/components/ui/BrandMark";
+import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 import {
   calculateAvailableSlots,
   formatTimeHHMM,
@@ -138,6 +139,37 @@ export function SmartTicketView({
   const [isMutating, setIsMutating] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Realtime status sync for this ticket (so admin cancel/reschedule reflects live)
+  const bookingId = booking?.id ?? null;
+  useEffect(() => {
+    if (!isSupabaseMode || !bookingId) return;
+    const supabase = createBrowserSupabase();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel(`madzhair-ticket-${bookingId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "bookings",
+          filter: `id=eq.${bookingId}`,
+        },
+        (payload) => {
+          const updated = payload.new as Booking | null;
+          if (updated?.id === bookingId) {
+            setMutatedBooking(updated);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [isSupabaseMode, bookingId]);
 
   // Fallback check in sessionStorage for local demo mode without DB
   useEffect(() => {

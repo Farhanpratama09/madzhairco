@@ -50,12 +50,21 @@ export default async function AdminPage() {
     redirect("/admin/login");
   }
 
+  const defaultUpcoming = getTodayAndUpcomingDates(
+    DEFAULT_STORE_SETTINGS.timezone,
+    8
+  );
+  const defaultStart = defaultUpcoming[0]?.dateStr ?? "";
+  const defaultEnd =
+    defaultUpcoming[defaultUpcoming.length - 1]?.dateStr ?? defaultStart;
+
   const [
     settingsRes,
     schedulesRes,
     closedDatesRes,
     servicesRes,
     galleryRes,
+    bookingsRes,
   ] = await Promise.all([
     supabase
       .from("store_settings")
@@ -80,6 +89,15 @@ export default async function AdminPage() {
       .select("*")
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false }),
+    defaultStart
+      ? supabase
+          .from("bookings")
+          .select("*")
+          .gte("booking_date", defaultStart)
+          .lte("booking_date", defaultEnd)
+          .order("booking_date", { ascending: true })
+          .order("start_time", { ascending: true })
+      : Promise.resolve({ data: [] as Booking[] }),
   ]);
 
   const initialSettings: StoreSettings =
@@ -105,22 +123,25 @@ export default async function AdminPage() {
     ? DEFAULT_GALLERY_ITEMS
     : ((galleryRes.data as GalleryItem[] | null) ?? []);
 
-  const upcomingDates = getTodayAndUpcomingDates(initialSettings.timezone, 8);
-  const startDate = upcomingDates[0]?.dateStr ?? "";
-  const endDate = upcomingDates[upcomingDates.length - 1]?.dateStr ?? startDate;
+  let initialBookings: Booking[] =
+    (bookingsRes.data as Booking[] | null) ?? [];
 
-  const bookingsRes = startDate
-    ? await supabase
+  if (initialSettings.timezone !== DEFAULT_STORE_SETTINGS.timezone) {
+    const upcomingDates = getTodayAndUpcomingDates(initialSettings.timezone, 8);
+    const startDate = upcomingDates[0]?.dateStr ?? "";
+    const endDate =
+      upcomingDates[upcomingDates.length - 1]?.dateStr ?? startDate;
+    if (startDate && (startDate !== defaultStart || endDate !== defaultEnd)) {
+      const tzBookingsRes = await supabase
         .from("bookings")
         .select("*")
         .gte("booking_date", startDate)
         .lte("booking_date", endDate)
         .order("booking_date", { ascending: true })
-        .order("start_time", { ascending: true })
-    : { data: [] as Booking[] };
-
-  const initialBookings: Booking[] =
-    (bookingsRes.data as Booking[] | null) ?? [];
+        .order("start_time", { ascending: true });
+      initialBookings = (tzBookingsRes.data as Booking[] | null) ?? [];
+    }
+  }
 
   return (
     <AdminCashierDashboard

@@ -187,6 +187,7 @@ export function BookingExperience({
   const [honeypotWebsite, setHoneypotWebsite] = useState<string>("");
 
   const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(false);
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmedResult, setConfirmedResult] = useState<{
@@ -474,7 +475,7 @@ export function BookingExperience({
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage(null);
 
@@ -500,6 +501,24 @@ export function BookingExperience({
       return;
     }
 
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmBookingAndOpenWa = async () => {
+    if (!selectedService || !selectedDate || !selectedSlotObj) {
+      setShowConfirmModal(false);
+      return;
+    }
+
+    const trimmedName = customerName.trim();
+    if (trimmedName.length < 2 || trimmedName.length > 40) {
+      setShowConfirmModal(false);
+      setErrorMessage("Nama pelanggan wajib diisi (2–40 karakter).");
+      nameInputRef.current?.focus();
+      return;
+    }
+
+    setErrorMessage(null);
     setIsSubmitting(true);
 
     try {
@@ -524,6 +543,7 @@ export function BookingExperience({
       };
 
       if (!response.ok || !payload.booking) {
+        setShowConfirmModal(false);
         setErrorMessage(
           payload.error ?? "Gagal memproses booking. Silakan coba jam lain."
         );
@@ -538,17 +558,17 @@ export function BookingExperience({
       void fetchBookingsForDate(selectedDate);
 
       const waUrl = buildWhatsAppUrl(createdBooking);
+      setShowConfirmModal(false);
       setConfirmedResult({
         booking: createdBooking,
         waUrl,
         mode,
       });
 
-      // Automatic redirect to WhatsApp (with brief moment so ticket code renders & saves)
-      window.setTimeout(() => {
-        window.location.assign(waUrl);
-      }, 950);
+      // Immediate WhatsApp redirect without artificial delay
+      window.location.assign(waUrl);
     } catch {
+      setShowConfirmModal(false);
       setErrorMessage(
         "Koneksi terputus saat mengunci jadwal. Silakan periksa internet Anda dan coba lagi."
       );
@@ -1222,7 +1242,7 @@ export function BookingExperience({
                       </>
                     ) : (
                       <>
-                        Konfirmasi &amp; Buka WhatsApp
+                        Review &amp; Konfirmasi Booking
                         <ArrowRight className="h-4 w-4" />
                       </>
                     )}
@@ -1245,6 +1265,96 @@ export function BookingExperience({
           )}
         </div>
       </section>
+
+      {/* Modal Konfirmasi Pra-Booking (Belum mengunci slot sampai user menyetujui) */}
+      {showConfirmModal && selectedService && selectedSlotObj ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="prebooking-confirm-title"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-obsidian/85 p-4 pb-safe backdrop-blur-sm sm:items-center"
+        >
+          <div className="w-full max-w-md border border-brass bg-surface p-5 sm:p-6">
+            <div className="flex items-center justify-between border-b border-hairline pb-3">
+              <span className="font-mono text-xs tracking-[0.2em] uppercase text-brass">
+                Konfirmasi Akhir
+              </span>
+              <span className="font-mono text-[11px] uppercase text-stone">
+                Belum Terkunci
+              </span>
+            </div>
+
+            <h3
+              id="prebooking-confirm-title"
+              className="mt-4 font-display text-xl font-bold text-ivory"
+            >
+              Pastikan Jadwal Sudah Sesuai
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-stone">
+              Jika Anda memilih batal sekarang, slot tidak akan dikunci. Setelah
+              konfirmasi, kursi langsung terkunci dan pesan WhatsApp otomatis
+              terbuka.
+            </p>
+
+            <dl className="mt-4 space-y-2.5 border-y border-hairline py-4 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-stone">Nama</dt>
+                <dd className="text-right font-medium text-ivory">
+                  {customerName.trim()}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-stone">Layanan</dt>
+                <dd className="text-right font-medium text-ivory">
+                  {selectedService.name} ({selectedService.price_display})
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-stone">Tanggal</dt>
+                <dd className="text-right font-mono text-xs text-ivory tabular-nums sm:text-sm">
+                  {formatIndonesianDateFull(selectedDate)}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-stone">Jam Kursi</dt>
+                <dd className="text-right font-mono font-semibold text-brass tabular-nums">
+                  {selectedSlotObj.time} – {selectedSlotObj.endTime} WIB
+                </dd>
+              </div>
+            </dl>
+
+            <div className="mt-5 flex flex-col gap-2.5 sm:flex-row-reverse">
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => void handleConfirmBookingAndOpenWa()}
+                className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 border border-brass bg-brass px-4 py-3 font-mono text-xs font-bold tracking-[0.12em] uppercase text-obsidian transition-colors hover:bg-brass/90 disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Mengunci Slot...
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="h-4 w-4" />
+                    Ya, Kunci &amp; Buka WA
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => setShowConfirmModal(false)}
+                className="inline-flex min-h-[44px] items-center justify-center border border-hairline bg-obsidian px-4 py-2.5 font-mono text-xs tracking-[0.12em] uppercase text-stone transition-colors hover:border-ivory hover:text-ivory disabled:opacity-50"
+              >
+                Batal / Ubah
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

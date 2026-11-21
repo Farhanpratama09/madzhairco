@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { SmartTicketView } from "@/components/ticket/SmartTicketView";
 import { validateTicketCode } from "@/lib/security/sanitize";
@@ -33,6 +34,25 @@ function normalizeTicketCode(raw: string): string {
   }
 }
 
+const loadTicketBooking = cache(
+  async (normalizedCode: string): Promise<Booking | null> => {
+    if (!validateTicketCode(normalizedCode) || !isSupabaseConfigured()) {
+      return null;
+    }
+
+    const supabase = await createClient();
+    if (!supabase) {
+      return null;
+    }
+
+    const { data } = await supabase.rpc("get_booking_by_ticket_code", {
+      p_ticket_code: normalizedCode,
+    });
+
+    return Array.isArray(data) ? (data[0] ?? null) : (data ?? null);
+  }
+);
+
 export async function generateMetadata({
   params,
 }: TicketPageProps): Promise<Metadata> {
@@ -42,20 +62,11 @@ export async function generateMetadata({
   let description =
     "Bukti tiket reservasi kursi resmi Madzhair Barber & Co — Jalan Raya Sungai Kunyit, Gang Tani.";
 
-  if (validateTicketCode(normalizedCode) && isSupabaseConfigured()) {
-    const supabase = await createClient();
-    if (supabase) {
-      const { data } = await supabase.rpc("get_booking_by_ticket_code", {
-        p_ticket_code: normalizedCode,
-      });
-
-      const booking = Array.isArray(data) ? data[0] : data;
-      if (booking) {
-        description = `Reservasi ${booking.service_name} a.n. ${booking.customer_name} pada ${booking.booking_date} pukul ${formatTimeHHMM(
-          booking.start_time
-        )} WIB (${booking.status}) — Madzhair Barber & Co.`;
-      }
-    }
+  const booking = await loadTicketBooking(normalizedCode);
+  if (booking) {
+    description = `Reservasi ${booking.service_name} a.n. ${booking.customer_name} pada ${booking.booking_date} pukul ${formatTimeHHMM(
+      booking.start_time
+    )} WIB (${booking.status}) — Madzhair Barber & Co.`;
   }
 
   return {
@@ -103,68 +114,56 @@ export default async function TicketPage({ params }: TicketPageProps) {
   if (supabaseConfigured) {
     const supabase = await createClient();
     if (supabase) {
-      const [{ data: authData }, settingsRes] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase
-          .from("store_settings")
-          .select("*")
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
+      const [{ data: authData }, settingsRes, resolvedBooking] =
+        await Promise.all([
+          supabase.auth.getUser(),
+          supabase
+            .from("store_settings")
+            .select("*")
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          loadTicketBooking(normalizedCode),
+        ]);
 
       isAdminAuthenticated = Boolean(authData.user);
       if (settingsRes.data) {
         settings = settingsRes.data;
       }
+      booking = resolvedBooking;
 
-      if (isValidCodeFormat) {
-        const { data: ticketRows } = await supabase.rpc(
-          "get_booking_by_ticket_code",
-          {
-            p_ticket_code: normalizedCode,
-          }
-        );
+      if (booking && isAdminAuthenticated) {
+        const [schedulesRes, closedRes, servicesRes, bookingsRes] =
+          await Promise.all([
+            supabase
+              .from("weekly_schedules")
+              .select("*")
+              .order("day_of_week", { ascending: true }),
+            supabase
+              .from("closed_dates")
+              .select("*")
+              .order("closed_date", { ascending: true }),
+            supabase
+              .from("services")
+              .select("*")
+              .eq("is_active", true)
+              .order("sort_order", { ascending: true }),
+            supabase.rpc("get_public_bookings_for_date", {
+              p_date: booking.booking_date,
+            }),
+          ]);
 
-        const resolvedBooking = Array.isArray(ticketRows)
-          ? (ticketRows[0] ?? null)
-          : (ticketRows ?? null);
-
-        booking = resolvedBooking;
-
-        if (booking && isAdminAuthenticated) {
-          const [schedulesRes, closedRes, servicesRes, bookingsRes] =
-            await Promise.all([
-              supabase
-                .from("weekly_schedules")
-                .select("*")
-                .order("day_of_week", { ascending: true }),
-              supabase
-                .from("closed_dates")
-                .select("*")
-                .order("closed_date", { ascending: true }),
-              supabase
-                .from("services")
-                .select("*")
-                .eq("is_active", true)
-                .order("sort_order", { ascending: true }),
-              supabase.rpc("get_public_bookings_for_date", {
-                p_date: booking.booking_date,
-              }),
-            ]);
-
-          if (schedulesRes.data && schedulesRes.data.length > 0) {
-            schedules = schedulesRes.data;
-          }
-          if (closedRes.data) {
-            closedDates = closedRes.data;
-          }
-          if (servicesRes.data && servicesRes.data.length > 0) {
-            services = servicesRes.data;
-          }
-          if (Array.isArray(bookingsRes.data)) {
-            dateBookings = bookingsRes.data;
-          }
+        if (schedulesRes.data && schedulesRes.data.length > 0) {
+          schedules = schedulesRes.data;
+        }
+        if (closedRes.data) {
+          closedDates = closedRes.data;
+        }
+        if (servicesRes.data && servicesRes.data.length > 0) {
+          services = servicesRes.data;
+        }
+        if (Array.isArray(bookingsRes.data)) {
+          dateBookings = bookingsRes.data;
         }
       }
     }

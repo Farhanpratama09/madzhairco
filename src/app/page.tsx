@@ -75,12 +75,15 @@ async function loadLandingData(): Promise<{
     const supabase = await createClient();
 
     if (supabase) {
+      const defaultNow = getStoreNowParts(DEFAULT_STORE_SETTINGS.timezone);
+
       const [
         settingsRes,
         schedulesRes,
         closedRes,
         servicesRes,
         galleryRes,
+        bookingsRes,
       ] = await Promise.all([
         supabase
           .from("store_settings")
@@ -106,6 +109,9 @@ async function loadLandingData(): Promise<{
           .select("*")
           .eq("is_active", true)
           .order("sort_order", { ascending: true }),
+        supabase.rpc("get_public_bookings_for_date", {
+          p_date: defaultNow.dateStr,
+        }),
       ]);
 
       if (settingsRes.data) {
@@ -125,15 +131,18 @@ async function loadLandingData(): Promise<{
       }
 
       const nowInStoreTz = getStoreNowParts(settings.timezone);
-      const { data: bookingsData } = await supabase.rpc(
-        "get_public_bookings_for_date",
-        {
-          p_date: nowInStoreTz.dateStr,
+      if (nowInStoreTz.dateStr !== defaultNow.dateStr) {
+        const { data: tzBookingsData } = await supabase.rpc(
+          "get_public_bookings_for_date",
+          {
+            p_date: nowInStoreTz.dateStr,
+          }
+        );
+        if (Array.isArray(tzBookingsData)) {
+          todayBookings = tzBookingsData;
         }
-      );
-
-      if (Array.isArray(bookingsData)) {
-        todayBookings = bookingsData;
+      } else if (Array.isArray(bookingsRes.data)) {
+        todayBookings = bookingsRes.data;
       }
 
       return {

@@ -1,4 +1,3 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { applySecurityHeaders } from "@/lib/security/headers";
 
@@ -15,26 +14,30 @@ function isAdminRoute(pathname: string): boolean {
   return pathname === ADMIN_HOME_PATH || pathname.startsWith(`${ADMIN_HOME_PATH}/`);
 }
 
-function createRedirectResponse(
-  targetUrl: URL,
-  sourceResponse: NextResponse
-): NextResponse {
+function hasSupabaseSessionCookie(request: NextRequest): boolean {
+  return request.cookies
+    .getAll()
+    .some(
+      (cookie) =>
+        cookie.name.startsWith("sb-") &&
+        cookie.name.includes("-auth-token") &&
+        cookie.value.length > 0
+    );
+}
+
+function createRedirectResponse(targetUrl: URL): NextResponse {
   const redirectResponse = NextResponse.redirect(targetUrl);
-
-  // Preserve any refreshed or cleared auth cookies on redirect
-  for (const cookie of sourceResponse.cookies.getAll()) {
-    redirectResponse.cookies.set(cookie);
-  }
-
   applySecurityHeaders(redirectResponse.headers);
   return redirectResponse;
 }
 
-export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({
-    request,
-  });
-
+/**
+ * Fast edge proxy:
+ * - Injects HTTP security headers & CSP on all matched routes.
+ * - Performs fast fail-closed cookie gate for /admin/* without redundant auth network roundtrips
+ *   (full authoritative `supabase.auth.getUser()` runs once inside Server Components & API routes).
+ */
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isAdminRoute(pathname)) {
@@ -44,60 +47,16 @@ export async function proxy(request: NextRequest) {
 
     if (!supabaseUrl || !supabaseAnonKey) {
       if (!onLoginPage) {
-        return createRedirectResponse(
-          new URL(ADMIN_LOGIN_PATH, request.url),
-          response
-        );
+        return createRedirectResponse(new URL(ADMIN_LOGIN_PATH, request.url));
       }
-
-      applySecurityHeaders(response.headers);
-      return response;
-    }
-
-    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => {
-            request.cookies.set(name, value);
-          });
-          response = NextResponse.next({
-            request,
-          });
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    });
-
-    let user = null;
-    try {
-      const { data, error } = await supabase.auth.getUser();
-      if (!error) {
-        user = data.user;
-      }
-    } catch {
-      user = null;
-    }
-
-    if (!user && !onLoginPage) {
-      return createRedirectResponse(
-        new URL(ADMIN_LOGIN_PATH, request.url),
-        response
-      );
-    }
-
-    if (user && onLoginPage) {
-      return createRedirectResponse(
-        new URL(ADMIN_HOME_PATH, request.url),
-        response
-      );
+    } else if (!onLoginPage && !hasSupabaseSessionCookie(request)) {
+      return createRedirectResponse(new URL(ADMIN_LOGIN_PATH, request.url));
     }
   }
 
+  const response = NextResponse.next({
+    request,
+  });
   applySecurityHeaders(response.headers);
   return response;
 }

@@ -52,9 +52,10 @@ Madzhair.co adalah aplikasi web reservasi dan manajemen operasional kasir berbas
 
 ### 4.1 Pengalaman Pelanggan (`/`)
 - **Tanpa Login & Tanpa Input No. HP:** Pelanggan cukup memilih **Layanan → Tanggal → Jam → Nama**.
-- **Penguncian Instan (`BOOKED`):** Saat tombol konfirmasi ditekan, transaksi memanggil fungsi RPC `create_booking_safe` (*advisory lock* per tanggal) untuk mencegah *double-booking* di milidetik yang sama. Slot langsung terkunci permanen tanpa timer hangus.
+- **Konfirmasi Pra-Booking (Sebelum Kunci Slot):** Saat menekan tombol review booking, muncul ringkasan jadwal untuk konfirmasi akhir (**Batal / Ubah Jadwal** tidak menulis ke database; **Ya, Kunci Slot & Buka WA** baru mengunci slot dan membuka WhatsApp tanpa jeda).
+- **Penguncian Instan (`BOOKED`):** Saat konfirmasi akhir ditekan, transaksi memanggil fungsi RPC `create_booking_safe` (*advisory lock* per tanggal) untuk mencegah *double-booking* di milidetik yang sama. Slot langsung terkunci permanen tanpa timer hangus.
 - **Redirect WhatsApp Otomatis:** Sistem menghasilkan kode tiket unik acak **`MDZ-XXXX`** (non-sequential) dan mengarahkan pelanggan ke `https://wa.me/<nomor_admin>` dengan format pesan terisi otomatis beserta tautan tiket.
-- **Informasi Lokasi & Katalog:** Menampilkan status **Buka/Tutup Live**, rincian harga, tombol arah Google Maps, serta galeri foto dan *lazy-loaded* video TikTok/IG Reels.
+- **Informasi Lokasi & Katalog:** Menampilkan status **Buka/Tutup Live** (dan indikator **Booking Aktif** sebelum jam buka), rincian harga, tombol arah Google Maps, serta galeri foto dan *lazy-loaded* video TikTok/IG Reels.
 
 ### 4.2 Link Tiket Pintar (`/tiket/[code]`)
 Satu URL netral yang menyesuaikan tampilan berdasarkan status autentikasi perangkat:
@@ -100,4 +101,5 @@ Satu URL netral yang menyesuaikan tampilan berdasarkan status autentikasi perang
 | Versi | Tanggal | Status | Ringkasan Perubahan |
 | :--- | :--- | :--- | :--- |
 | `v1.0` | 2026-11-20 | `Approved` | Persetujuan resmi Atasan Tertinggi beserta penetapan data seed operasional (`Asia/Pontianak`, WA `62895701807228`, alamat Sungai Kunyit, tarif Haircut 30k–40k & Chemicals 250k). |
+| `v1.1` | 2026-11-20 | `Approved` | Penambahan dialog konfirmasi pra-booking sebelum mengunci slot DB & redirect WA instan tanpa delay, optimasi auth/query paralel (`/admin`, `/tiket`, `/`), Realtime status di `/tiket/[code]`, serta region Vercel `sin1`. |
 

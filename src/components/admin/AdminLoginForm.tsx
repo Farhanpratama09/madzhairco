@@ -110,7 +110,6 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
       }
 
       router.replace("/admin");
-      router.refresh();
     } catch {
       setErrorMessage("Terjadi gangguan jaringan saat mencoba masuk.");
     } finally {
