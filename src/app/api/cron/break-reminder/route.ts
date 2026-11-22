@@ -130,6 +130,11 @@ async function runHistoricalCleanup(
 }
 
 async function handleBreakReminder(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const cronSecret = process.env.CRON_SECRET?.trim() ?? "";
 
   // Fail-closed: refuse execution if CRON_SECRET is missing or empty
@@ -140,7 +145,6 @@ async function handleBreakReminder(request: NextRequest) {
     );
   }
 
-  const authHeader = request.headers.get("authorization");
   if (!verifyBearerSecret(authHeader, cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

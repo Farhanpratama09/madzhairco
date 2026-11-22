@@ -115,12 +115,7 @@ export function HairSalonJsonLd({
 
   const safeJsonLd = JSON.stringify(jsonLd).replace(/</g, "\\u003c");
 
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: safeJsonLd }}
-    />
-  );
+  return <script type="application/ld+json">{safeJsonLd}</script>;
 }
 
 export default HairSalonJsonLd;

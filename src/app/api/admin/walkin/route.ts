@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateServiceTimeFormat } from "@/lib/security/sanitize";
+import {
+  MAX_PAYLOAD_CHARS,
+  sanitizeCustomerName,
+  validateOptionalTextNote,
+  validateServiceTimeFormat,
+} from "@/lib/security/sanitize";
 import { createClient } from "@/lib/supabase/server";
 import type { Booking } from "@/types/database";
 
@@ -92,9 +97,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let rawText: string;
+  try {
+    rawText = await request.text();
+  } catch {
+    return NextResponse.json(
+      { error: "Payload request tidak dapat dibaca." },
+      { status: 400 }
+    );
+  }
+
+  if (rawText.length > MAX_PAYLOAD_CHARS) {
+    return NextResponse.json(
+      {
+        error: `Ukuran payload melebihi batas maksimum (${MAX_PAYLOAD_CHARS} karakter).`,
+      },
+      { status: 400 }
+    );
+  }
+
   let body: unknown;
   try {
-    body = await request.json();
+    body = JSON.parse(rawText);
   } catch {
     return NextResponse.json(
       { error: "Format payload JSON tidak valid." },
@@ -109,11 +133,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { serviceId, bookingDate, startTime } = body as {
+  const { serviceId, bookingDate, startTime, customerName, notes } = body as {
     serviceId?: unknown;
     bookingDate?: unknown;
     startTime?: unknown;
+    customerName?: unknown;
+    notes?: unknown;
   };
+
+  let resolvedWalkinName = "Walk-in";
+  if (customerName !== undefined && customerName !== null && customerName !== "") {
+    const nameCheck = sanitizeCustomerName(customerName);
+    if (!nameCheck.valid) {
+      return NextResponse.json(
+        { error: nameCheck.error ?? "Nama pelanggan walk-in tidak valid." },
+        { status: 400 }
+      );
+    }
+    resolvedWalkinName = nameCheck.value;
+  }
+
+  const notesCheck = validateOptionalTextNote(notes, "Catatan walk-in");
+  if (!notesCheck.valid) {
+    return NextResponse.json(
+      { error: notesCheck.error ?? "Catatan walk-in maksimal 200 karakter." },
+      { status: 400 }
+    );
+  }
 
   if (typeof serviceId !== "string" || !UUID_REGEX.test(serviceId.trim())) {
     return NextResponse.json(
@@ -147,7 +193,7 @@ export async function POST(request: NextRequest) {
     "create_booking_safe",
     {
       p_service_id: serviceId.trim(),
-      p_customer_name: "Walk-in",
+      p_customer_name: resolvedWalkinName,
       p_booking_date: bookingDate.trim(),
       p_start_time: normalizeTimeWithSeconds(startTime),
       p_source: "WALKIN",

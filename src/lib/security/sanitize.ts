@@ -47,10 +47,15 @@ export function checkHoneypot(value: unknown): boolean {
   return true;
 }
 
+export const MAX_PAYLOAD_CHARS = 5000;
+export const MAX_CUSTOMER_NAME_CHARS = 80;
+export const MAX_NOTES_CHARS = 200;
+export const MAX_IDENTIFIER_CHARS = 120;
+
 /**
- * Sanitizes customer_name by stripping HTML tags, control characters,
- * invisible formatting characters, and collapsing whitespace.
- * Enforces mandatory length between 2 and 40 characters.
+ * Sanitizes customer_name by neutralizing HTML angle brackets, control characters,
+ * invisible formatting characters, and collapsing whitespace into safe plain text.
+ * Enforces mandatory length between 2 and 80 characters.
  */
 export function sanitizeCustomerName(raw: unknown): SanitizeNameResult {
   if (typeof raw !== "string") {
@@ -61,19 +66,27 @@ export function sanitizeCustomerName(raw: unknown): SanitizeNameResult {
     };
   }
 
+  if (raw.trim().length > MAX_CUSTOMER_NAME_CHARS) {
+    return {
+      valid: false,
+      value: "",
+      error: `Nama pelanggan maksimal ${MAX_CUSTOMER_NAME_CHARS} karakter.`,
+    };
+  }
+
   let cleaned = raw;
-  // Iteratively strip HTML/XML tags to prevent nested tag bypasses like <<script>>
+  // Iteratively strip HTML/XML opening/closing tags to prevent nested tag bypasses
   let previous: string;
   do {
     previous = cleaned;
-    cleaned = cleaned.replace(/<[^>]*>/g, "");
+    cleaned = cleaned.replace(/<\/?[a-zA-Z][^>]*>/g, " ");
   } while (cleaned !== previous);
 
   cleaned = cleaned
-    // Remove any remaining angle brackets
-    .replace(/[<>]/g, "")
+    // Neutralize any remaining angle brackets
+    .replace(/[<>]/g, " ")
     // Remove ASCII & Unicode control characters
-    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
     // Remove zero-width & bidirectional override characters
     .replace(/[\u200B-\u200D\u202A-\u202E\uFEFF]/g, "")
     // Collapse consecutive whitespace into single spaces
@@ -88,11 +101,11 @@ export function sanitizeCustomerName(raw: unknown): SanitizeNameResult {
     };
   }
 
-  if (cleaned.length > 40) {
+  if (cleaned.length > MAX_CUSTOMER_NAME_CHARS) {
     return {
       valid: false,
       value: cleaned,
-      error: "Nama pelanggan maksimal 40 karakter.",
+      error: `Nama pelanggan maksimal ${MAX_CUSTOMER_NAME_CHARS} karakter.`,
     };
   }
 
@@ -100,6 +113,78 @@ export function sanitizeCustomerName(raw: unknown): SanitizeNameResult {
     valid: true,
     value: cleaned,
   };
+}
+
+export function validateOptionalTextNote(
+  raw: unknown,
+  fieldLabel = "Catatan/keterangan"
+): { valid: boolean; value: string | null; error?: string } {
+  if (raw === undefined || raw === null || raw === "") {
+    return { valid: true, value: null };
+  }
+  if (typeof raw !== "string") {
+    return {
+      valid: false,
+      value: null,
+      error: `${fieldLabel} wajib berupa teks.`,
+    };
+  }
+  const cleaned = raw
+    .replace(/[<>]/g, " ")
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (raw.trim().length > MAX_NOTES_CHARS || cleaned.length > MAX_NOTES_CHARS) {
+    return {
+      valid: false,
+      value: null,
+      error: `${fieldLabel} maksimal ${MAX_NOTES_CHARS} karakter.`,
+    };
+  }
+
+  return {
+    valid: true,
+    value: cleaned || null,
+  };
+}
+
+export function validateHttpsMediaUrl(
+  raw: unknown
+): { valid: boolean; url?: string; error?: string } {
+  if (typeof raw !== "string") {
+    return { valid: false, error: "URL media wajib berupa teks." };
+  }
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > 1024) {
+    return {
+      valid: false,
+      error: "URL media tidak boleh kosong atau melebihi 1.024 karakter.",
+    };
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { valid: false, error: "Format URL media tidak valid." };
+  }
+
+  if (parsed.protocol !== "https:") {
+    return {
+      valid: false,
+      error: "URL media wajib menggunakan protokol https:// yang aman.",
+    };
+  }
+
+  if (parsed.username || parsed.password || parsed.port) {
+    return {
+      valid: false,
+      error: "URL media tidak boleh mengandung kredensial atau port khusus.",
+    };
+  }
+
+  return { valid: true, url: parsed.toString() };
 }
 
 /**

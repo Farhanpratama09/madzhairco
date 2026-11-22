@@ -7,8 +7,10 @@ import {
 } from "@/lib/security/rate-limit";
 import {
   checkHoneypot,
+  MAX_PAYLOAD_CHARS,
   normalizeWhatsappPhone,
   sanitizeCustomerName,
+  validateOptionalTextNote,
   validateServiceTimeFormat,
 } from "@/lib/security/sanitize";
 import {
@@ -32,6 +34,7 @@ interface CreateBookingRequestBody {
   customerPhone?: unknown;
   bookingDate?: unknown;
   startTime?: unknown;
+  notes?: unknown;
   website?: unknown;
 }
 
@@ -165,7 +168,7 @@ function mapRpcError(
     return {
       status: 400,
       conflict: false,
-      error: "Nama pelanggan wajib 2 hingga 40 karakter.",
+      error: "Nama pelanggan wajib 2 hingga 80 karakter.",
     };
   }
 
@@ -255,6 +258,25 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let rawText: string;
+  try {
+    rawText = await request.text();
+  } catch {
+    return NextResponse.json(
+      { error: "Payload request tidak dapat dibaca." },
+      { status: 400 }
+    );
+  }
+
+  if (rawText.length > MAX_PAYLOAD_CHARS) {
+    return NextResponse.json(
+      {
+        error: `Ukuran payload melebihi batas maksimum (${MAX_PAYLOAD_CHARS} karakter).`,
+      },
+      { status: 400 }
+    );
+  }
+
   const clientIp = extractClientIp(request.headers);
   const rateLimit = checkBookingRateLimit(clientIp);
 
@@ -275,7 +297,7 @@ export async function POST(request: NextRequest) {
 
   let body: CreateBookingRequestBody;
   try {
-    body = (await request.json()) as CreateBookingRequestBody;
+    body = JSON.parse(rawText) as CreateBookingRequestBody;
   } catch {
     return NextResponse.json(
       { error: "Payload JSON tidak valid." },
@@ -326,9 +348,9 @@ export async function POST(request: NextRequest) {
 
   const serviceId =
     typeof body.serviceId === "string" ? body.serviceId.trim() : "";
-  if (!serviceId) {
+  if (!serviceId || serviceId.length > 80) {
     return NextResponse.json(
-      { error: "Layanan wajib dipilih." },
+      { error: "Layanan wajib dipilih dengan ID yang valid." },
       { status: 400 }
     );
   }
@@ -337,6 +359,14 @@ export async function POST(request: NextRequest) {
   if (!sanitizedName.valid) {
     return NextResponse.json(
       { error: sanitizedName.error ?? "Nama pelanggan tidak valid." },
+      { status: 400 }
+    );
+  }
+
+  const validatedNotes = validateOptionalTextNote(body.notes, "Catatan booking");
+  if (!validatedNotes.valid) {
+    return NextResponse.json(
+      { error: validatedNotes.error ?? "Catatan booking maksimal 200 karakter." },
       { status: 400 }
     );
   }
@@ -408,7 +438,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await supabase.rpc("create_booking_safe", {
       p_service_id: serviceId,
-      p_customer_name: sanitizedName.value,
+      p_customer_name: sanitizedName.value.slice(0, 40),
       p_booking_date: bookingDate,
       p_start_time: startTimeSql,
       p_source: "ONLINE",

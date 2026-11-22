@@ -59,7 +59,7 @@ BEGIN
   v_customer_name := regexp_replace(coalesce(p_customer_name, ''), '[[:cntrl:]<>]+', ' ', 'g');
   v_customer_name := trim(regexp_replace(v_customer_name, '\s+', ' ', 'g'));
 
-  IF char_length(v_customer_name) < 2 OR char_length(v_customer_name) > 40 THEN
+  IF char_length(v_customer_name) < 2 OR char_length(v_customer_name) > 80 THEN
     RAISE EXCEPTION 'INVALID_CUSTOMER_NAME';
   END IF;
 

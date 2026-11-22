@@ -382,7 +382,7 @@ function buildAdminWaNotifyUrl(
     `• Kode Tiket: ${booking.ticket_code}`,
     `• Layanan: ${booking.service_name}`,
     `• Jadwal: ${dateLabel}, ${timeRange}`,
-    `• Buat jadwal baru: ${origin}/`,
+    `• Buat jadwal baru: ${origin}/?to=reservasi`,
     "",
     "Detail status e-tiket:",
     ticketUrl,
@@ -1485,13 +1485,24 @@ export function AdminCashierDashboard({
       return;
     }
 
+    const cleanedReason = newClosedReason
+      .replace(/[<>]/g, " ")
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (newClosedReason.trim().length > 200 || cleanedReason.length > 200) {
+      showToast("error", "Keterangan libur maksimal 200 karakter.");
+      return;
+    }
+
     setSavingClosedDate(true);
     try {
       const { data, error } = await db
         .from("closed_dates")
         .insert({
           closed_date: newClosedDate,
-          reason: newClosedReason.trim() || null,
+          reason: cleanedReason || null,
         })
         .select("*")
         .single();
@@ -1634,38 +1645,48 @@ export function AdminCashierDashboard({
     }
 
     const title = socialTitle.trim() || "Instagram Reel Madzhair";
+    if (title.length > 80) {
+      showToast("error", "Judul Instagram Reels maksimal 80 karakter.");
+      return;
+    }
 
     setSavingSocial(true);
     try {
       const nextOrder =
         galleryItems.reduce((max, item) => Math.max(max, item.sort_order), 0) + 1;
 
-      const { data, error } = await db
-        .from("gallery_items")
-        .insert({
+      const response = await fetch("/api/admin/gallery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           title,
-          media_type: "instagram",
-          media_url: socialValidation.url,
-          thumbnail_url: null,
+          mediaType: "instagram",
+          mediaUrl: socialValidation.url,
+          thumbnailUrl: null,
           caption: null,
-          sort_order: nextOrder,
-          is_active: true,
-        })
-        .select("*")
-        .single();
+          sortOrder: nextOrder,
+        }),
+      });
 
-      if (error || !data) {
+      const payload = (await response.json()) as {
+        item?: GalleryItem;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.item) {
         showToast(
           "error",
-          error?.message || "Gagal menyimpan link Instagram Reels."
+          payload.error || "Gagal menyimpan link Instagram Reels."
         );
         return;
       }
 
-      setGalleryItems((prev) => [data as GalleryItem, ...prev]);
+      setGalleryItems((prev) => [payload.item as GalleryItem, ...prev]);
       setSocialTitle("");
       setSocialUrl("");
       showToast("success", "Link Instagram Reels ditambahkan ke galeri.");
+    } catch {
+      showToast("error", "Gagal menghubungi server saat menyimpan Reels.");
     } finally {
       setSavingSocial(false);
     }
@@ -1715,6 +1736,10 @@ export function AdminCashierDashboard({
     if (!supabase || !db || !compressedPhoto) return;
 
     const title = photoTitle.trim() || "Karya Madzhair Barber & Co";
+    if (title.length > 80) {
+      showToast("error", "Judul foto maksimal 80 karakter.");
+      return;
+    }
     setUploadingPhoto(true);
     try {
       const uniqueSuffix = `${Date.now()}-${Math.random()
@@ -1744,35 +1769,41 @@ export function AdminCashierDashboard({
       const nextOrder =
         galleryItems.reduce((max, item) => Math.max(max, item.sort_order), 0) + 1;
 
-      const { data: inserted, error: insertError } = await db
-        .from("gallery_items")
-        .insert({
+      const response = await fetch("/api/admin/gallery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           title,
-          media_type: "photo",
-          media_url: publicUrl,
-          thumbnail_url: publicUrl,
+          mediaType: "photo",
+          mediaUrl: publicUrl,
+          thumbnailUrl: publicUrl,
           caption: null,
-          sort_order: nextOrder,
-          is_active: true,
-        })
-        .select("*")
-        .single();
+          sortOrder: nextOrder,
+        }),
+      });
 
-      if (insertError || !inserted) {
+      const payload = (await response.json()) as {
+        item?: GalleryItem;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.item) {
         showToast(
           "error",
-          insertError?.message || "Foto terunggah tetapi gagal dicatat ke galeri."
+          payload.error || "Foto terunggah tetapi gagal dicatat ke galeri."
         );
         return;
       }
 
-      setGalleryItems((prev) => [inserted as GalleryItem, ...prev]);
+      setGalleryItems((prev) => [payload.item as GalleryItem, ...prev]);
       setPhotoTitle("");
       setCompressedPhoto((prev) => {
         if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
         return null;
       });
       showToast("success", "Foto WebP berhasil diunggah ke galeri.");
+    } catch {
+      showToast("error", "Gagal menghubungi server saat menyimpan foto.");
     } finally {
       setUploadingPhoto(false);
     }

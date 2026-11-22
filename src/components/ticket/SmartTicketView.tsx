@@ -159,7 +159,7 @@ function buildAdminWhatsAppUpdateUrl(
     `• Kode Tiket: ${booking.ticket_code}`,
     `• Layanan: ${booking.service_name}`,
     `• Jadwal: ${formattedDate}, ${newTimeRange}`,
-    `• Pilih jadwal baru: ${origin}/`,
+    `• Pilih jadwal baru: ${origin}/?to=reservasi`,
     "",
     "Detail status e-tiket:",
     ticketUrl,
@@ -706,7 +706,7 @@ export function SmartTicketView({
                   </a>
 
                   <Link
-                    href="/"
+                    href="/?to=reservasi"
                     className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-hairline bg-alabaster/70 px-5 py-3 font-sans text-xs font-medium text-ink transition-colors hover:border-terracotta hover:text-terracotta sm:text-sm"
                   >
                     Booking Jadwal Lain

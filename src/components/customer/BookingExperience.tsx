@@ -950,8 +950,8 @@ export function BookingExperience({
     }
 
     const trimmedName = customerName.trim();
-    if (trimmedName.length < 2 || trimmedName.length > 40) {
-      setErrorMessage("Nama pelanggan wajib diisi (2–40 karakter).");
+    if (trimmedName.length < 2 || trimmedName.length > 80) {
+      setErrorMessage("Nama pelanggan wajib diisi (2–80 karakter).");
       nameInputRef.current?.focus();
       return;
     }
@@ -980,9 +980,9 @@ export function BookingExperience({
     }
 
     const trimmedName = customerName.trim();
-    if (trimmedName.length < 2 || trimmedName.length > 40) {
+    if (trimmedName.length < 2 || trimmedName.length > 80) {
       setShowConfirmModal(false);
-      setErrorMessage("Nama pelanggan wajib diisi (2–40 karakter).");
+      setErrorMessage("Nama pelanggan wajib diisi (2–80 karakter).");
       nameInputRef.current?.focus();
       return;
     }
@@ -1097,7 +1097,7 @@ export function BookingExperience({
   const availableSlotCount = slots.filter((s) => s.available).length;
   const trimmedCustomerName = customerName.trim();
   const isNameValid =
-    trimmedCustomerName.length >= 2 && trimmedCustomerName.length <= 40;
+    trimmedCustomerName.length >= 2 && trimmedCustomerName.length <= 80;
   const isPhoneValid = phoneValidation.valid;
 
   const zeroSlotCardMeta = useMemo(() => {
@@ -1929,7 +1929,7 @@ export function BookingExperience({
                         type="text"
                         required
                         minLength={2}
-                        maxLength={40}
+                        maxLength={80}
                         autoComplete="name"
                         value={customerName}
                         onChange={(e) => {

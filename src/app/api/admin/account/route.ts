@@ -1,5 +1,9 @@
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  MAX_IDENTIFIER_CHARS,
+  MAX_PAYLOAD_CHARS,
+} from "@/lib/security/sanitize";
 import { getSupabaseConfig, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -31,9 +35,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let rawText: string;
+  try {
+    rawText = await request.text();
+  } catch {
+    return NextResponse.json(
+      { error: "Payload request tidak dapat dibaca." },
+      { status: 400 }
+    );
+  }
+
+  if (rawText.length > MAX_PAYLOAD_CHARS) {
+    return NextResponse.json(
+      {
+        error: `Ukuran payload melebihi batas maksimum (${MAX_PAYLOAD_CHARS} karakter).`,
+      },
+      { status: 400 }
+    );
+  }
+
   let body: UpdateAdminAccountBody;
   try {
-    body = (await request.json()) as UpdateAdminAccountBody;
+    body = JSON.parse(rawText) as UpdateAdminAccountBody;
   } catch {
     return NextResponse.json(
       { error: "Format payload JSON tidak valid." },
@@ -50,7 +73,7 @@ export async function POST(request: NextRequest) {
 
   const currentPassword =
     typeof body.currentPassword === "string" ? body.currentPassword : "";
-  if (!currentPassword) {
+  if (!currentPassword || currentPassword.length > 128) {
     return NextResponse.json(
       { error: "Password lama wajib diisi untuk verifikasi keamanan." },
       { status: 400 }
@@ -63,6 +86,18 @@ export async function POST(request: NextRequest) {
       : "";
   const rawExplicitUsername =
     typeof body.username === "string" ? body.username.trim() : "";
+
+  if (
+    rawIdentifier.length > MAX_IDENTIFIER_CHARS ||
+    rawExplicitUsername.length > MAX_IDENTIFIER_CHARS
+  ) {
+    return NextResponse.json(
+      {
+        error: `Email atau username maksimal ${MAX_IDENTIFIER_CHARS} karakter.`,
+      },
+      { status: 400 }
+    );
+  }
   const newPassword =
     typeof body.newPassword === "string" ? body.newPassword : "";
   const confirmPassword =
