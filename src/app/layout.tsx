@@ -38,21 +38,25 @@ const jetbrainsMono = JetBrains_Mono({
 
 function resolveSiteUrl(): URL {
   const raw =
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://madzhair.vercel.app";
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    "https://madzhairco.vercel.app";
   try {
     return new URL(raw);
   } catch {
-    return new URL("https://madzhair.vercel.app");
+    return new URL("https://madzhairco.vercel.app");
   }
 }
 
-const SITE_TITLE = "Madzhair Barber & Co | Reservasi & Jadwal";
+const SITE_TITLE = "Madzhair Barber & Co";
 const SITE_DESCRIPTION =
-  "Reservasi kursi barbershop satu klik tanpa antre di Madzhair Barber & Co, Jalan Raya Sungai Kunyit, Gang Tani. Haircut & Hair Chemicals dengan jadwal real-time.";
+  "Reservasi Barber & Co, Jalan Raya Sungai Kunyit, Gang Tani";
 
 export const metadata: Metadata = {
   metadataBase: resolveSiteUrl(),
-  title: SITE_TITLE,
+  title: {
+    default: SITE_TITLE,
+    template: `%s | ${SITE_TITLE}`,
+  },
   description: SITE_DESCRIPTION,
   manifest: "/manifest.json",
   icons: {
