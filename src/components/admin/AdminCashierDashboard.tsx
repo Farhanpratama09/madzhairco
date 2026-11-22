@@ -592,9 +592,19 @@ export function AdminCashierDashboard({
   const [serviceDrafts, setServiceDrafts] = useState<Service[]>(initialServices);
   const [savingServiceId, setSavingServiceId] = useState<string | null>(null);
 
-  // CMS States: Gallery Instagram Reels Embed
+  // CMS States: Gallery Instagram Reels Embed + Optional Cover Upload
+  const socialCoverInputRef = useRef<HTMLInputElement | null>(null);
   const [socialTitle, setSocialTitle] = useState("");
   const [socialUrl, setSocialUrl] = useState("");
+  const [compressedSocialCover, setCompressedSocialCover] = useState<{
+    blob: Blob;
+    originalSize: number;
+    width: number;
+    height: number;
+    previewUrl: string;
+    originalName: string;
+  } | null>(null);
+  const [compressingSocialCover, setCompressingSocialCover] = useState(false);
   const [savingSocial, setSavingSocial] = useState(false);
 
   // CMS States: Gallery Photo Upload (Client-side WebP Compression)
@@ -619,6 +629,14 @@ export function AdminCashierDashboard({
       }
     };
   }, [compressedPhoto]);
+
+  useEffect(() => {
+    return () => {
+      if (compressedSocialCover?.previewUrl) {
+        URL.revokeObjectURL(compressedSocialCover.previewUrl);
+      }
+    };
+  }, [compressedSocialCover]);
 
   // Refresh data manually or after reconnect
   const refreshAllData = useCallback(async () => {
@@ -1631,6 +1649,43 @@ export function AdminCashierDashboard({
     };
   }, [socialUrl]);
 
+  const handleSocialCoverFileChange = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedInputTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedInputTypes.includes(file.type)) {
+      showToast("error", "Format foto sampul harus JPG, PNG, atau WebP.");
+      event.target.value = "";
+      return;
+    }
+
+    setCompressingSocialCover(true);
+    try {
+      const result = await compressImageToWebP(file);
+      setCompressedSocialCover((prev) => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return {
+          blob: result.blob,
+          originalSize: file.size,
+          width: result.width,
+          height: result.height,
+          previewUrl: result.previewUrl,
+          originalName: file.name,
+        };
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Gagal mengompres foto sampul.";
+      showToast("error", message);
+    } finally {
+      setCompressingSocialCover(false);
+      event.target.value = "";
+    }
+  };
+
   const handleAddSocialEmbed = async (event: FormEvent) => {
     event.preventDefault();
     if (!db) return;
@@ -1652,6 +1707,36 @@ export function AdminCashierDashboard({
 
     setSavingSocial(true);
     try {
+      let uploadedCoverUrl: string | null = null;
+
+      if (compressedSocialCover && supabase) {
+        const uniqueSuffix = `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+        const coverFilePath = `reels-covers/${uniqueSuffix}.webp`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("gallery")
+          .upload(coverFilePath, compressedSocialCover.blob, {
+            contentType: "image/webp",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          showToast(
+            "error",
+            uploadError.message ||
+              "Gagal mengunggah foto sampul Reels ke bucket gallery."
+          );
+          return;
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("gallery").getPublicUrl(coverFilePath);
+        uploadedCoverUrl = publicUrl;
+      }
+
       const nextOrder =
         galleryItems.reduce((max, item) => Math.max(max, item.sort_order), 0) + 1;
 
@@ -1662,7 +1747,7 @@ export function AdminCashierDashboard({
           title,
           mediaType: "instagram",
           mediaUrl: socialValidation.url,
-          thumbnailUrl: null,
+          thumbnailUrl: uploadedCoverUrl,
           caption: null,
           sortOrder: nextOrder,
         }),
@@ -1684,6 +1769,10 @@ export function AdminCashierDashboard({
       setGalleryItems((prev) => [payload.item as GalleryItem, ...prev]);
       setSocialTitle("");
       setSocialUrl("");
+      setCompressedSocialCover((prev) => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return null;
+      });
       showToast("success", "Link Instagram Reels ditambahkan ke galeri.");
     } catch {
       showToast("error", "Gagal menghubungi server saat menyimpan Reels.");
@@ -1847,11 +1936,19 @@ export function AdminCashierDashboard({
         return;
       }
 
+      const pathsToRemove = new Set<string>();
       if (item.media_type === "photo") {
-        const storagePath = extractStoragePathFromUrl(item.media_url);
-        if (storagePath) {
-          await supabase.storage.from("gallery").remove([storagePath]);
-        }
+        const mediaPath = extractStoragePathFromUrl(item.media_url);
+        if (mediaPath) pathsToRemove.add(mediaPath);
+      }
+      if (item.thumbnail_url) {
+        const thumbPath = extractStoragePathFromUrl(item.thumbnail_url);
+        if (thumbPath) pathsToRemove.add(thumbPath);
+      }
+      if (pathsToRemove.size > 0) {
+        await supabase.storage
+          .from("gallery")
+          .remove(Array.from(pathsToRemove));
       }
 
       setGalleryItems((prev) => prev.filter((row) => row.id !== item.id));
@@ -3727,10 +3824,87 @@ export function AdminCashierDashboard({
                               ) : null}
                             </div>
 
+                            {/* Opsi Upload Foto Sampul (Cover) Reels */}
+                            <input
+                              ref={socialCoverInputRef}
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) =>
+                                void handleSocialCoverFileChange(e)
+                              }
+                              className="hidden"
+                            />
+
+                            <button
+                              type="button"
+                              disabled={compressingSocialCover || savingSocial}
+                              onClick={() =>
+                                socialCoverInputRef.current?.click()
+                              }
+                              className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-hairline bg-surface px-3 font-sans text-xs font-medium text-ink transition-colors hover:border-terracotta"
+                            >
+                              <Upload
+                                aria-hidden="true"
+                                className="h-4 w-4 text-terracotta"
+                              />
+                              <span>
+                                {compressingSocialCover
+                                  ? "Mengompresi Sampul WebP..."
+                                  : compressedSocialCover
+                                    ? "Ganti Foto Sampul Reels"
+                                    : "Unggah Foto Sampul (Opsional)"}
+                              </span>
+                            </button>
+
+                            {compressedSocialCover ? (
+                              <div className="flex items-center gap-2.5 rounded-xl border border-hairline bg-surface p-2">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={compressedSocialCover.previewUrl}
+                                  alt="Preview foto sampul Reels"
+                                  className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                                />
+                                <div className="min-w-0 flex-1 font-sans text-xs text-muted">
+                                  <p className="truncate font-semibold text-ink">
+                                    {compressedSocialCover.originalName}
+                                  </p>
+                                  <p className="tabular-nums">
+                                    {compressedSocialCover.width}×
+                                    {compressedSocialCover.height}px ·{" "}
+                                    {formatBytes(
+                                      compressedSocialCover.blob.size
+                                    )}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  aria-label="Hapus foto sampul terpilih"
+                                  onClick={() =>
+                                    setCompressedSocialCover((prev) => {
+                                      if (prev?.previewUrl) {
+                                        URL.revokeObjectURL(prev.previewUrl);
+                                      }
+                                      return null;
+                                    })
+                                  }
+                                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted hover:text-crimson-alert"
+                                >
+                                  <X aria-hidden="true" className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="font-sans text-[11px] text-muted">
+                                Tanpa unggah sampul, sistem otomatis mencoba
+                                mengambil thumbnail Instagram atau menampilkan
+                                sampul studio Charcoal Noir.
+                              </p>
+                            )}
+
                             <button
                               type="submit"
                               disabled={
                                 savingSocial ||
+                                compressingSocialCover ||
                                 (socialValidation
                                   ? !socialValidation.valid
                                   : false)
@@ -3856,8 +4030,18 @@ export function AdminCashierDashboard({
                                     loading="lazy"
                                     className="h-10 w-10 shrink-0 rounded-lg border border-hairline object-cover"
                                   />
+                                ) : item.thumbnail_url &&
+                                  !item.thumbnail_url.startsWith("/images/style-") &&
+                                  item.thumbnail_url !== "/images/hero-barber.webp" ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img
+                                    src={item.thumbnail_url}
+                                    alt={`Sampul ${item.title}`}
+                                    loading="lazy"
+                                    className="h-10 w-10 shrink-0 rounded-lg border border-hairline object-cover"
+                                  />
                                 ) : (
-                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hairline bg-surface-elevated font-sans text-[11px] font-semibold text-terracotta">
+                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#2B2B2B] bg-[#2B2B2B] font-sans text-[10px] font-semibold text-[#FFFFFF]">
                                     Reels
                                   </div>
                                 )}

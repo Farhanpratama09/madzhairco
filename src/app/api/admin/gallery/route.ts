@@ -17,6 +17,106 @@ interface CreateGalleryItemBody {
   sortOrder?: unknown;
 }
 
+const IG_FETCH_TIMEOUT_MS = 4000;
+
+function decodeHtmlEntities(raw: string): string {
+  return raw
+    .replace(/&amp;/gi, "&")
+    .replace(/&#x26;/gi, "&")
+    .replace(/&#38;/gi, "&")
+    .replace(/\\u0026/gi, "&")
+    .replace(/\\\//g, "/")
+    .trim();
+}
+
+function extractOgImageFromHtml(html: string): string | null {
+  const patterns: RegExp[] = [
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i,
+    /<img[^>]+class=["'][^"']*EmbeddedMediaImage[^"']*["'][^>]+src=["']([^"']+)["']/i,
+    /"display_url"\s*:\s*"(https:[^"]+)"/i,
+  ];
+
+  for (const regex of patterns) {
+    const match = html.match(regex);
+    if (match?.[1]) {
+      const candidate = decodeHtmlEntities(match[1]);
+      // Ignore generic Instagram static brand icon placeholders
+      if (
+        candidate.includes("static.cdninstagram.com/rsrc.php") ||
+        candidate.includes("instagram.com/static/images/")
+      ) {
+        continue;
+      }
+      const validated = validateHttpsMediaUrl(candidate);
+      if (validated.valid && validated.url) {
+        return validated.url;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function fetchInstagramOgImage(socialUrl: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), IG_FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(socialUrl, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+      },
+    });
+
+    if (response.ok) {
+      const html = await response.text();
+      const extracted = extractOgImageFromHtml(html);
+      if (extracted) {
+        return extracted;
+      }
+    }
+
+    // Fallback attempt via public /embed/ page within the same 4s timeout window
+    const parsed = new URL(socialUrl);
+    const match = parsed.pathname.match(/\/(reel|p)\/([A-Za-z0-9_-]+)/);
+    if (match?.[1] && match?.[2] && !controller.signal.aborted) {
+      const embedUrl = `https://www.instagram.com/${match[1]}/${match[2]}/embed/`;
+      const embedRes = await fetch(embedUrl, {
+        method: "GET",
+        redirect: "follow",
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+          Accept: "text/html,application/xhtml+xml",
+        },
+      });
+      if (embedRes.ok) {
+        const embedHtml = await embedRes.text();
+        const extractedFromEmbed = extractOgImageFromHtml(embedHtml);
+        if (extractedFromEmbed) {
+          return extractedFromEmbed;
+        }
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   if (!supabase) {
@@ -142,6 +242,8 @@ export async function POST(request: NextRequest) {
       );
     }
     validatedThumbUrl = thumbCheck.url;
+  } else if (mediaType === "instagram") {
+    validatedThumbUrl = await fetchInstagramOgImage(validatedMediaUrl);
   }
 
   const captionCheck = validateOptionalTextNote(

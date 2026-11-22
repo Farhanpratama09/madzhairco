@@ -19,14 +19,21 @@ export interface SocialGalleryFacadeProps {
   items: GalleryItem[];
 }
 
+const STOCK_MODEL_THUMBNAILS = new Set([
+  "/images/style-perm.webp",
+  "/images/style-longtrim.webp",
+  "/images/style-fade.webp",
+  "/images/hero-barber.webp",
+]);
+
 function buildDefaultFallbackItems(): GalleryItem[] {
   return defaultGalleryItems.map((item, idx) => ({
     id: item.id,
     title: item.title,
     media_type: item.type === "image" ? "photo" : item.type,
     media_url: item.mediaUrl,
-    thumbnail_url: item.thumbnailUrl,
-    caption: item.caption,
+    thumbnail_url: item.thumbnailUrl || null,
+    caption: item.caption || null,
     sort_order: idx + 1,
     is_active: true,
     created_at: "2026-11-20T00:00:00.000Z",
@@ -66,19 +73,10 @@ function resolveGalleryGroups(items: GalleryItem[]): {
     }
   }
 
-  const instagramReels: GalleryItem[] = [...dbInstagram];
-  const seenReelUrls = new Set(
-    instagramReels.map((item) => item.media_url.trim())
-  );
-
-  for (const fallbackReel of fallbackInstagram) {
-    if (instagramReels.length >= 2) break;
-    const urlKey = fallbackReel.media_url.trim();
-    if (!seenReelUrls.has(urlKey)) {
-      seenReelUrls.add(urlKey);
-      instagramReels.push(fallbackReel);
-    }
-  }
+  // Jika admin sudah menyimpan Instagram Reels asli di database, tampilkan
+  // hanya Reels asli tanpa mencampur entri placeholder bawaan.
+  const instagramReels: GalleryItem[] =
+    dbInstagram.length > 0 ? [...dbInstagram] : [...fallbackInstagram];
 
   return { photoItems, instagramReels };
 }
@@ -121,6 +119,9 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
   const [activeReelIndex, setActiveReelIndex] = useState<number>(0);
   const [playingReelId, setPlayingReelId] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState<number>(0);
+  const [failedThumbIds, setFailedThumbIds] = useState<Record<string, boolean>>(
+    {}
+  );
 
   const reelTouchStartRef = useRef<{ x: number; y: number } | null>(null);
   const photoTouchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -193,7 +194,7 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
 
         {/* Dua Panel Proporsional Seimbang (aspect-[4/5] di Kiri & Kanan) */}
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:gap-10">
-          {/* PANEL KIRI: Khusus Instagram Reels (Murni Visual + < > + Dot Pagination) */}
+          {/* PANEL KIRI: Khusus Instagram Reels */}
           {reelCount > 0 ? (
             <div className="min-w-0">
               <div className="mb-3 flex items-center justify-between gap-2">
@@ -209,7 +210,7 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
               <div
                 onTouchStart={handleReelTouchStart}
                 onTouchEnd={handleReelTouchEnd}
-                className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl bg-ink shadow-md select-none"
+                className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl bg-[#2B2B2B] shadow-md select-none"
               >
                 <div
                   style={{
@@ -226,8 +227,15 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                       validation.url
                         ? buildSafeInstagramEmbedUrl(validation.url)
                         : null;
-                    const thumbnailSrc =
-                      item.thumbnail_url?.trim() || "/images/style-perm.webp";
+
+                    const rawThumb = item.thumbnail_url?.trim() || "";
+                    const hasCustomThumbnail =
+                      Boolean(rawThumb) &&
+                      !STOCK_MODEL_THUMBNAILS.has(rawThumb) &&
+                      !failedThumbIds[item.id];
+                    const isExternalNonSupabase =
+                      rawThumb.startsWith("http") &&
+                      !rawThumb.includes(".supabase.co");
 
                     return (
                       <div
@@ -236,27 +244,92 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                       >
                         {!isPlaying ? (
                           <>
-                            <Image
-                              src={thumbnailSrc}
-                              alt={item.title}
-                              fill
-                              loading={idx === 0 ? "eager" : "lazy"}
-                              sizes="(max-width: 767px) 100vw, 50vw"
-                              className="object-cover"
-                            />
+                            {hasCustomThumbnail ? (
+                              <>
+                                <Image
+                                  src={rawThumb}
+                                  alt={item.title}
+                                  fill
+                                  unoptimized={isExternalNonSupabase}
+                                  loading={idx === 0 ? "eager" : "lazy"}
+                                  sizes="(max-width: 767px) 100vw, 50vw"
+                                  onError={() =>
+                                    setFailedThumbIds((prev) => ({
+                                      ...prev,
+                                      [item.id]: true,
+                                    }))
+                                  }
+                                  className="object-cover"
+                                />
+                                {/* Gradasi bawah halus agar judul & @madzhair.co tetap terbaca di atas sampul */}
+                                <div
+                                  aria-hidden="true"
+                                  className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#2B2B2B]/90 via-[#2B2B2B]/20 to-[#2B2B2B]/40"
+                                />
+                                <div className="pointer-events-none absolute inset-x-4 top-4 flex items-center justify-between gap-2">
+                                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FFFFFF]/25 bg-[#2B2B2B]/80 px-3 py-1 font-sans text-xs font-semibold text-[#FFFFFF] backdrop-blur-xs">
+                                    <InstagramIcon className="h-3.5 w-3.5 text-[#FFFFFF]" />
+                                    <span>@madzhair.co</span>
+                                  </span>
+                                </div>
+                                <div className="pointer-events-none absolute inset-x-4 bottom-4 space-y-1 text-left">
+                                  <p className="line-clamp-2 font-sans text-sm font-semibold leading-snug text-[#FFFFFF] sm:text-base">
+                                    {item.title}
+                                  </p>
+                                  {item.caption ? (
+                                    <p className="line-clamp-2 font-sans text-xs text-[#E0E0E0]">
+                                      {item.caption}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </>
+                            ) : (
+                              /* Kartu Sampul Monokrom Charcoal Noir (#2B2B2B) Tanpa Foto Stok Bawaan */
+                              <div className="relative flex h-full w-full flex-col justify-between bg-gradient-to-b from-[#353535] via-[#2B2B2B] to-[#1E1E1E] p-5 sm:p-6">
+                                {/* Header Kartu: Badge @madzhair.co & Tag Reels */}
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#565656] bg-[#2B2B2B] px-3 py-1 font-sans text-xs font-semibold text-[#FFFFFF]">
+                                    <InstagramIcon className="h-3.5 w-3.5 text-[#FFFFFF]" />
+                                    <span>@madzhair.co</span>
+                                  </span>
+                                  <span className="rounded-full border border-[#565656]/70 bg-[#2B2B2B]/70 px-2.5 py-0.5 font-sans text-[11px] font-medium text-[#E0E0E0]">
+                                    Reels
+                                  </span>
+                                </div>
 
-                            {/* Tombol Putar Murni di Tengah Tanpa Teks Overlay */}
+                                {/* Aksen Tengah: Ikon Instagram di atas Tombol Play Putih */}
+                                <div className="my-auto flex flex-col items-center justify-center gap-3 pt-4 pb-8 text-center">
+                                  <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#565656] bg-[#2B2B2B]/90 text-[#E0E0E0]">
+                                    <InstagramIcon className="h-5 w-5" />
+                                  </div>
+                                  <div aria-hidden="true" className="h-16 w-16" />
+                                </div>
+
+                                {/* Footer Kartu: Judul/Keterangan Reels & Identitas Studio */}
+                                <div className="space-y-1.5 rounded-2xl border border-[#565656]/60 bg-[#2B2B2B]/85 p-3.5 text-left">
+                                  <p className="line-clamp-2 font-sans text-sm font-semibold leading-snug text-[#FFFFFF] sm:text-base">
+                                    {item.title}
+                                  </p>
+                                  <p className="line-clamp-2 font-sans text-xs leading-relaxed text-[#B3B3B3]">
+                                    {item.caption ||
+                                      "Ketuk tombol putar untuk menonton video Reels @madzhair.co"}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Tombol Play Putih di Tengah */}
                             {validation.valid ? (
                               <button
                                 type="button"
                                 onClick={() => setPlayingReelId(item.id)}
-                                aria-label={`Putar Instagram Reel ${idx + 1}`}
-                                className="absolute top-1/2 left-1/2 z-10 inline-flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#FFFFFF] text-[#2B2B2B] shadow-xl transition-all hover:scale-105 hover:bg-[#2B2B2B] hover:text-[#FFFFFF]"
+                                aria-label={`Putar Instagram Reel ${item.title}`}
+                                className="absolute top-1/2 left-1/2 z-10 inline-flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#FFFFFF] text-[#2B2B2B] shadow-xl ring-4 ring-[#FFFFFF]/15 transition-all hover:scale-105 hover:bg-[#E0E0E0]"
                               >
                                 <Play className="ml-0.5 h-6 w-6 fill-current" />
                               </button>
                             ) : (
-                              <div className="absolute inset-x-4 bottom-4 flex items-center justify-center gap-2 rounded-2xl bg-[#2B2B2B] px-3 py-2.5 font-sans text-xs text-[#FFFFFF]">
+                              <div className="absolute inset-x-4 bottom-4 z-10 flex items-center justify-center gap-2 rounded-2xl bg-[#2B2B2B] px-3 py-2.5 font-sans text-xs text-[#FFFFFF]">
                                 <ShieldAlert className="h-4 w-4 shrink-0 text-crimson-alert" />
                                 <span>URL Instagram tidak valid.</span>
                               </div>
