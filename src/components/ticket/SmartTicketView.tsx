@@ -169,6 +169,37 @@ function buildAdminWhatsAppUpdateUrl(
   )}`;
 }
 
+function buildCustomerConfirmWhatsAppUrl(
+  storeWhatsappNumber: string,
+  booking: Booking
+): string {
+  const cleanPhone = (storeWhatsappNumber || "62895701807228").replace(
+    /\D/g,
+    ""
+  );
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://madzhairco.vercel.app";
+  const formattedDate = formatIndonesianDateFull(booking.booking_date);
+  const formattedTime = formatTimeHHMM(booking.start_time);
+
+  const lines = [
+    "Halo Madzhair Barber & Co, saya konfirmasi booking:",
+    `• Kode: ${booking.ticket_code}`,
+    `• Nama: ${booking.customer_name}`,
+    `• Layanan: ${booking.service_name}`,
+    `• Jadwal: ${formattedDate} pukul ${formattedTime} WIB`,
+    "",
+    "Detail e-tiket:",
+    `${origin}/tiket/${booking.ticket_code}`,
+  ];
+
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+    lines.join("\n")
+  )}`;
+}
+
 export function SmartTicketView({
   ticketCode,
   isValidCodeFormat,
@@ -400,7 +431,7 @@ export function SmartTicketView({
       {/* Header Top Bar */}
       <header className="sticky top-0 z-30 border-b border-hairline bg-alabaster/95 pt-safe backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-safe py-3.5">
-          <BrandMark variant="compact" size="sm" href="/" />
+          <BrandMark variant="full" size="sm" href="/" />
 
           <Link
             href="/"
@@ -642,12 +673,32 @@ export function SmartTicketView({
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  {booking.status === "BOOKED" ? (
+                    <a
+                      href={buildCustomerConfirmWhatsAppUrl(
+                        settings.whatsapp_number,
+                        booking
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-3 font-sans text-xs font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 sm:text-sm"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      <span>Konfirmasi via WhatsApp</span>
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </a>
+                  ) : null}
+
                   <a
                     href={settings.google_maps_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-terracotta px-5 py-3 font-sans text-xs font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 sm:text-sm"
+                    className={`inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 font-sans text-xs font-semibold transition-colors sm:text-sm ${
+                      booking.status === "BOOKED"
+                        ? "border border-hairline bg-alabaster/70 text-ink hover:border-terracotta hover:text-terracotta"
+                        : "bg-terracotta text-surface shadow-sm hover:bg-terracotta/90"
+                    }`}
                   >
                     <MapPin className="h-4 w-4" />
                     <span>Buka Google Maps ({settings.short_address})</span>

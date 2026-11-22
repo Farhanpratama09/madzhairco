@@ -213,7 +213,8 @@ BEGIN
     RAISE EXCEPTION 'INVALID_SLOT_GRID';
   END IF;
 
-  -- Acquire transaction-scoped advisory lock per booking_date to prevent double-booking
+  -- Acquire transaction-scoped advisory lock per chair & booking_date to prevent double-booking
+  PERFORM pg_advisory_xact_lock(hashtext('madzhair_chair_1'), hashtext(p_booking_date::text));
   PERFORM pg_advisory_xact_lock(hashtext('madzhair_' || p_booking_date::text));
 
   -- Load active service
@@ -299,6 +300,15 @@ BEGIN
       RAISE EXCEPTION 'SLOT_LEAD_TIME_EXPIRED';
     END IF;
   END IF;
+
+  -- Auto-complete any overdue BOOKED slots on this date inside the same atomic lock
+  UPDATE public.bookings
+  SET
+    status = 'COMPLETED',
+    updated_at = now()
+  WHERE booking_date = p_booking_date
+    AND status = 'BOOKED'
+    AND (booking_date::timestamp + end_time + interval '15 minutes') <= v_now_local;
 
   -- Overlap detection (single chair, only active BOOKED slots block the chair)
   IF EXISTS (

@@ -77,19 +77,31 @@ function isValidCalendarDate(dateStr: string): boolean {
   );
 }
 
-function mapRpcError(message: string): { status: number; error: string } {
+function mapRpcError(
+  message: string,
+  code?: string | null
+): { status: number; error: string; conflict: boolean } {
   const upper = message.toUpperCase();
+  const sqlCode = (code ?? "").toUpperCase();
 
-  if (upper.includes("SLOT_UNAVAILABLE")) {
+  if (
+    upper.includes("SLOT_UNAVAILABLE") ||
+    sqlCode === "23505" ||
+    sqlCode === "23P01" ||
+    sqlCode === "40001"
+  ) {
     return {
       status: 409,
-      error: "Maaf, slot jam tersebut baru saja terisi. Silakan pilih jam lain.",
+      conflict: true,
+      error:
+        "Maaf, slot jam tersebut baru saja terisi oleh pelanggan lain. Silakan pilih jam lain yang tersedia.",
     };
   }
 
   if (upper.includes("BREAK_TIME_CONFLICT")) {
     return {
       status: 409,
+      conflict: true,
       error: "Jam yang dipilih beririsan dengan waktu istirahat studio.",
     };
   }
@@ -99,21 +111,28 @@ function mapRpcError(message: string): { status: number; error: string } {
     upper.includes("OUTSIDE_HOURS")
   ) {
     return {
-      status: 400,
+      status: 409,
+      conflict: true,
       error: "Jam yang dipilih berada di luar jam operasional toko.",
     };
   }
 
-  if (upper.includes("STORE_CLOSED") || upper.includes("DATE_CLOSED") || upper.includes("CLOSED")) {
+  if (
+    upper.includes("STORE_CLOSED") ||
+    upper.includes("DATE_CLOSED") ||
+    upper.includes("CLOSED")
+  ) {
     return {
-      status: 400,
+      status: 409,
+      conflict: true,
       error: "Toko sedang tutup pada tanggal yang dipilih.",
     };
   }
 
   if (upper.includes("SLOT_LEAD_TIME_EXPIRED")) {
     return {
-      status: 400,
+      status: 409,
+      conflict: true,
       error: "Batas waktu pemesanan untuk jam tersebut sudah lewat.",
     };
   }
@@ -121,6 +140,7 @@ function mapRpcError(message: string): { status: number; error: string } {
   if (upper.includes("PAST_DATE")) {
     return {
       status: 400,
+      conflict: false,
       error: "Tanggal booking tidak boleh di masa lalu.",
     };
   }
@@ -128,6 +148,7 @@ function mapRpcError(message: string): { status: number; error: string } {
   if (upper.includes("INVALID_SLOT_GRID")) {
     return {
       status: 400,
+      conflict: false,
       error: "Booking online hanya tersedia pada grid jam bulat per 1 jam.",
     };
   }
@@ -135,6 +156,7 @@ function mapRpcError(message: string): { status: number; error: string } {
   if (upper.includes("SERVICE_NOT_FOUND")) {
     return {
       status: 400,
+      conflict: false,
       error: "Layanan tidak ditemukan atau sedang tidak aktif.",
     };
   }
@@ -142,6 +164,7 @@ function mapRpcError(message: string): { status: number; error: string } {
   if (upper.includes("INVALID_CUSTOMER_NAME")) {
     return {
       status: 400,
+      conflict: false,
       error: "Nama pelanggan wajib 2 hingga 40 karakter.",
     };
   }
@@ -149,14 +172,86 @@ function mapRpcError(message: string): { status: number; error: string } {
   if (upper.includes("INVALID_CUSTOMER_PHONE")) {
     return {
       status: 400,
-      error: "Nomor WhatsApp tidak valid. Gunakan nomor aktif (contoh: 081234567890).",
+      conflict: false,
+      error:
+        "Nomor WhatsApp tidak valid. Gunakan nomor aktif (contoh: 081234567890).",
     };
   }
 
   return {
     status: 400,
-    error: "Permintaan booking tidak dapat diproses. Periksa kembali jadwal Anda.",
+    conflict: false,
+    error:
+      "Permintaan booking tidak dapat diproses. Periksa kembali jadwal Anda.",
   };
+}
+
+export async function GET(request: NextRequest) {
+  const dateParam = request.nextUrl.searchParams.get("date")?.trim() ?? "";
+  if (!isValidCalendarDate(dateParam)) {
+    return NextResponse.json(
+      { error: "Parameter tanggal (date=YYYY-MM-DD) tidak valid." },
+      { status: 400 }
+    );
+  }
+
+  if (isSupabaseConfigured()) {
+    const supabase = await createClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: "Koneksi server booking tidak tersedia." },
+        { status: 503 }
+      );
+    }
+
+    const { data, error } = await supabase.rpc("get_public_bookings_for_date", {
+      p_date: dateParam,
+    });
+
+    if (error) {
+      return NextResponse.json(
+        { error: "Gagal memuat slot jadwal terbaru." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        bookings: Array.isArray(data) ? data : [],
+        mode: "supabase",
+      },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      }
+    );
+  }
+
+  const demoStore = getDemoBookingsStore();
+  const publicSlots = demoStore
+    .filter((b) => b.booking_date === dateParam && b.status === "BOOKED")
+    .map((b) => ({
+      id: b.id,
+      booking_date: b.booking_date,
+      start_time: b.start_time,
+      end_time: b.end_time,
+      status: b.status,
+    }));
+
+  return NextResponse.json(
+    {
+      bookings: publicSlots,
+      mode: "demo",
+    },
+    {
+      status: 200,
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    }
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -301,7 +396,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      const mapped = mapRpcError(error.message ?? "");
+      const mapped = mapRpcError(error.message ?? "", error.code ?? null);
       if (mapped.status === 409) {
         recordBookingQuotaUse(clientIp);
       } else {
@@ -311,7 +406,10 @@ export async function POST(request: NextRequest) {
           error.message
         );
       }
-      return NextResponse.json({ error: mapped.error }, { status: mapped.status });
+      return NextResponse.json(
+        { error: mapped.error, conflict: mapped.conflict },
+        { status: mapped.status }
+      );
     }
 
     if (!data) {
@@ -392,10 +490,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          targetSlot.reason ??
-          (isConflict
-            ? "Slot tidak tersedia atau waktu tidak mencukupi."
-            : "Batas waktu pemesanan sudah lewat."),
+          targetSlot.status === "BOOKED"
+            ? "Maaf, slot jam tersebut baru saja terisi oleh pelanggan lain. Silakan pilih jam lain yang tersedia."
+            : targetSlot.reason ??
+              (isConflict
+                ? "Slot tidak tersedia atau waktu tidak mencukupi."
+                : "Batas waktu pemesanan sudah lewat."),
+        conflict: isConflict,
       },
       { status: isConflict ? 409 : 400 }
     );

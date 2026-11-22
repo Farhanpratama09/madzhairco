@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Armchair,
@@ -191,10 +192,13 @@ export function BookingExperience({
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [honeypotWebsite, setHoneypotWebsite] = useState<string>("");
 
+  const router = useRouter();
+
   const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(false);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [liveSlotNotice, setLiveSlotNotice] = useState<string | null>(null);
   const [confirmedResult, setConfirmedResult] = useState<{
     booking: Booking;
     waUrl: string;
@@ -206,6 +210,7 @@ export function BookingExperience({
     canRight: boolean;
   }>({ canLeft: false, canRight: true });
 
+  const isSubmittingRef = useRef<boolean>(false);
   const selectedDateRef = useRef(selectedDate);
   useEffect(() => {
     selectedDateRef.current = selectedDate;
@@ -276,27 +281,54 @@ export function BookingExperience({
     });
   }, []);
 
-  // Keep clock fresh every 30 seconds for live status and lead-time expiration
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNowParts(getStoreNowParts(settings.timezone));
-    }, 30_000);
-    return () => window.clearInterval(timer);
-  }, [settings.timezone]);
-
   const fetchBookingsForDate = useCallback(
-    async (dateStr: string) => {
+    async (dateStr: string, options?: { silent?: boolean }) => {
       if (!dateStr) return;
 
       if (!supabase) {
-        const localDemo = readDemoSessionBookings().filter(
-          (b) => b.booking_date === dateStr && b.status !== "CANCELLED"
-        );
+        const localDemo: PublicBookingSlot[] = readDemoSessionBookings()
+          .filter((b) => b.booking_date === dateStr && b.status !== "CANCELLED")
+          .map((b) => ({
+            id: b.id,
+            booking_date: b.booking_date,
+            start_time: b.start_time,
+            end_time: b.end_time,
+            status: b.status,
+          }));
+
+        try {
+          const res = await fetch(
+            `/api/bookings?date=${encodeURIComponent(dateStr)}`,
+            { cache: "no-store" }
+          );
+          if (res.ok) {
+            const json = (await res.json()) as {
+              bookings?: PublicBookingSlot[];
+            };
+            const serverBookings = Array.isArray(json.bookings)
+              ? json.bookings
+              : [];
+            const mergedMap = new Map<string, PublicBookingSlot>();
+            for (const item of [...localDemo, ...serverBookings]) {
+              const key = `${item.booking_date}_${formatTimeHHMM(
+                item.start_time
+              )}`;
+              mergedMap.set(key, item);
+            }
+            setBookings(Array.from(mergedMap.values()));
+            return;
+          }
+        } catch {
+          // Fallback to localDemo if offline
+        }
+
         setBookings(localDemo);
         return;
       }
 
-      setIsLoadingSlots(true);
+      if (!options?.silent) {
+        setIsLoadingSlots(true);
+      }
       try {
         const { data, error } = await supabase.rpc(
           "get_public_bookings_for_date",
@@ -309,11 +341,88 @@ export function BookingExperience({
           setBookings(data);
         }
       } finally {
-        setIsLoadingSlots(false);
+        if (!options?.silent) {
+          setIsLoadingSlots(false);
+        }
       }
     },
     [supabase]
   );
+
+  const refreshLiveScheduleContext = useCallback(
+    async (dateStr: string) => {
+      setNowParts(getStoreNowParts(settings.timezone));
+      await fetchBookingsForDate(dateStr, { silent: true });
+
+      if (!supabase) return;
+
+      try {
+        const [settingsRes, closedRes, schedulesRes] = await Promise.all([
+          supabase
+            .from("store_settings")
+            .select("*")
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from("closed_dates")
+            .select("*")
+            .order("closed_date", { ascending: true }),
+          supabase
+            .from("weekly_schedules")
+            .select("*")
+            .order("day_of_week", { ascending: true }),
+        ]);
+
+        if (settingsRes.data) {
+          setSettings(settingsRes.data);
+        }
+        if (closedRes.data) {
+          setClosedDates(closedRes.data);
+        }
+        if (schedulesRes.data && schedulesRes.data.length > 0) {
+          setSchedules(schedulesRes.data);
+        }
+      } catch {
+        // Ignore transient network errors during background sync
+      }
+    },
+    [fetchBookingsForDate, settings.timezone, supabase]
+  );
+
+  // Keep clock & slots fresh every 30 seconds for live status and lead-time expiration
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowParts(getStoreNowParts(settings.timezone));
+      if (
+        typeof document === "undefined" ||
+        document.visibilityState === "visible"
+      ) {
+        void fetchBookingsForDate(selectedDateRef.current, { silent: true });
+      }
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [settings.timezone, fetchBookingsForDate]);
+
+  // Refetch slot otomatis saat user kembali membuka tab browser (visibilitychange / focus)
+  useEffect(() => {
+    const handleVisibilityOrFocus = () => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState !== "visible"
+      ) {
+        return;
+      }
+      void refreshLiveScheduleContext(selectedDateRef.current);
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+    };
+  }, [refreshLiveScheduleContext]);
 
   // Sync bookings asynchronously when selectedDate changes
   useEffect(() => {
@@ -325,10 +434,47 @@ export function BookingExperience({
       if (!supabase) {
         await Promise.resolve();
         if (cancelled) return;
-        const localDemo = readDemoSessionBookings().filter(
-          (b) => b.booking_date === selectedDate && b.status !== "CANCELLED"
-        );
-        setBookings(localDemo);
+        const localDemo: PublicBookingSlot[] = readDemoSessionBookings()
+          .filter(
+            (b) => b.booking_date === selectedDate && b.status !== "CANCELLED"
+          )
+          .map((b) => ({
+            id: b.id,
+            booking_date: b.booking_date,
+            start_time: b.start_time,
+            end_time: b.end_time,
+            status: b.status,
+          }));
+
+        try {
+          const res = await fetch(
+            `/api/bookings?date=${encodeURIComponent(selectedDate)}`,
+            { cache: "no-store" }
+          );
+          if (!cancelled && res.ok) {
+            const json = (await res.json()) as {
+              bookings?: PublicBookingSlot[];
+            };
+            const serverBookings = Array.isArray(json.bookings)
+              ? json.bookings
+              : [];
+            const mergedMap = new Map<string, PublicBookingSlot>();
+            for (const item of [...localDemo, ...serverBookings]) {
+              const key = `${item.booking_date}_${formatTimeHHMM(
+                item.start_time
+              )}`;
+              mergedMap.set(key, item);
+            }
+            setBookings(Array.from(mergedMap.values()));
+            return;
+          }
+        } catch {
+          // Fallback to localDemo if offline
+        }
+
+        if (!cancelled) {
+          setBookings(localDemo);
+        }
         return;
       }
 
@@ -361,7 +507,7 @@ export function BookingExperience({
         "postgres_changes",
         { event: "*", schema: "public", table: "bookings" },
         () => {
-          void fetchBookingsForDate(selectedDateRef.current);
+          void fetchBookingsForDate(selectedDateRef.current, { silent: true });
         }
       )
       .on(
@@ -505,9 +651,35 @@ export function BookingExperience({
   ]);
 
   const selectedSlotObj = useMemo(
-    () => slots.find((slot) => slot.time === selectedTime && slot.available) ?? null,
+    () =>
+      slots.find((slot) => slot.time === selectedTime && slot.available) ??
+      null,
     [slots, selectedTime]
   );
+
+  // Deteksi reaktif jika slot yang sedang dipilih pelanggan tiba-tiba terisi oleh orang lain saat form diisi
+  const autoInvalidatedSlotNotice = useMemo(() => {
+    if (!selectedTime || confirmedResult) {
+      return null;
+    }
+
+    const currentSlot = slots.find((slot) => slot.time === selectedTime);
+    if (currentSlot && currentSlot.available) {
+      return null;
+    }
+
+    if (currentSlot?.status === "BOOKED") {
+      return `Jam ${selectedTime} WIB baru saja terisi oleh pelanggan lain. Pilihan Anda telah dibatalkan otomatis — silakan pilih jam lain yang tersedia.`;
+    }
+    if (currentSlot?.status === "BREAK") {
+      return `Jam ${selectedTime} WIB kini masuk waktu istirahat studio. Silakan pilih jam lain yang tersedia.`;
+    }
+    return `Jam ${selectedTime} WIB sudah tidak tersedia (${
+      currentSlot?.reason ?? "jadwal diperbarui"
+    }). Silakan pilih jam lain.`;
+  }, [slots, selectedTime, confirmedResult]);
+
+  const activeSlotNotice = liveSlotNotice ?? autoInvalidatedSlotNotice;
 
   const isDateClosed = useCallback(
     (dateStr: string): { closed: boolean; label?: string } => {
@@ -611,6 +783,7 @@ export function BookingExperience({
       setSelectedVariantNote(null);
     }
     setErrorMessage(null);
+    setLiveSlotNotice(null);
     setConfirmedResult(null);
   };
 
@@ -632,6 +805,7 @@ export function BookingExperience({
       setSelectedVariantNote(null);
     }
     setErrorMessage(null);
+    setLiveSlotNotice(null);
     setConfirmedResult(null);
     setIsPricelistOpen(false);
   };
@@ -639,6 +813,7 @@ export function BookingExperience({
   const handleSelectSlot = (slotTime: string) => {
     setSelectedTime(slotTime);
     setErrorMessage(null);
+    setLiveSlotNotice(null);
   };
 
   const buildWhatsAppUrl = (booking: Booking): string => {
@@ -674,6 +849,7 @@ export function BookingExperience({
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmittingRef.current || isSubmitting) return;
     setErrorMessage(null);
 
     if (!selectedService) {
@@ -712,6 +888,10 @@ export function BookingExperience({
   };
 
   const handleConfirmBookingAndOpenWa = async () => {
+    if (isSubmittingRef.current || isSubmitting) {
+      return;
+    }
+
     if (!selectedService || !selectedDate || !selectedSlotObj) {
       setShowConfirmModal(false);
       return;
@@ -728,14 +908,15 @@ export function BookingExperience({
     const checkedPhone = normalizeWhatsappPhone(customerPhone);
     if (!checkedPhone.valid) {
       setShowConfirmModal(false);
-      setErrorMessage(
-        checkedPhone.error ?? "Nomor WhatsApp tidak valid."
-      );
+      setErrorMessage(checkedPhone.error ?? "Nomor WhatsApp tidak valid.");
       phoneInputRef.current?.focus();
       return;
     }
 
+    const targetSlotTime = selectedSlotObj.time;
+    isSubmittingRef.current = true;
     setErrorMessage(null);
+    setLiveSlotNotice(null);
     setIsSubmitting(true);
 
     try {
@@ -749,7 +930,7 @@ export function BookingExperience({
           customerName: trimmedName,
           customerPhone: checkedPhone.value,
           bookingDate: selectedDate,
-          startTime: selectedSlotObj.time,
+          startTime: targetSlotTime,
           website: honeypotWebsite,
         }),
       });
@@ -758,14 +939,32 @@ export function BookingExperience({
         booking?: Booking;
         mode?: "supabase" | "demo";
         error?: string;
+        conflict?: boolean;
       };
 
-      if (!response.ok || !payload.booking) {
+      const validTicketCode =
+        typeof payload.booking?.ticket_code === "string"
+          ? payload.booking.ticket_code.trim()
+          : "";
+
+      // JANGAN PERNAH membuka wa.me jika server mengembalikan konflik/error atau tanpa kode tiket valid
+      if (!response.ok || !payload.booking || !validTicketCode) {
         setShowConfirmModal(false);
-        setErrorMessage(
-          payload.error ?? "Gagal memproses booking. Silakan coba jam lain."
-        );
-        void fetchBookingsForDate(selectedDate);
+
+        if (response.status === 409 || payload.conflict) {
+          const conflictBannerText =
+            payload.error ??
+            `Maaf, slot pukul ${targetSlotTime} WIB baru saja terisi oleh pelanggan lain. Silakan pilih jam lain yang tersedia.`;
+          setSelectedTime("");
+          setLiveSlotNotice(conflictBannerText);
+          setErrorMessage(conflictBannerText);
+        } else {
+          setErrorMessage(
+            payload.error ?? "Gagal memproses booking. Silakan coba jam lain."
+          );
+        }
+
+        await fetchBookingsForDate(selectedDate);
         return;
       }
 
@@ -773,9 +972,11 @@ export function BookingExperience({
       const mode = payload.mode ?? "supabase";
 
       saveDemoSessionBooking(createdBooking);
-      void fetchBookingsForDate(selectedDate);
+      void fetchBookingsForDate(selectedDate, { silent: true });
 
       const waUrl = buildWhatsAppUrl(createdBooking);
+      const ticketPath = `/tiket/${encodeURIComponent(validTicketCode)}`;
+
       setShowConfirmModal(false);
       setConfirmedResult({
         booking: createdBooking,
@@ -783,14 +984,20 @@ export function BookingExperience({
         mode,
       });
 
-      // Immediate WhatsApp redirect without artificial delay
-      window.location.assign(waUrl);
+      // Buka wa.me bersamaan dengan navigasi ke /tiket/[code] agar tetap aman bila browser HP lama memblokir pop-up setelah await
+      try {
+        window.open(waUrl, "_blank", "noopener,noreferrer");
+      } catch {
+        // Fallback tombol Konfirmasi WA tersedia langsung di halaman /tiket/[code]
+      }
+      router.push(ticketPath);
     } catch {
       setShowConfirmModal(false);
       setErrorMessage(
-        "Koneksi terputus saat mengunci jadwal. Silakan periksa internet Anda dan coba lagi."
+        "Koneksi terputus saat mengamankan slot jadwal. Silakan periksa internet Anda dan coba lagi."
       );
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -801,6 +1008,7 @@ export function BookingExperience({
     setCustomerName("");
     setCustomerPhone("");
     setErrorMessage(null);
+    setLiveSlotNotice(null);
     void fetchBookingsForDate(selectedDate);
   };
 
@@ -1326,6 +1534,7 @@ export function BookingExperience({
                               setSelectedDate(dateItem.dateStr);
                               setSelectedTime("");
                               setErrorMessage(null);
+                              setLiveSlotNotice(null);
                             }}
                             className={`flex min-h-[62px] min-w-[78px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors ${
                               active
@@ -1436,6 +1645,17 @@ export function BookingExperience({
                     </span>
                   </div>
 
+                  {activeSlotNotice ? (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="mt-3.5 flex items-start gap-2.5 rounded-xl border border-crimson-alert/45 bg-crimson-alert/10 p-3.5 font-sans text-xs leading-relaxed text-crimson-alert"
+                    >
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{activeSlotNotice}</span>
+                    </div>
+                  ) : null}
+
                   {availableSlotCount === 0 ? (
                     <div className="mt-3.5 rounded-2xl border border-hairline bg-alabaster/65 p-5 text-center font-sans sm:p-6">
                       <Calendar className="mx-auto h-5 w-5 text-terracotta" />
@@ -1453,6 +1673,7 @@ export function BookingExperience({
                             setSelectedDate(nextAvailableOpenDate.dateStr);
                             setSelectedTime("");
                             setErrorMessage(null);
+                            setLiveSlotNotice(null);
                           }}
                           className="mt-4 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-surface shadow-xs transition-colors hover:bg-terracotta/90 sm:text-sm"
                         >
@@ -1690,14 +1911,14 @@ export function BookingExperience({
                     />
                   </div>
 
-                  {/* Pesan Error Validasi / Konflik */}
-                  {errorMessage ? (
+                  {/* Pesan Error Validasi / Konflik / Notifikasi Slot Live */}
+                  {errorMessage || activeSlotNotice ? (
                     <div
                       role="alert"
-                      className="mt-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 font-sans text-xs text-crimson-alert"
+                      className="mt-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 font-sans text-xs leading-relaxed text-crimson-alert"
                     >
                       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span>{errorMessage}</span>
+                      <span>{errorMessage ?? activeSlotNotice}</span>
                     </div>
                   ) : null}
 
@@ -1725,7 +1946,7 @@ export function BookingExperience({
                     {isSubmitting ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Mengunci slot...</span>
+                        <span>Mengamankan slot jadwal...</span>
                       </>
                     ) : (
                       <>
@@ -1767,8 +1988,8 @@ export function BookingExperience({
             </h3>
             <p className="mt-1.5 font-sans text-xs leading-relaxed text-muted">
               Jika Anda memilih batal sekarang, slot tidak akan dikunci. Setelah
-              konfirmasi, kursi langsung terkunci dan pesan WhatsApp otomatis
-              terbuka.
+              konfirmasi, kursi langsung terkunci, halaman e-tiket dibuka, dan
+              pesan WhatsApp otomatis disiapkan.
             </p>
 
             <dl className="mt-4 space-y-2.5 border-y border-hairline py-4 font-sans text-sm">
@@ -1809,12 +2030,12 @@ export function BookingExperience({
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => void handleConfirmBookingAndOpenWa()}
-                className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-terracotta px-4 py-3 font-sans text-xs font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:opacity-50 sm:text-sm"
+                className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-terracotta px-4 py-3 font-sans text-xs font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Mengunci slot...</span>
+                    <span>Mengamankan slot jadwal...</span>
                   </>
                 ) : (
                   <>
@@ -1828,7 +2049,7 @@ export function BookingExperience({
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => setShowConfirmModal(false)}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-hairline bg-alabaster/70 px-4 py-2.5 font-sans text-xs font-medium text-ink transition-colors hover:border-ink disabled:opacity-50 sm:text-sm"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-hairline bg-alabaster/70 px-4 py-2.5 font-sans text-xs font-medium text-ink transition-colors hover:border-ink disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
               >
                 Batal / Ubah
               </button>
