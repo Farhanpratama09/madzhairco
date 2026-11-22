@@ -173,9 +173,15 @@ export default async function AdminPage() {
     }
   }
 
+  const userUsername =
+    typeof user.user_metadata?.username === "string"
+      ? user.user_metadata.username
+      : "";
+
   return (
     <AdminCashierDashboard
       userEmail={user.email ?? "Admin"}
+      userUsername={userUsername}
       initialSettings={initialSettings}
       initialSchedules={initialSchedules}
       initialClosedDates={initialClosedDates}

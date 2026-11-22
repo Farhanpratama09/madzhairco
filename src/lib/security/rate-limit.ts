@@ -1,22 +1,25 @@
 /**
- * Sliding-window in-memory rate limiter for public booking endpoints.
- * - Confirmed bookings / conflict probes: max 3 per IP within 15 minutes (900,000 ms).
- * - General request burst guard (failed validations/errors): max 15 per IP within 15 minutes
- *   so legitimate users are not locked out if a transient error occurs.
+ * Sliding-window in-memory rate limiter for public booking endpoints (Shared Wi-Fi friendly).
+ * - Per (IP + WhatsApp phone) combination: max 3 attempts per 10 minutes (600,000 ms).
+ * - Aggregate per IP address: max 15 attempts per 10 minutes (600,000 ms) so customers
+ *   sharing the barbershop Wi-Fi or multi-device testers do not block each other.
  */
 
 export const BOOKING_RATE_LIMIT_MAX_ATTEMPTS = 3;
-export const BOOKING_BURST_MAX_ATTEMPTS = 15;
-export const BOOKING_RATE_LIMIT_WINDOW_MS = 900_000; // 15 minutes
+export const BOOKING_IP_AGGREGATE_MAX_ATTEMPTS = 15;
+export const BOOKING_BURST_MAX_ATTEMPTS = BOOKING_IP_AGGREGATE_MAX_ATTEMPTS;
+export const BOOKING_RATE_LIMIT_WINDOW_MS = 600_000; // 10 minutes
 
 export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
   retryAfterSeconds: number;
+  scope?: "ip_phone" | "ip_aggregate";
 }
 
-const GLOBAL_STORE_KEY = "__madzhair_booking_rate_limit_store__";
-const GLOBAL_BURST_STORE_KEY = "__madzhair_booking_burst_limit_store__";
+const GLOBAL_PHONE_IP_STORE_KEY = "__madzhair_booking_phone_ip_limit_store__";
+const GLOBAL_IP_AGGREGATE_STORE_KEY =
+  "__madzhair_booking_ip_aggregate_limit_store__";
 
 type RateLimitStore = Map<string, number[]>;
 
@@ -51,7 +54,8 @@ function evaluateLimit(
   storeKey: string,
   key: string,
   maxAttempts: number,
-  recordNow: boolean
+  recordNow: boolean,
+  scope: "ip_phone" | "ip_aggregate"
 ): RateLimitResult {
   const now = Date.now();
   const normalizedKey = key.trim() || "unknown";
@@ -76,6 +80,7 @@ function evaluateLimit(
       allowed: false,
       remaining: 0,
       retryAfterSeconds: Math.ceil(retryAfterMs / 1000),
+      scope,
     };
   }
 
@@ -87,6 +92,7 @@ function evaluateLimit(
       allowed: true,
       remaining: Math.max(0, maxAttempts - updatedTimestamps.length),
       retryAfterSeconds: 0,
+      scope,
     };
   }
 
@@ -94,38 +100,81 @@ function evaluateLimit(
     allowed: true,
     remaining: Math.max(0, maxAttempts - activeTimestamps.length),
     retryAfterSeconds: 0,
+    scope,
   };
 }
 
-/**
- * Checks whether the client has remaining booking quota (max 3 successful/probed bookings per 15 min)
- * and burst quota (max 15 total POST requests per 15 min), without burning the 3-booking quota yet.
- */
-export function checkBookingRateLimit(key: string): RateLimitResult {
-  const bookingQuota = evaluateLimit(
-    GLOBAL_STORE_KEY,
-    key,
-    BOOKING_RATE_LIMIT_MAX_ATTEMPTS,
-    false
-  );
-  if (!bookingQuota.allowed) {
-    return bookingQuota;
-  }
-
-  const burstQuota = evaluateLimit(
-    GLOBAL_BURST_STORE_KEY,
-    key,
-    BOOKING_BURST_MAX_ATTEMPTS,
-    true
-  );
-  return burstQuota;
+export function buildPhoneIpKey(ip: string, phone: string): string {
+  const cleanIp = ip.trim() || "unknown";
+  const cleanPhone = phone.replace(/\D/g, "").trim() || "unknown";
+  return `${cleanIp}::${cleanPhone}`;
 }
 
 /**
- * Records consumption of 1 booking quota slot (call when booking succeeds or hits slot conflict/honeypot).
+ * Checks aggregate IP rate limit (max 15 attempts per 10 minutes) and,
+ * when `phone` is provided, checks strict (IP + WhatsApp phone) rate limit
+ * (max 3 attempts per 10 minutes).
  */
-export function recordBookingQuotaUse(key: string): void {
-  evaluateLimit(GLOBAL_STORE_KEY, key, BOOKING_RATE_LIMIT_MAX_ATTEMPTS, true);
+export function checkBookingRateLimit(
+  ip: string,
+  phone?: string | null
+): RateLimitResult {
+  const ipCheck = evaluateLimit(
+    GLOBAL_IP_AGGREGATE_STORE_KEY,
+    ip,
+    BOOKING_IP_AGGREGATE_MAX_ATTEMPTS,
+    false,
+    "ip_aggregate"
+  );
+
+  if (!ipCheck.allowed) {
+    return ipCheck;
+  }
+
+  if (phone && phone.trim().length > 0) {
+    const phoneIpKey = buildPhoneIpKey(ip, phone);
+    const phoneIpCheck = evaluateLimit(
+      GLOBAL_PHONE_IP_STORE_KEY,
+      phoneIpKey,
+      BOOKING_RATE_LIMIT_MAX_ATTEMPTS,
+      false,
+      "ip_phone"
+    );
+    if (!phoneIpCheck.allowed) {
+      return phoneIpCheck;
+    }
+    return phoneIpCheck;
+  }
+
+  return ipCheck;
+}
+
+/**
+ * Records 1 booking attempt for the aggregate IP quota (max 15 / 10 min)
+ * and, when `phone` is provided, for the (IP + WhatsApp phone) quota (max 3 / 10 min).
+ */
+export function recordBookingQuotaUse(
+  ip: string,
+  phone?: string | null
+): void {
+  evaluateLimit(
+    GLOBAL_IP_AGGREGATE_STORE_KEY,
+    ip,
+    BOOKING_IP_AGGREGATE_MAX_ATTEMPTS,
+    true,
+    "ip_aggregate"
+  );
+
+  if (phone && phone.trim().length > 0) {
+    const phoneIpKey = buildPhoneIpKey(ip, phone);
+    evaluateLimit(
+      GLOBAL_PHONE_IP_STORE_KEY,
+      phoneIpKey,
+      BOOKING_RATE_LIMIT_MAX_ATTEMPTS,
+      true,
+      "ip_phone"
+    );
+  }
 }
 
 /**

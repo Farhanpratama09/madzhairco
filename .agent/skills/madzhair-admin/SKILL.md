@@ -23,13 +23,14 @@ description: Pengembang aplikasi kasir harian /admin berbasis Progressive Web Ap
    - **Dilarang:** warna lama (`#EFE8DD`, `#F7F3EC`, `#C25934`, `#303841`), `font-mono`, `font-serif`, titik bulat dekoratif, serta warna hijau `emerald-live` di `/admin`.
 
 ## 3. Autentikasi & Route API Terproteksi
-1. **Halaman Login (`/admin/login`):** Supabase Auth (`signInWithPassword`), 100% `Poppins`, `text-base`, `min-h-[44px]`, dengan link `← Kembali ke Halaman Booking`.
+1. **Halaman Login (`/admin/login`):** Supabase Auth (`signInWithPassword`), mendukung login memakai **email** maupun **username** (username tanpa `@` dinormalisasi ke `@admin.madzhair.local`), 100% `Poppins`, `text-base`, `min-h-[44px]`, dengan link `← Kembali ke Halaman Booking`.
 2. **Route API Admin (Zero-Trust Server Verification, Next.js 16 `await context.params`):**
+   - `POST /api/admin/account` (verifikasi sesi admin + validasi `currentPassword` terlebih dahulu + validasi password baru minimal 8 karakter tanpa log password, memperbarui email/username & password secara langsung lewat `service_role` `supabase.auth.admin.updateUserById` dengan `email_confirm: true` dan `user_metadata.username`).
    - `POST /api/admin/walkin` (`create_booking_safe(..., p_source: 'WALKIN', p_customer_phone: null)`).
    - `PATCH /api/admin/bookings/[id]` (`complete`, `cancel`, `reschedule`, mengembalikan `customerPhone` dari `booking_contacts` khusus sesi admin).
    - `POST /api/admin/auto-complete` (memicu `auto_complete_overdue_bookings()`).
    - `POST/DELETE /api/admin/push/subscribe` & `POST /api/admin/push/test` (Web Push kasir).
-   - `GET/POST /api/cron/break-reminder` (fail-closed `CRON_SECRET` `503`/`401`, jendela `[break_end - 15m, break_end + 5m]` zona waktu `Asia/Pontianak`).
+   - `GET/POST /api/cron/break-reminder` (fail-closed `CRON_SECRET` `503`/`401`, jendela `[break_end - 15m, break_end + 5m]` zona waktu `Asia/Pontianak` + auto-cleanup H-1 `bookings`/`booking_contacts` & H-7 `closed_dates`).
 
 ## 4. Spesifikasi UX Kasir Satu Tangan (`/admin` — `src/app/admin/page.tsx` & `src/components/admin/AdminCashierDashboard.tsx`)
 1. **Navbar `/admin` Steril & Bar Status Ringkas (Max 2 Baris Mobile):**
@@ -46,16 +47,18 @@ description: Pengembang aplikasi kasir harian /admin berbasis Progressive Web Ap
    - Menjalankan `auto_complete_overdue_bookings()` berurutan sebelum memuat booking di SSR & secara otomatis saat `nowTick` mendeteksi sesi lewat `end_time + 15 menit` (`Asia/Pontianak`).
    - Date scrubber horizontal (`snap-x`) + ringkasan 1 baris `Menunggu · Selesai · Batal` + legenda `Online`/`Walk-in`.
    - Visual Time-Block Timeline ringkas (`76px/jam`): isi slot kosong pada jam yang tertutup rentang istirahat disembunyikan, dan blok **`Istirahat`** dirender solid opaque `#E0E0E0` (`z-[5]`) di bawah blok `BOOKED` (`z-10`) agar nol tabrakan teks.
-   - **1-Tap WA Notifikasi Perubahan:** Seluruh pesan `wa.me` memakai nama brand **`Madzhair Barber & Co`** (tanpa `.co`) dengan link e-tiket pada baris terakhir terpisah.
+   - **1-Tap WA Notifikasi Perubahan:** Seluruh pesan `wa.me` memakai nama brand **`Madzhair Barber & Co`** (tanpa `.co`) dengan link bersih tanpa simbol `#` (`${origin}/`) dan link e-tiket pada baris terakhir terpisah.
    - **Bottom Sheet Detail & Bar Walk-in Sticky Bottom:** Tombol aksi lega (`min-h-[48px]`): **Tandai Selesai**, **Geser Jadwal**, **Batalkan**, **Kirim Info ke WA Pelanggan** (kondisional), dan **Buka Smart Ticket**.
 4. **Tab `Operasional & CMS` (3 Sub-Tab Pill + Collapsible Accordion Anti-Scroll Panjang & Aman `320px–430px`):**
-   - Sub-tab **`Operasional`**: kartu **Status Studio Hari Ini** + 3 accordion ringkas:
+   - Sub-tab **`Operasional`**: kartu **Status Studio Hari Ini** + 4 accordion ringkas:
      - `Jam Istirahat Harian` & `Jadwal Operasional Mingguan`: dropdown `<select>` jam interval 15 menit (`grid-cols-1 min-[380px]:grid-cols-2`, `w-full min-w-0 max-w-full box-border`) anti-tabrakan di Android Chrome `320px–360px`.
      - `Tanggal Libur Khusus`: label eksplisit `Pilih Tanggal Libur` & `Keterangan (Opsional)` dengan `w-full min-w-0 max-w-full box-border`.
+     - `Akun & Keamanan Admin`: form ubah Email/Username Login, Password Lama (wajib konfirmasi), Password Baru (min. 8 karakter), dan Konfirmasi Password Baru yang terhubung ke `POST /api/admin/account`.
    - Sub-tab **`Layanan & Galeri`**: accordion per layanan (form tarif 3 elemen 1 baris) + accordion `Galeri Foto & Instagram Reels`.
    - Sub-tab **`Notifikasi & QR`**:
      - `PushNotificationCard.tsx`: accordion ringkas berstatus 1 baris + `Aktifkan Notifikasi HP` & `Tes Kirim Notif`.
-     - `StudioQrCodeCard.tsx`: baris ringkas dengan modal **`Preview & Unduh QR PNG`** monokrom Charcoal Noir berjudul **`Madzhair Barber & Co`** + **`Download PNG Siap Cetak`** + **`Salin Link Booking`** (dengan fallback clipboard) + **`Buka Halaman Pelanggan`** (tab baru).
+     - `StudioQrCodeCard.tsx`: baris ringkas dengan modal **`Preview & Unduh QR PNG`** monokrom Charcoal Noir berjudul **`Madzhair Barber & Co`** dengan URL bersih langsung ke root domain (`/`, tanpa `#reservasi`) + **`Download PNG Siap Cetak`** + **`Salin Link Booking`** + **`Buka Halaman Pelanggan`** (tab baru).
 
 ## 5. Protokol Laporan & Pembaruan Skill
 - Setiap perubahan alur interaksi admin, timeline kasir, atau konfigurasi PWA wajib diperbarui di `SKILL.md` ini dan diverifikasi pada lebar `320x740`, `360x844`, dan `390x844`.
+

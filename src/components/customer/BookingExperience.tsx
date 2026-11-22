@@ -154,7 +154,12 @@ export function BookingExperience({
   const [schedules, setSchedules] = useState<WeeklySchedule[]>(initialSchedules);
   const [closedDates, setClosedDates] = useState<ClosedDate[]>(initialClosedDates);
   const [services, setServices] = useState<Service[]>(initialServices);
-  const [bookings, setBookings] = useState<PublicBookingSlot[]>(initialBookings);
+  const [bookingsByDate, setBookingsByDate] = useState<
+    Record<string, PublicBookingSlot[]>
+  >(() => (initialDateStr ? { [initialDateStr]: initialBookings } : {}));
+  const bookingsByDateRef = useRef<Record<string, PublicBookingSlot[]>>(
+    initialDateStr ? { [initialDateStr]: initialBookings } : {}
+  );
 
   const [nowParts, setNowParts] = useState<StoreNowParts>(() =>
     getStoreNowParts(initialSettings.timezone)
@@ -184,9 +189,58 @@ export function BookingExperience({
   } | null>(null);
   const [isPricelistOpen, setIsPricelistOpen] = useState<boolean>(false);
 
-  const [selectedDate, setSelectedDate] = useState<string>(
-    () => initialDateStr || upcomingDates[0]?.dateStr || ""
+  // Kunci auto-select tanggal hanya sekali saat inisialisasi halaman pertama kali dibuka
+  const hasInitialAutoSelectedRef = useRef<boolean>(false);
+
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const baseDate = initialDateStr || upcomingDates[0]?.dateStr || "";
+    if (!baseDate) return "";
+
+    const defaultService = activeServices[0] ?? null;
+    if (defaultService) {
+      const initialSlots = calculateAvailableSlots({
+        date: baseDate,
+        service: defaultService,
+        schedules: initialSchedules,
+        closedDates: initialClosedDates,
+        bookings: initialBookings,
+        settings: initialSettings,
+        nowParts,
+      });
+      if (!initialSlots.some((s) => s.available)) {
+        const baseIdx = upcomingDates.findIndex((d) => d.dateStr === baseDate);
+        const startIdx = baseIdx >= 0 ? baseIdx + 1 : 0;
+        for (let i = startIdx; i < upcomingDates.length; i += 1) {
+          const candidate = upcomingDates[i];
+          if (!candidate) continue;
+          const candidateSlots = calculateAvailableSlots({
+            date: candidate.dateStr,
+            service: defaultService,
+            schedules: initialSchedules,
+            closedDates: initialClosedDates,
+            bookings: [],
+            settings: initialSettings,
+            nowParts,
+          });
+          if (candidateSlots.some((s) => s.available)) {
+            return candidate.dateStr;
+          }
+        }
+      }
+    }
+
+    return baseDate;
+  });
+
+  useEffect(() => {
+    hasInitialAutoSelectedRef.current = true;
+  }, []);
+
+  const bookings = useMemo(
+    () => bookingsByDate[selectedDate] ?? [],
+    [bookingsByDate, selectedDate]
   );
+
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [customerName, setCustomerName] = useState<string>("");
   const [customerPhone, setCustomerPhone] = useState<string>("");
@@ -215,6 +269,28 @@ export function BookingExperience({
   useEffect(() => {
     selectedDateRef.current = selectedDate;
   }, [selectedDate]);
+
+  const updateBookingsForDate = useCallback(
+    (dateStr: string, nextList: PublicBookingSlot[]) => {
+      if (!dateStr) return;
+      bookingsByDateRef.current[dateStr] = nextList;
+      setBookingsByDate((prev) => ({
+        ...prev,
+        [dateStr]: nextList,
+      }));
+    },
+    []
+  );
+
+  const handleSelectDate = useCallback((targetDateStr: string) => {
+    if (!targetDateStr) return;
+    hasInitialAutoSelectedRef.current = true;
+    selectedDateRef.current = targetDateStr;
+    setSelectedDate(targetDateStr);
+    setSelectedTime("");
+    setErrorMessage(null);
+    setLiveSlotNotice(null);
+  }, []);
 
   const formSectionRef = useRef<HTMLElement | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -315,14 +391,14 @@ export function BookingExperience({
               )}`;
               mergedMap.set(key, item);
             }
-            setBookings(Array.from(mergedMap.values()));
+            updateBookingsForDate(dateStr, Array.from(mergedMap.values()));
             return;
           }
         } catch {
           // Fallback to localDemo if offline
         }
 
-        setBookings(localDemo);
+        updateBookingsForDate(dateStr, localDemo);
         return;
       }
 
@@ -338,15 +414,15 @@ export function BookingExperience({
         );
 
         if (!error && Array.isArray(data)) {
-          setBookings(data);
+          updateBookingsForDate(dateStr, data);
         }
       } finally {
-        if (!options?.silent) {
+        if (!options?.silent && selectedDateRef.current === dateStr) {
           setIsLoadingSlots(false);
         }
       }
     },
-    [supabase]
+    [supabase, updateBookingsForDate]
   );
 
   const refreshLiveScheduleContext = useCallback(
@@ -424,7 +500,7 @@ export function BookingExperience({
     };
   }, [refreshLiveScheduleContext]);
 
-  // Sync bookings asynchronously when selectedDate changes
+  // Sync bookings asynchronously when selectedDate changes (never mutates selectedDate)
   useEffect(() => {
     let cancelled = false;
 
@@ -465,7 +541,10 @@ export function BookingExperience({
               )}`;
               mergedMap.set(key, item);
             }
-            setBookings(Array.from(mergedMap.values()));
+            updateBookingsForDate(
+              selectedDate,
+              Array.from(mergedMap.values())
+            );
             return;
           }
         } catch {
@@ -473,7 +552,7 @@ export function BookingExperience({
         }
 
         if (!cancelled) {
-          setBookings(localDemo);
+          updateBookingsForDate(selectedDate, localDemo);
         }
         return;
       }
@@ -486,7 +565,7 @@ export function BookingExperience({
       );
 
       if (!cancelled && !error && Array.isArray(data)) {
-        setBookings(data);
+        updateBookingsForDate(selectedDate, data);
       }
     }
 
@@ -495,7 +574,7 @@ export function BookingExperience({
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, supabase]);
+  }, [selectedDate, supabase, updateBookingsForDate]);
 
   // Supabase Realtime subscription for bookings, store_settings, weekly_schedules, closed_dates, services
   useEffect(() => {
@@ -700,13 +779,13 @@ export function BookingExperience({
     [settings.is_force_closed, closedDates, schedules]
   );
 
-  // Cari tanggal buka terdekat setelah selectedDate untuk tombol pintas saat 0 slot tersedia
+  // Cari tanggal buka terdekat SETELAH selectedDate saat ini (mencari maju currentIdx + 1, tidak pernah mengulang dari dates[0])
   const nextAvailableOpenDate = useMemo(() => {
     if (!selectedDate) return null;
     const currentIdx = upcomingDates.findIndex(
       (d) => d.dateStr === selectedDate
     );
-    const startIdx = currentIdx >= 0 ? currentIdx + 1 : 0;
+    const startIdx = currentIdx >= 0 ? currentIdx + 1 : 1;
 
     for (let i = startIdx; i < upcomingDates.length; i += 1) {
       const candidate = upcomingDates[i];
@@ -714,12 +793,14 @@ export function BookingExperience({
       if (isDateClosed(candidate.dateStr).closed) continue;
 
       if (selectedService) {
+        const knownCandidateBookings =
+          bookingsByDate[candidate.dateStr] ?? [];
         const candidateSlots = calculateAvailableSlots({
           date: candidate.dateStr,
           service: selectedService,
           schedules,
           closedDates,
-          bookings: [],
+          bookings: knownCandidateBookings,
           settings,
           nowParts,
         });
@@ -734,6 +815,7 @@ export function BookingExperience({
     upcomingDates,
     isDateClosed,
     selectedService,
+    bookingsByDate,
     schedules,
     closedDates,
     settings,
@@ -1530,12 +1612,7 @@ export function BookingExperience({
                           <button
                             key={dateItem.dateStr}
                             type="button"
-                            onClick={() => {
-                              setSelectedDate(dateItem.dateStr);
-                              setSelectedTime("");
-                              setErrorMessage(null);
-                              setLiveSlotNotice(null);
-                            }}
+                            onClick={() => handleSelectDate(dateItem.dateStr)}
                             className={`flex min-h-[62px] min-w-[78px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors ${
                               active
                                 ? "border-terracotta bg-terracotta text-surface shadow-sm"
@@ -1669,12 +1746,9 @@ export function BookingExperience({
                       {nextAvailableOpenDate ? (
                         <button
                           type="button"
-                          onClick={() => {
-                            setSelectedDate(nextAvailableOpenDate.dateStr);
-                            setSelectedTime("");
-                            setErrorMessage(null);
-                            setLiveSlotNotice(null);
-                          }}
+                          onClick={() =>
+                            handleSelectDate(nextAvailableOpenDate.dateStr)
+                          }
                           className="mt-4 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-surface shadow-xs transition-colors hover:bg-terracotta/90 sm:text-sm"
                         >
                           <span>

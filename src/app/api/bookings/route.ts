@@ -349,6 +349,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Batas ketat per kombinasi IP + nomor WhatsApp (maks 3 percobaan / 10 menit), agregat IP (maks 15 / 10 menit)
+  const phoneIpRateLimit = checkBookingRateLimit(
+    clientIp,
+    normalizedPhone.value
+  );
+  if (!phoneIpRateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: `Terlalu banyak percobaan booking untuk nomor WhatsApp ini. Coba lagi dalam ${phoneIpRateLimit.retryAfterSeconds} detik.`,
+        retryAfterSeconds: phoneIpRateLimit.retryAfterSeconds,
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(phoneIpRateLimit.retryAfterSeconds),
+        },
+      }
+    );
+  }
+
   const bookingDate =
     typeof body.bookingDate === "string" ? body.bookingDate.trim() : "";
   if (!isValidCalendarDate(bookingDate)) {
@@ -398,7 +418,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       const mapped = mapRpcError(error.message ?? "", error.code ?? null);
       if (mapped.status === 409) {
-        recordBookingQuotaUse(clientIp);
+        recordBookingQuotaUse(clientIp, normalizedPhone.value);
       } else {
         console.error(
           "[bookings] create_booking_safe RPC error:",
@@ -420,7 +440,7 @@ export async function POST(request: NextRequest) {
     }
 
     const createdBooking = data as Booking;
-    recordBookingQuotaUse(clientIp);
+    recordBookingQuotaUse(clientIp, normalizedPhone.value);
 
     // Best-effort instant Web Push to admin cashier devices (never fails the booking)
     try {
@@ -485,7 +505,7 @@ export async function POST(request: NextRequest) {
       targetSlot.status === "BREAK" ||
       targetSlot.status === "INSUFFICIENT_TIME";
     if (isConflict) {
-      recordBookingQuotaUse(clientIp);
+      recordBookingQuotaUse(clientIp, normalizedPhone.value);
     }
     return NextResponse.json(
       {
@@ -530,7 +550,7 @@ export async function POST(request: NextRequest) {
   };
 
   demoStore.push(demoBooking);
-  recordBookingQuotaUse(clientIp);
+  recordBookingQuotaUse(clientIp, normalizedPhone.value);
 
   return NextResponse.json(
     { booking: demoBooking, mode: "demo" },

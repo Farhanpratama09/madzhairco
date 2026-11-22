@@ -10,6 +10,7 @@ import { BookingExperience } from "@/components/customer/BookingExperience";
 import { SocialGalleryFacade } from "@/components/customer/SocialGalleryFacade";
 import { HairSalonJsonLd } from "@/components/seo/HairSalonJsonLd";
 import { BrandMark } from "@/components/ui/BrandMark";
+import { ScrollToSectionButton } from "@/components/ui/ScrollToSectionButton";
 import { brand, defaultGalleryItems } from "@/config/media";
 import {
   DEFAULT_CLOSED_DATES,
@@ -36,10 +37,10 @@ import type {
 export const dynamic = "force-dynamic";
 
 const NAV_LINKS = [
-  { label: "Layanan", href: "#layanan" },
-  { label: "Galeri", href: "#galeri" },
-  { label: "Reservasi", href: "#reservasi" },
-  { label: "Lokasi", href: "#lokasi" },
+  { label: "Layanan", targetId: "layanan" },
+  { label: "Galeri", targetId: "galeri" },
+  { label: "Reservasi", targetId: "reservasi" },
+  { label: "Lokasi", targetId: "lokasi" },
 ] as const;
 
 function mapConfigGalleryFallback(): GalleryItem[] {
@@ -248,19 +249,19 @@ export default async function HomePage() {
               <BrandMark variant="full" size="sm" href="/" />
             </div>
 
-            {/* Tengah: Navigasi Utama Bersih */}
+            {/* Tengah: Navigasi Utama Bersih Tanpa Simbol # */}
             <nav
               aria-label="Navigasi utama"
               className="hidden items-center justify-self-center gap-6 md:flex lg:gap-7"
             >
               {NAV_LINKS.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className="inline-flex min-h-[44px] items-center font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta"
+                <ScrollToSectionButton
+                  key={item.targetId}
+                  targetId={item.targetId}
+                  className="inline-flex min-h-[44px] cursor-pointer items-center font-sans text-sm font-medium text-ink transition-colors hover:text-terracotta"
                 >
                   {item.label}
-                </a>
+                </ScrollToSectionButton>
               ))}
             </nav>
 
@@ -313,11 +314,11 @@ export default async function HomePage() {
                 konfirmasi lewat WhatsApp.
               </p>
 
-              {/* 1 Tombol CTA Utama Kapsul Charcoal Noir */}
+              {/* 1 Tombol CTA Utama Kapsul Charcoal Noir Tanpa Hash URL */}
               <div className="mt-6 sm:mt-8">
-                <a
-                  href="#reservasi"
-                  className="inline-flex min-h-[52px] items-center justify-center gap-3 rounded-full bg-[#2B2B2B] px-7 py-3.5 font-sans text-sm font-semibold text-[#FFFFFF] shadow-sm transition-colors hover:bg-[#1F1F1F]"
+                <ScrollToSectionButton
+                  targetId="reservasi"
+                  className="inline-flex min-h-[52px] cursor-pointer items-center justify-center gap-3 rounded-full bg-[#2B2B2B] px-7 py-3.5 font-sans text-sm font-semibold text-[#FFFFFF] shadow-sm transition-colors hover:bg-[#1F1F1F]"
                 >
                   <span>Pilih Jadwal</span>
                   <span
@@ -326,7 +327,7 @@ export default async function HomePage() {
                   >
                     <ArrowDownRight className="h-4 w-4" />
                   </span>
-                </a>
+                </ScrollToSectionButton>
               </div>
             </div>
           </div>

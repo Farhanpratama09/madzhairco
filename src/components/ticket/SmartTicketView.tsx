@@ -159,7 +159,7 @@ function buildAdminWhatsAppUpdateUrl(
     `• Kode Tiket: ${booking.ticket_code}`,
     `• Layanan: ${booking.service_name}`,
     `• Jadwal: ${formattedDate}, ${newTimeRange}`,
-    `• Pilih jadwal baru: ${origin}/#reservasi`,
+    `• Pilih jadwal baru: ${origin}/`,
     "",
     "Detail status e-tiket:",
     ticketUrl,

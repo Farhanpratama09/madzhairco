@@ -24,6 +24,7 @@ import {
   Coffee,
   ExternalLink,
   ImagePlus,
+  KeyRound,
   Link2,
   LogOut,
   MessageCircle,
@@ -67,6 +68,7 @@ import type {
 
 export interface AdminCashierDashboardProps {
   userEmail: string;
+  userUsername?: string;
   initialSettings: StoreSettings;
   initialSchedules: WeeklySchedule[];
   initialClosedDates: ClosedDate[];
@@ -380,7 +382,7 @@ function buildAdminWaNotifyUrl(
     `• Kode Tiket: ${booking.ticket_code}`,
     `• Layanan: ${booking.service_name}`,
     `• Jadwal: ${dateLabel}, ${timeRange}`,
-    `• Buat jadwal baru: ${origin}/#reservasi`,
+    `• Buat jadwal baru: ${origin}/`,
     "",
     "Detail status e-tiket:",
     ticketUrl,
@@ -391,6 +393,8 @@ function buildAdminWaNotifyUrl(
 }
 
 export function AdminCashierDashboard({
+  userEmail,
+  userUsername = "",
   initialSettings,
   initialSchedules,
   initialClosedDates,
@@ -409,13 +413,34 @@ export function AdminCashierDashboard({
   const [activeTab, setActiveTab] = useState<DashboardTab>("queue");
   const [cmsSubTab, setCmsSubTab] = useState<CmsSubTab>("operational");
   const [openOpsSection, setOpenOpsSection] = useState<
-    "break" | "weekly" | "closed" | null
+    "break" | "weekly" | "closed" | "account" | null
   >(null);
   const [openCatalogSection, setOpenCatalogSection] = useState<string | null>(
     () => initialServices[0]?.id ?? null
   );
   const [showCompletedHistory, setShowCompletedHistory] = useState(false);
   const [showCancelledHistory, setShowCancelledHistory] = useState(false);
+
+  // State Akun & Keamanan Admin
+  const initialAccountIdentifier = useMemo(() => {
+    if (userEmail.endsWith("@admin.madzhair.local")) {
+      return userUsername || userEmail.replace("@admin.madzhair.local", "");
+    }
+    return userEmail || userUsername || "admin";
+  }, [userEmail, userUsername]);
+
+  const [currentAccountLabel, setCurrentAccountLabel] = useState<string>(
+    initialAccountIdentifier
+  );
+  const [accountIdentifierDraft, setAccountIdentifierDraft] = useState<string>(
+    initialAccountIdentifier
+  );
+  const [accountCurrentPassword, setAccountCurrentPassword] =
+    useState<string>("");
+  const [accountNewPassword, setAccountNewPassword] = useState<string>("");
+  const [accountConfirmPassword, setAccountConfirmPassword] =
+    useState<string>("");
+  const [savingAccount, setSavingAccount] = useState<boolean>(false);
 
   const [settings, setSettings] = useState<StoreSettings>(initialSettings);
   const [schedules, setSchedules] = useState<WeeklySchedule[]>(initialSchedules);
@@ -1805,6 +1830,84 @@ export function AdminCashierDashboard({
     }
   };
 
+  const handleUpdateAdminAccount = async (event: FormEvent) => {
+    event.preventDefault();
+    if (savingAccount) return;
+
+    const trimmedIdentifier = accountIdentifierDraft.trim();
+    if (!trimmedIdentifier) {
+      showToast("error", "Email atau username login tidak boleh kosong.");
+      return;
+    }
+
+    if (!accountCurrentPassword) {
+      showToast("error", "Password lama wajib diisi untuk konfirmasi.");
+      return;
+    }
+
+    if (accountNewPassword.length > 0 && accountNewPassword.length < 8) {
+      showToast("error", "Password baru minimal 8 karakter.");
+      return;
+    }
+
+    if (
+      accountNewPassword.length > 0 &&
+      accountNewPassword !== accountConfirmPassword
+    ) {
+      showToast("error", "Konfirmasi password baru tidak cocok.");
+      return;
+    }
+
+    setSavingAccount(true);
+    try {
+      const response = await fetch("/api/admin/account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          emailOrUsername: trimmedIdentifier,
+          currentPassword: accountCurrentPassword,
+          newPassword: accountNewPassword,
+          confirmPassword: accountConfirmPassword,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        displayIdentifier?: string;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.ok) {
+        showToast(
+          "error",
+          payload.error ?? "Gagal memperbarui akun & keamanan admin."
+        );
+        return;
+      }
+
+      const updatedDisplay = payload.displayIdentifier || trimmedIdentifier;
+      setCurrentAccountLabel(updatedDisplay);
+      setAccountIdentifierDraft(updatedDisplay);
+      setAccountCurrentPassword("");
+      setAccountNewPassword("");
+      setAccountConfirmPassword("");
+      showToast(
+        "success",
+        payload.message ?? "Akun & keamanan admin berhasil diperbarui."
+      );
+    } catch {
+      showToast(
+        "error",
+        "Gangguan jaringan saat menghubungi server pembaruan akun."
+      );
+    } finally {
+      setSavingAccount(false);
+    }
+  };
+
   const isQueueTab = activeTab === "queue";
   const hasActiveBottomDrawer = Boolean(pendingWalkin);
 
@@ -3153,6 +3256,152 @@ export function AdminCashierDashboard({
                         )}
                       </div>
                     </div>
+                  ) : null}
+                </section>
+
+                {/* Accordion 4: Akun & Keamanan Admin */}
+                <section
+                  aria-label="Akun dan Keamanan Admin"
+                  className="overflow-hidden rounded-2xl border border-hairline bg-surface"
+                >
+                  <button
+                    type="button"
+                    aria-expanded={openOpsSection === "account"}
+                    onClick={() =>
+                      setOpenOpsSection((prev) =>
+                        prev === "account" ? null : "account"
+                      )
+                    }
+                    className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors hover:bg-alabaster/45 sm:px-4"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <KeyRound
+                        aria-hidden="true"
+                        className="h-4 w-4 shrink-0 text-terracotta"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-sans text-sm font-semibold text-ink">
+                          Akun &amp; Keamanan Admin
+                        </p>
+                        <p className="truncate font-sans text-xs text-muted">
+                          Login aktif: {currentAccountLabel}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={`h-4 w-4 shrink-0 text-muted transition-transform ${
+                        openOpsSection === "account"
+                          ? "rotate-180 text-ink"
+                          : ""
+                      }`}
+                    />
+                  </button>
+
+                  {openOpsSection === "account" ? (
+                    <form
+                      onSubmit={handleUpdateAdminAccount}
+                      className="space-y-3 border-t border-hairline p-3.5 sm:p-4"
+                    >
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <label
+                          htmlFor="admin-account-identifier"
+                          className="font-sans text-xs font-medium text-[#565656]"
+                        >
+                          Email atau Username Login
+                        </label>
+                        <input
+                          id="admin-account-identifier"
+                          type="text"
+                          required
+                          autoComplete="username"
+                          value={accountIdentifierDraft}
+                          onChange={(e) =>
+                            setAccountIdentifierDraft(e.target.value)
+                          }
+                          placeholder="owner@madzhair.co atau username"
+                          className="box-border min-h-[44px] w-full min-w-0 max-w-full rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-3 font-sans text-base text-[#2B2B2B] placeholder:text-[#848484] focus:border-[#2B2B2B] focus:bg-[#FFFFFF] focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <label
+                          htmlFor="admin-current-password"
+                          className="font-sans text-xs font-medium text-[#565656]"
+                        >
+                          Password Lama (Wajib Konfirmasi)
+                        </label>
+                        <input
+                          id="admin-current-password"
+                          type="password"
+                          required
+                          autoComplete="current-password"
+                          value={accountCurrentPassword}
+                          onChange={(e) =>
+                            setAccountCurrentPassword(e.target.value)
+                          }
+                          placeholder="Masukkan password saat ini"
+                          className="box-border min-h-[44px] w-full min-w-0 max-w-full rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-3 font-sans text-base text-[#2B2B2B] placeholder:text-[#848484] focus:border-[#2B2B2B] focus:bg-[#FFFFFF] focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <label
+                            htmlFor="admin-new-password"
+                            className="font-sans text-xs font-medium text-[#565656]"
+                          >
+                            Password Baru (Min. 8 Karakter)
+                          </label>
+                          <input
+                            id="admin-new-password"
+                            type="password"
+                            minLength={8}
+                            autoComplete="new-password"
+                            value={accountNewPassword}
+                            onChange={(e) =>
+                              setAccountNewPassword(e.target.value)
+                            }
+                            placeholder="Kosongkan jika tidak diubah"
+                            className="box-border min-h-[44px] w-full min-w-0 max-w-full rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-3 font-sans text-base text-[#2B2B2B] placeholder:text-[#848484] focus:border-[#2B2B2B] focus:bg-[#FFFFFF] focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <label
+                            htmlFor="admin-confirm-password"
+                            className="font-sans text-xs font-medium text-[#565656]"
+                          >
+                            Konfirmasi Password Baru
+                          </label>
+                          <input
+                            id="admin-confirm-password"
+                            type="password"
+                            minLength={8}
+                            autoComplete="new-password"
+                            value={accountConfirmPassword}
+                            onChange={(e) =>
+                              setAccountConfirmPassword(e.target.value)
+                            }
+                            placeholder="Ulangi password baru"
+                            className="box-border min-h-[44px] w-full min-w-0 max-w-full rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-3 font-sans text-base text-[#2B2B2B] placeholder:text-[#848484] focus:border-[#2B2B2B] focus:bg-[#FFFFFF] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={savingAccount}
+                        className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#2B2B2B] px-4 font-sans text-xs font-semibold text-[#FFFFFF] transition-colors hover:bg-[#1F1F1F] disabled:opacity-50"
+                      >
+                        <Check aria-hidden="true" className="h-4 w-4" />
+                        <span>
+                          {savingAccount
+                            ? "Menyimpan Kredensial..."
+                            : "Simpan Akun & Password"}
+                        </span>
+                      </button>
+                    </form>
                   ) : null}
                 </section>
               </div>

@@ -87,7 +87,7 @@ export function HairSalonJsonLd({
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": ["HairSalon", "LocalBusiness"],
-    "@id": `${resolvedSiteUrl}/#hairsalon`,
+    "@id": `${resolvedSiteUrl}/hairsalon`,
     name: storeSettings?.brand_tagline?.trim() || "Madzhair Barber & Co",
     alternateName: storeSettings?.store_name?.trim() || "Madzhair.co",
     description:

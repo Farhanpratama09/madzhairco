@@ -81,11 +81,15 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
     event.preventDefault();
     setErrorMessage(null);
 
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
-      setErrorMessage("Email dan kata sandi wajib diisi.");
+    const trimmedIdentifier = email.trim();
+    if (!trimmedIdentifier || !password) {
+      setErrorMessage("Email/username dan kata sandi wajib diisi.");
       return;
     }
+
+    const resolvedEmail = trimmedIdentifier.includes("@")
+      ? trimmedIdentifier.toLowerCase()
+      : `${trimmedIdentifier.toLowerCase()}@admin.madzhair.local`;
 
     const supabase = createClient();
     if (!supabase) {
@@ -98,13 +102,15 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
     setSubmitting(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
+        email: resolvedEmail,
         password,
       });
 
       if (error) {
         if (error.message.toLowerCase().includes("invalid login credentials")) {
-          setErrorMessage("Email atau kata sandi salah. Silakan periksa kembali.");
+          setErrorMessage(
+            "Email/username atau kata sandi salah. Silakan periksa kembali."
+          );
         } else {
           setErrorMessage(error.message || "Gagal masuk ke akun kasir.");
         }
@@ -154,18 +160,18 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
             htmlFor="admin-email"
             className="mb-1.5 block font-sans text-xs font-medium text-muted"
           >
-            Email admin
+            Email atau username admin
           </label>
           <input
             id="admin-email"
             name="email"
-            type="email"
+            type="text"
             inputMode="email"
             autoComplete="username"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="owner@madzhair.co"
+            placeholder="owner@madzhair.co atau username"
             className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3.5 py-2.5 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
           />
         </div>

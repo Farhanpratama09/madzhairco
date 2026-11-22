@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import QRCode from "qrcode";
 import { Check, Copy, Download, ExternalLink, QrCode, X } from "lucide-react";
 
-const DEFAULT_RESERVATION_URL = "https://madzhairco.vercel.app/#reservasi";
+const DEFAULT_RESERVATION_URL = "https://madzhairco.vercel.app/";
 const POSTER_BRAND_NAME = "Madzhair Barber & Co";
 
 function subscribeNoop(): () => void {
@@ -15,7 +15,7 @@ function getClientBookingUrl(): string {
   if (typeof window === "undefined") {
     return DEFAULT_RESERVATION_URL;
   }
-  return `${window.location.origin}/#reservasi`;
+  return `${window.location.origin}/`;
 }
 
 function getServerBookingUrl(): string {
@@ -141,7 +141,7 @@ export function StudioQrCodeCard({
     try {
       const targetUrl =
         typeof window !== "undefined"
-          ? `${window.location.origin}/#reservasi`
+          ? `${window.location.origin}/`
           : bookingUrl;
 
       const qrCanvas = document.createElement("canvas");
