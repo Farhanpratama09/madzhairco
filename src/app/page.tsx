@@ -245,12 +245,7 @@ export default async function HomePage() {
           <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto] items-center gap-3 px-safe py-3.5 md:grid-cols-[1fr_auto_1fr] lg:py-5">
             {/* Kiri: BrandMark */}
             <div className="shrink-0 justify-self-start">
-              <div className="sm:hidden">
-                <BrandMark variant="compact" size="sm" href="/" />
-              </div>
-              <div className="hidden sm:block">
-                <BrandMark variant="full" size="sm" href="/" />
-              </div>
+              <BrandMark variant="full" size="sm" href="/" />
             </div>
 
             {/* Tengah: Navigasi Utama Bersih */}
@@ -274,8 +269,8 @@ export default async function HomePage() {
               <div
                 role="status"
                 aria-live="polite"
-                className={`inline-flex items-center gap-2 rounded-full bg-[#F7F3EC]/90 px-3.5 py-1.5 font-sans text-xs font-medium whitespace-nowrap shadow-xs backdrop-blur-sm sm:text-sm ${
-                  isClosedToday ? "text-crimson-alert" : "text-ink"
+                className={`inline-flex items-center gap-1.5 rounded-full border border-[#B3B3B3] bg-[#FFFFFF] px-3 py-1.5 font-sans text-xs font-medium whitespace-nowrap shadow-xs sm:gap-2 sm:px-3.5 sm:text-sm ${
+                  isClosedToday ? "text-crimson-alert" : "text-[#2B2B2B]"
                 }`}
               >
                 {isClosedToday ? (
@@ -286,7 +281,7 @@ export default async function HomePage() {
                 ) : (
                   <CalendarCheck
                     aria-hidden="true"
-                    className="h-4 w-4 shrink-0 text-terracotta"
+                    className="h-4 w-4 shrink-0 text-[#2B2B2B]"
                   />
                 )}
                 <span>{navbarStatusLabel}</span>
@@ -300,34 +295,34 @@ export default async function HomePage() {
           aria-labelledby="hero-heading"
           className="relative w-full lg:min-h-[620px]"
         >
-          {/* Kolom Kiri: Judul Instrument Serif, Subjudul lugas, 1 CTA utama (tanpa eyebrow duplikat) */}
+          {/* Kolom Kiri: Judul Instrument Serif, Subjudul lugas, 1 CTA utama */}
           <div className="relative z-10 mx-auto max-w-6xl px-safe pt-6 pb-2 lg:flex lg:min-h-[620px] lg:items-center lg:pt-24 lg:pb-24">
             <div className="lg:w-[46%] lg:pr-12 xl:pr-16">
               <h1
                 id="hero-heading"
-                className="font-serif text-4xl leading-[1.06] font-normal tracking-tight text-ink sm:text-5xl lg:text-[62px]"
+                className="font-serif text-4xl leading-[1.06] font-normal tracking-tight text-[#2B2B2B] sm:text-5xl lg:text-[62px]"
               >
                 Atur Jadwal Cukur,{" "}
-                <span className="block italic text-terracotta">
+                <span className="block italic text-[#565656]">
                   Datang Tanpa Antre.
                 </span>
               </h1>
 
-              <p className="mt-4 max-w-md font-sans text-sm leading-relaxed text-muted sm:text-base">
+              <p className="mt-4 max-w-md font-sans text-sm leading-relaxed text-[#565656] sm:text-base">
                 Pilih layanan dan jam yang tersedia, kunci jadwalmu, lalu
                 konfirmasi lewat WhatsApp.
               </p>
 
-              {/* 1 Tombol CTA Utama Kapsul Terracotta */}
+              {/* 1 Tombol CTA Utama Kapsul Charcoal Noir */}
               <div className="mt-6 sm:mt-8">
                 <a
                   href="#reservasi"
-                  className="inline-flex min-h-[52px] items-center justify-center gap-3 rounded-full bg-terracotta px-7 py-3.5 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90"
+                  className="inline-flex min-h-[52px] items-center justify-center gap-3 rounded-full bg-[#2B2B2B] px-7 py-3.5 font-sans text-sm font-semibold text-[#FFFFFF] shadow-sm transition-colors hover:bg-[#1F1F1F]"
                 >
                   <span>Pilih Jadwal</span>
                   <span
                     aria-hidden="true"
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-surface text-terracotta"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#FFFFFF] text-[#2B2B2B]"
                   >
                     <ArrowDownRight className="h-4 w-4" />
                   </span>
@@ -336,9 +331,9 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Kanan (Desktop lg: saja): Foto Barbershop + S-Curve Tajam Tanpa Kabut */}
+          {/* Kanan (Desktop lg: saja): Foto Barbershop + S-Curve Tajam */}
           <div className="hidden lg:block lg:absolute lg:top-0 lg:right-0 lg:h-full lg:min-h-[620px] lg:w-[56%]">
-            <div className="relative h-full min-h-[620px] w-full overflow-hidden bg-ink">
+            <div className="relative h-full min-h-[620px] w-full overflow-hidden bg-[#2B2B2B]">
               <Image
                 src={heroImageUrl}
                 alt={brand.heroAlt}
@@ -348,7 +343,7 @@ export default async function HomePage() {
                 className="object-cover object-center"
               />
 
-              {/* Lengkungan S-Curve Bersih & Tajam menyatu langsung dengan Warm Alabaster (#EFE8DD) */}
+              {/* Lengkungan S-Curve Bersih & Tajam menyatu langsung dengan latar #F7F7F7 */}
               <svg
                 aria-hidden="true"
                 viewBox="0 0 100 100"
@@ -357,7 +352,7 @@ export default async function HomePage() {
               >
                 <path
                   d="M -1 -1 L 41 -1 C 36 20, 6 32, 6 56 C 6 79, 21 91, 34 101 L -1 101 Z"
-                  fill="#EFE8DD"
+                  fill="#F7F7F7"
                 />
               </svg>
             </div>
@@ -381,28 +376,28 @@ export default async function HomePage() {
       </main>
 
       {/* =====================================================================
-          FOOTER MINIMALIS 3 KOLOM — DEEP SLATE CHARCOAL (#303841)
+          FOOTER MINIMALIS 3 KOLOM — CHARCOAL NOIR (#2B2B2B)
       ===================================================================== */}
       <footer
         id="lokasi"
-        className="scroll-mt-24 rounded-t-[32px] bg-[#303841] px-safe pt-12 pb-safe text-[#F7F3EC] sm:pt-14"
+        className="scroll-mt-24 rounded-t-[32px] bg-[#2B2B2B] px-safe pt-12 pb-safe text-[#FFFFFF] sm:pt-14"
       >
         <div className="mx-auto max-w-6xl space-y-10 pb-6">
           <div className="grid grid-cols-1 gap-8 md:grid-cols-3 md:items-start lg:gap-12">
-            {/* Kolom Kiri: HANYA Logo Madzhair.co */}
+            {/* Kolom Kiri: Logo Madzhair Barber & Co */}
             <div>
               <BrandMark variant="full" size="md" tone="onDark" href="/" />
             </div>
 
             {/* Kolom Tengah: Jam Operasional & Wilayah */}
             <div className="space-y-1.5">
-              <h2 className="font-sans text-sm font-semibold text-[#F7F3EC]">
+              <h2 className="font-sans text-sm font-semibold text-[#FFFFFF]">
                 Jam operasional
               </h2>
-              <p className="font-sans text-sm text-[#F7F3EC]/75">
+              <p className="font-sans text-sm text-[#E0E0E0]">
                 Sungai Kunyit, Kalimantan Barat (WIB)
               </p>
-              <p className="pt-1 font-sans text-sm font-semibold text-[#F7F3EC] tabular-nums">
+              <p className="pt-1 font-sans text-sm font-semibold text-[#FFFFFF] tabular-nums">
                 {footerHoursLabel}
               </p>
             </div>
@@ -410,7 +405,7 @@ export default async function HomePage() {
             {/* Kolom Kanan: Alamat + 3 Tautan Pintas Bersih (Google Maps, WhatsApp, Instagram) */}
             <div className="space-y-3.5">
               <div>
-                <p className="font-sans text-sm font-semibold text-[#F7F3EC]">
+                <p className="font-sans text-sm font-semibold text-[#FFFFFF]">
                   {footerAddress}
                 </p>
               </div>
@@ -420,7 +415,7 @@ export default async function HomePage() {
                   href={settings.google_maps_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#F7F3EC]/10 px-4 py-2 font-sans text-xs font-medium text-[#F7F3EC] transition-colors hover:bg-terracotta"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#565656] bg-[#1F1F1F] px-4 py-2 font-sans text-xs font-medium text-[#FFFFFF] transition-colors hover:bg-[#565656]"
                 >
                   <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
                   <span>Google Maps</span>
@@ -430,7 +425,7 @@ export default async function HomePage() {
                   href={whatsappDirectUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#F7F3EC]/10 px-4 py-2 font-sans text-xs font-medium text-[#F7F3EC] transition-colors hover:bg-terracotta"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#565656] bg-[#1F1F1F] px-4 py-2 font-sans text-xs font-medium text-[#FFFFFF] transition-colors hover:bg-[#565656]"
                 >
                   <MessageCircle aria-hidden="true" className="h-3.5 w-3.5" />
                   <span>WhatsApp</span>
@@ -440,7 +435,7 @@ export default async function HomePage() {
                   href={brand.instagramUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#F7F3EC]/10 px-4 py-2 font-sans text-xs font-medium text-[#F7F3EC] transition-colors hover:bg-terracotta"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#565656] bg-[#1F1F1F] px-4 py-2 font-sans text-xs font-medium text-[#FFFFFF] transition-colors hover:bg-[#565656]"
                 >
                   <svg
                     aria-hidden="true"
@@ -462,10 +457,10 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="border-t border-[#F7F3EC]/12 pt-5">
-            <p className="font-sans text-xs text-[#F7F3EC]/65">
-              © {new Date().getFullYear()} {settings.store_name} ·{" "}
-              {settings.brand_tagline}
+          <div className="border-t border-[#565656] pt-5">
+            <p className="font-sans text-xs text-[#E0E0E0]">
+              © {new Date().getFullYear()} Madzhair Barber &amp; Co · Sungai
+              Kunyit, Kalimantan Barat
             </p>
           </div>
         </div>

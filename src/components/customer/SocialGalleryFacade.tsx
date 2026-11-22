@@ -251,24 +251,24 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                                 type="button"
                                 onClick={() => setPlayingReelId(item.id)}
                                 aria-label={`Putar Instagram Reel ${idx + 1}`}
-                                className="absolute top-1/2 left-1/2 z-10 inline-flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#F7F3EC]/92 text-terracotta shadow-xl backdrop-blur-xs transition-all hover:scale-105 hover:bg-terracotta hover:text-[#F7F3EC]"
+                                className="absolute top-1/2 left-1/2 z-10 inline-flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#FFFFFF] text-[#2B2B2B] shadow-xl transition-all hover:scale-105 hover:bg-[#2B2B2B] hover:text-[#FFFFFF]"
                               >
                                 <Play className="ml-0.5 h-6 w-6 fill-current" />
                               </button>
                             ) : (
-                              <div className="absolute inset-x-4 bottom-4 flex items-center justify-center gap-2 rounded-2xl bg-[#1E2329]/85 px-3 py-2.5 font-sans text-xs text-[#F7F3EC]">
+                              <div className="absolute inset-x-4 bottom-4 flex items-center justify-center gap-2 rounded-2xl bg-[#2B2B2B] px-3 py-2.5 font-sans text-xs text-[#FFFFFF]">
                                 <ShieldAlert className="h-4 w-4 shrink-0 text-crimson-alert" />
                                 <span>URL Instagram tidak valid.</span>
                               </div>
                             )}
                           </>
                         ) : (
-                          <div className="relative flex h-full w-full flex-col bg-ink">
+                          <div className="relative flex h-full w-full flex-col bg-[#2B2B2B]">
                             <button
                               type="button"
                               onClick={() => setPlayingReelId(null)}
                               aria-label="Tutup pemutar Instagram Reels"
-                              className="absolute top-3 right-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#1E2329]/85 text-[#F7F3EC] backdrop-blur-sm transition-colors hover:bg-terracotta"
+                              className="absolute top-3 right-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#2B2B2B] text-[#FFFFFF] transition-colors hover:bg-[#1F1F1F]"
                             >
                               <X className="h-4 w-4" />
                             </button>
@@ -282,13 +282,13 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                                   referrerPolicy="strict-origin-when-cross-origin"
                                   allow="encrypted-media; picture-in-picture"
                                   sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
-                                  className="h-full w-full flex-1 border-0 bg-ink"
+                                  className="h-full w-full flex-1 border-0 bg-[#2B2B2B]"
                                 />
                                 <a
                                   href={validation.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex min-h-[44px] items-center justify-center gap-2 border-t border-hairline bg-surface px-4 py-2 font-sans text-xs font-semibold text-ink transition-colors hover:bg-surface-elevated hover:text-terracotta"
+                                  className="inline-flex min-h-[44px] items-center justify-center gap-2 border-t border-hairline bg-surface px-4 py-2 font-sans text-xs font-semibold text-ink transition-colors hover:bg-surface-elevated"
                                 >
                                   <span>Buka di Instagram</span>
                                   <ArrowUpRight className="h-3.5 w-3.5" />
@@ -296,12 +296,12 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                               </>
                             ) : validation.url ? (
                               <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-                                <InstagramIcon className="h-8 w-8 text-[#F7F3EC]" />
+                                <InstagramIcon className="h-8 w-8 text-[#FFFFFF]" />
                                 <a
                                   href={validation.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-[#F7F3EC] transition-colors hover:bg-terracotta/90"
+                                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-[#FFFFFF] px-5 py-2.5 font-sans text-xs font-semibold text-[#2B2B2B] transition-colors hover:bg-[#E0E0E0]"
                                 >
                                   <span>Buka di Instagram</span>
                                   <ArrowUpRight className="h-4 w-4" />
@@ -322,7 +322,7 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                       type="button"
                       onClick={() => goToReel(safeReelIndex - 1)}
                       aria-label="Reel sebelumnya"
-                      className="absolute top-1/2 left-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#F7F3EC]/90 text-ink shadow-md backdrop-blur-xs transition-colors hover:bg-terracotta hover:text-[#F7F3EC] sm:left-4"
+                      className="absolute top-1/2 left-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#FFFFFF] text-[#2B2B2B] shadow-md transition-colors hover:bg-[#2B2B2B] hover:text-[#FFFFFF] sm:left-4"
                     >
                       <ChevronLeft className="h-5 w-5" />
                     </button>
@@ -331,7 +331,7 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                       type="button"
                       onClick={() => goToReel(safeReelIndex + 1)}
                       aria-label="Reel berikutnya"
-                      className="absolute top-1/2 right-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#F7F3EC]/90 text-ink shadow-md backdrop-blur-xs transition-colors hover:bg-terracotta hover:text-[#F7F3EC] sm:right-4"
+                      className="absolute top-1/2 right-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#FFFFFF] text-[#2B2B2B] shadow-md transition-colors hover:bg-[#2B2B2B] hover:text-[#FFFFFF] sm:right-4"
                     >
                       <ChevronRight className="h-5 w-5" />
                     </button>
@@ -426,7 +426,7 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                       type="button"
                       onClick={() => goToPhoto(safePhotoIndex - 1)}
                       aria-label="Foto sebelumnya"
-                      className="absolute top-1/2 left-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#F7F3EC]/90 text-ink shadow-md backdrop-blur-xs transition-colors hover:bg-terracotta hover:text-[#F7F3EC] sm:left-4"
+                      className="absolute top-1/2 left-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#FFFFFF] text-[#2B2B2B] shadow-md transition-colors hover:bg-[#2B2B2B] hover:text-[#FFFFFF] sm:left-4"
                     >
                       <ChevronLeft className="h-5 w-5" />
                     </button>
@@ -435,7 +435,7 @@ export function SocialGalleryFacade({ items }: SocialGalleryFacadeProps) {
                       type="button"
                       onClick={() => goToPhoto(safePhotoIndex + 1)}
                       aria-label="Foto berikutnya"
-                      className="absolute top-1/2 right-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#F7F3EC]/90 text-ink shadow-md backdrop-blur-xs transition-colors hover:bg-terracotta hover:text-[#F7F3EC] sm:right-4"
+                      className="absolute top-1/2 right-3 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-[#FFFFFF] text-[#2B2B2B] shadow-md transition-colors hover:bg-[#2B2B2B] hover:text-[#FFFFFF] sm:right-4"
                     >
                       <ChevronRight className="h-5 w-5" />
                     </button>

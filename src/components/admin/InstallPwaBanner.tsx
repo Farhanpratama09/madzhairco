@@ -65,7 +65,7 @@ function getClientSnapshot(): ClientEnvironment {
 }
 
 function subscribeStandaloneChange(callback: () => void): () => void {
-  if (typeof window === "undefined" || !window.matchMedia) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return () => {};
   }
 
@@ -75,8 +75,15 @@ function subscribeStandaloneChange(callback: () => void): () => void {
     callback();
   };
 
-  mediaQuery.addEventListener("change", handler);
-  return () => mediaQuery.removeEventListener("change", handler);
+  if (typeof mediaQuery.addEventListener === "function") {
+    mediaQuery.addEventListener("change", handler);
+    return () => mediaQuery.removeEventListener("change", handler);
+  }
+  if (typeof mediaQuery.addListener === "function") {
+    mediaQuery.addListener(handler);
+    return () => mediaQuery.removeListener(handler);
+  }
+  return () => {};
 }
 
 export function InstallPwaBanner({ className = "" }: { className?: string }) {
@@ -244,7 +251,7 @@ export function InstallPwaBanner({ className = "" }: { className?: string }) {
                   id="ios-pwa-guide-title"
                   className="mt-1 text-lg font-semibold text-ink"
                 >
-                  Pasang Madzhair.co di Home Screen
+                  Pasang Madzhair Barber &amp; Co di Home Screen
                 </h2>
               </div>
               <button

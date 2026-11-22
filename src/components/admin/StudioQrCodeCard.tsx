@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { Check, Copy, Download, ExternalLink, QrCode, X } from "lucide-react";
 
 const DEFAULT_RESERVATION_URL = "https://madzhairco.vercel.app/#reservasi";
+const POSTER_BRAND_NAME = "Madzhair Barber & Co";
 
 function subscribeNoop(): () => void {
   return () => {};
@@ -47,6 +48,23 @@ function drawRoundedRect(
   ctx.closePath();
 }
 
+function copyTextFallback(text: string): boolean {
+  try {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.setAttribute("readonly", "");
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(el);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 export function StudioQrCodeCard({
   storeName,
   onNotify,
@@ -61,6 +79,11 @@ export function StudioQrCodeCard({
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const displayBrandName =
+    storeName && !/madzhair\.co/i.test(storeName)
+      ? storeName
+      : POSTER_BRAND_NAME;
+
   useEffect(() => {
     if (!modalOpen) return;
     const canvas = previewCanvasRef.current;
@@ -71,8 +94,8 @@ export function StudioQrCodeCard({
       margin: 2,
       errorCorrectionLevel: "H",
       color: {
-        dark: "#303841",
-        light: "#F7F3EC",
+        dark: "#2B2B2B",
+        light: "#FFFFFF",
       },
     });
   }, [modalOpen, bookingUrl]);
@@ -89,13 +112,27 @@ export function StudioQrCodeCard({
   }, [modalOpen]);
 
   const handleCopyLink = async () => {
+    let copiedOk = false;
     try {
-      await navigator.clipboard.writeText(bookingUrl);
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(bookingUrl);
+        copiedOk = true;
+      } else {
+        copiedOk = copyTextFallback(bookingUrl);
+      }
+    } catch {
+      copiedOk = copyTextFallback(bookingUrl);
+    }
+
+    if (copiedOk) {
       setCopied(true);
       onNotify?.("success", "Link booking pelanggan disalin ke clipboard.");
       window.setTimeout(() => setCopied(false), 2500);
-    } catch {
-      onNotify?.("error", "Gagal menyalin link. Salin manual dari alamat yang tampil.");
+    } else {
+      onNotify?.(
+        "error",
+        "Gagal menyalin link. Salin manual dari alamat yang tampil."
+      );
     }
   };
 
@@ -113,7 +150,7 @@ export function StudioQrCodeCard({
         margin: 2,
         errorCorrectionLevel: "H",
         color: {
-          dark: "#303841",
+          dark: "#2B2B2B",
           light: "#FFFFFF",
         },
       });
@@ -124,49 +161,50 @@ export function StudioQrCodeCard({
       const ctx = poster.getContext("2d");
       if (!ctx) return;
 
-      // Background Warm Alabaster
-      ctx.fillStyle = "#EFE8DD";
+      // Background Latar Halaman Utama (#F7F7F7)
+      ctx.fillStyle = "#F7F7F7";
       ctx.fillRect(0, 0, poster.width, poster.height);
 
-      // Inner Soft Ivory Card
+      // Inner Card Putih (#FFFFFF) + Border Moonlit Silver (#B3B3B3)
       drawRoundedRect(ctx, 76, 76, 1048, 1448, 48);
-      ctx.fillStyle = "#F7F3EC";
+      ctx.fillStyle = "#FFFFFF";
       ctx.fill();
       ctx.lineWidth = 4;
-      ctx.strokeStyle = "#DCD4C6";
+      ctx.strokeStyle = "#B3B3B3";
       ctx.stroke();
 
-      // Top Burnt Terracotta Accent Bar
+      // Top Charcoal Noir Accent Bar (#2B2B2B)
       drawRoundedRect(ctx, 480, 140, 240, 10, 5);
-      ctx.fillStyle = "#C25934";
+      ctx.fillStyle = "#2B2B2B";
       ctx.fill();
 
-      // Brand Heading
-      ctx.fillStyle = "#303841";
+      // Brand Heading (Charcoal Noir #2B2B2B)
+      ctx.fillStyle = "#2B2B2B";
       ctx.textAlign = "center";
-      ctx.font = "700 68px Poppins, system-ui, sans-serif";
-      ctx.fillText(storeName || "Madzhair.co", 600, 245);
+      ctx.font = "700 60px Poppins, system-ui, sans-serif";
+      ctx.fillText(displayBrandName, 600, 245);
 
-      ctx.fillStyle = "#5C646D";
+      // Location Subtitle (Ironclad Grey #565656)
+      ctx.fillStyle = "#565656";
       ctx.font = "500 30px Poppins, system-ui, sans-serif";
       ctx.fillText("Sungai Kunyit, Kalimantan Barat", 600, 300);
 
-      // QR Frame
+      // QR Frame (#FFFFFF + border #B3B3B3)
       drawRoundedRect(ctx, 210, 370, 780, 780, 40);
       ctx.fillStyle = "#FFFFFF";
       ctx.fill();
       ctx.lineWidth = 4;
-      ctx.strokeStyle = "#DCD4C6";
+      ctx.strokeStyle = "#B3B3B3";
       ctx.stroke();
 
       ctx.drawImage(qrCanvas, 240, 400, 720, 720);
 
-      // Instructions
-      ctx.fillStyle = "#C25934";
+      // Instructions (Charcoal Noir #2B2B2B + Ironclad Grey #565656)
+      ctx.fillStyle = "#2B2B2B";
       ctx.font = "700 40px Poppins, system-ui, sans-serif";
       ctx.fillText("SCAN UNTUK BOOKING KURSI", 600, 1245);
 
-      ctx.fillStyle = "#303841";
+      ctx.fillStyle = "#565656";
       ctx.font = "500 30px Poppins, system-ui, sans-serif";
       ctx.fillText(
         "Arahkan kamera HP untuk pilih layanan & jam",
@@ -175,8 +213,8 @@ export function StudioQrCodeCard({
       );
       ctx.fillText("tanpa perlu antre dan tanpa buat akun.", 600, 1348);
 
-      // URL Footer
-      ctx.fillStyle = "#5C646D";
+      // URL Footer (Urban Fog #848484)
+      ctx.fillStyle = "#848484";
       ctx.font = "600 24px Poppins, system-ui, sans-serif";
       ctx.fillText(targetUrl.replace(/^https?:\/\//, ""), 600, 1445);
 
@@ -197,17 +235,17 @@ export function StudioQrCodeCard({
   return (
     <>
       {/* Baris Ringkas Tanpa Preview Poster Terbuka di Halaman Utama CMS */}
-      <div className="rounded-2xl border border-hairline bg-surface p-3.5 sm:p-4">
+      <div className="rounded-2xl border border-[#B3B3B3] bg-[#FFFFFF] p-3.5 sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-terracotta/30 bg-terracotta/10 text-terracotta">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#B3B3B3] bg-[#E0E0E0] text-[#2B2B2B]">
               <QrCode aria-hidden="true" className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <h3 className="font-sans text-sm font-semibold text-ink">
+              <h3 className="font-sans text-sm font-semibold text-[#2B2B2B]">
                 QR Code Studio &amp; Link Booking
               </h3>
-              <p className="mt-0.5 truncate font-sans text-xs text-muted">
+              <p className="mt-0.5 truncate font-sans text-xs text-[#565656]">
                 {displayHost}
               </p>
             </div>
@@ -216,7 +254,7 @@ export function StudioQrCodeCard({
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="inline-flex min-h-[44px] w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 sm:w-auto"
+            className="inline-flex min-h-[44px] w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#2B2B2B] px-4 font-sans text-xs font-semibold text-[#FFFFFF] transition-colors hover:bg-[#1F1F1F] sm:w-auto"
           >
             <QrCode aria-hidden="true" className="h-4 w-4" />
             <span>Preview &amp; Unduh QR PNG</span>
@@ -231,25 +269,25 @@ export function StudioQrCodeCard({
           aria-modal="true"
           aria-labelledby="studio-qr-modal-title"
           onClick={() => setModalOpen(false)}
-          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 backdrop-blur-xs sm:items-center sm:p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-[#2B2B2B]/60 sm:items-center sm:p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-hairline bg-surface px-4 pt-3 pb-safe font-sans shadow-2xl sm:rounded-2xl sm:p-5"
+            className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-[#B3B3B3] bg-[#FFFFFF] px-4 pt-3 pb-safe font-sans shadow-2xl sm:rounded-2xl sm:p-5"
           >
             <div
               aria-hidden="true"
-              className="mx-auto mb-3 h-1 w-10 rounded-full bg-hairline sm:hidden"
+              className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#B3B3B3] sm:hidden"
             />
 
-            <div className="flex items-start justify-between gap-3 border-b border-hairline pb-3">
+            <div className="flex items-start justify-between gap-3 border-b border-[#E0E0E0] pb-3">
               <div>
-                <p className="text-xs font-semibold text-terracotta">
+                <p className="text-xs font-semibold text-[#565656]">
                   Poster Meja Kasir &amp; Cermin
                 </p>
                 <h2
                   id="studio-qr-modal-title"
-                  className="mt-0.5 text-base font-semibold text-ink sm:text-lg"
+                  className="mt-0.5 text-base font-semibold text-[#2B2B2B] sm:text-lg"
                 >
                   QR Code Reservasi Studio
                 </h2>
@@ -258,24 +296,24 @@ export function StudioQrCodeCard({
                 type="button"
                 onClick={() => setModalOpen(false)}
                 aria-label="Tutup pratinjau QR Code"
-                className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-hairline bg-alabaster/75 text-muted hover:border-ink hover:text-ink"
+                className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] text-[#565656] hover:border-[#2B2B2B] hover:text-[#2B2B2B]"
               >
                 <X aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-4 flex flex-col items-center rounded-2xl border border-hairline bg-alabaster/65 p-4 text-center">
+            <div className="mt-4 flex flex-col items-center rounded-2xl border border-[#B3B3B3] bg-[#F7F7F7] p-4 text-center">
               <canvas
                 ref={previewCanvasRef}
                 width={220}
                 height={220}
-                aria-label={`QR Code Reservasi ${storeName}`}
-                className="h-[196px] w-[196px] rounded-xl bg-surface"
+                aria-label={`QR Code Reservasi ${displayBrandName}`}
+                className="h-[196px] w-[196px] rounded-xl border border-[#E0E0E0] bg-[#FFFFFF]"
               />
-              <p className="mt-2.5 text-xs font-semibold text-ink">
-                {storeName} · Sungai Kunyit, Kalimantan Barat
+              <p className="mt-2.5 text-xs font-semibold text-[#2B2B2B]">
+                {displayBrandName} · Sungai Kunyit, Kalimantan Barat
               </p>
-              <p className="mt-0.5 break-all text-[11px] text-muted">
+              <p className="mt-0.5 break-all text-[11px] text-[#565656]">
                 {displayHost}
               </p>
             </div>
@@ -285,7 +323,7 @@ export function StudioQrCodeCard({
                 type="button"
                 disabled={downloading}
                 onClick={() => void handleDownloadPrintablePng()}
-                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#2B2B2B] px-4 font-sans text-xs font-semibold text-[#FFFFFF] transition-colors hover:bg-[#1F1F1F] disabled:opacity-50 sm:text-sm"
               >
                 <Download aria-hidden="true" className="h-4 w-4" />
                 <span>
@@ -297,10 +335,10 @@ export function StudioQrCodeCard({
                 <button
                   type="button"
                   onClick={() => void handleCopyLink()}
-                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-hairline bg-alabaster/75 px-3 font-sans text-xs font-semibold text-ink transition-colors hover:border-terracotta hover:text-terracotta"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-3 font-sans text-xs font-semibold text-[#2B2B2B] transition-colors hover:border-[#2B2B2B] hover:bg-[#E0E0E0]"
                 >
                   {copied ? (
-                    <Check aria-hidden="true" className="h-3.5 w-3.5 text-terracotta" />
+                    <Check aria-hidden="true" className="h-3.5 w-3.5 text-[#2B2B2B]" />
                   ) : (
                     <Copy aria-hidden="true" className="h-3.5 w-3.5" />
                   )}
@@ -311,7 +349,7 @@ export function StudioQrCodeCard({
                   href={bookingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-hairline bg-surface-elevated/70 px-3 font-sans text-xs font-semibold text-ink transition-colors hover:border-ink"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-[#B3B3B3] bg-[#FFFFFF] px-3 font-sans text-xs font-semibold text-[#2B2B2B] transition-colors hover:border-[#2B2B2B] hover:bg-[#F7F7F7]"
                 >
                   <span>Buka Halaman Pelanggan</span>
                   <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />

@@ -406,7 +406,10 @@ export async function POST(request: NextRequest) {
   const nowIso = new Date().toISOString();
 
   const demoBooking: Booking = {
-    id: globalThis.crypto.randomUUID(),
+    id:
+      typeof globalThis.crypto?.randomUUID === "function"
+        ? globalThis.crypto.randomUUID()
+        : `demo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     ticket_code: ticketCode,
     service_id: service.id,
     service_name: service.name,

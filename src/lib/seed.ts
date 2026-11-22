@@ -16,7 +16,7 @@ export const TICKET_CODE_CHARSET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   id: "00000000-0000-4000-8000-000000000001",
-  store_name: "Madzhair.co",
+  store_name: "Madzhair Barber & Co",
   brand_tagline: "Madzhair Barber & Co",
   whatsapp_number: "62895701807228",
   short_address: "Jalan Raya Sungai Kunyit, Gang Tani",
@@ -145,7 +145,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     media_type: "instagram",
     media_url: "https://www.instagram.com/reel/C0000000001/",
     thumbnail_url: "/images/style-perm.webp",
-    caption: "Hasil konsultasi dan proses wavyperm ~2 jam di Madzhair.co.",
+    caption: "Hasil konsultasi dan proses wavyperm ~2 jam di Madzhair Barber & Co.",
     sort_order: 5,
     is_active: true,
     created_at: SEED_TIMESTAMP,

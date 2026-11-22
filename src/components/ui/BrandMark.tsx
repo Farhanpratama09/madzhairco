@@ -1,11 +1,13 @@
 import Link from "next/link";
 
 export interface BrandMarkProps {
-  /** 'full': monogram + wordmark + subtitle; 'compact': monogram + wordmark; 'monogram': monogram saja */
+  /** 'full': monogram + Madzhair / Barber & Co; 'compact': monogram + Madzhair Barber & Co (atau Madzhair bila shortWordmark); 'monogram': monogram saja */
   variant?: "full" | "compact" | "monogram";
   size?: "sm" | "md" | "lg";
-  /** 'onDark': warna terang #F7F3EC untuk footer gelap #303841 */
+  /** 'onDark': warna terang #FFFFFF untuk footer gelap #2B2B2B */
   tone?: "default" | "onDark";
+  /** Gunakan teks ringkas "Madzhair" (untuk navbar /admin: "Madzhair · Kasir") */
+  shortWordmark?: boolean;
   href?: string;
   className?: string;
 }
@@ -14,22 +16,16 @@ const SIZE_STYLES = {
   sm: {
     box: "h-9 w-9",
     svg: "h-5 w-5",
-    wordmark: "text-sm tracking-[0.14em]",
-    subtitle: "text-[9px] tracking-[0.22em]",
     gap: "gap-2.5",
   },
   md: {
     box: "h-11 w-11",
     svg: "h-6 w-6",
-    wordmark: "text-base tracking-[0.15em]",
-    subtitle: "text-[10px] tracking-[0.24em]",
     gap: "gap-3",
   },
   lg: {
     box: "h-13 w-13",
     svg: "h-7 w-7",
-    wordmark: "text-xl tracking-[0.16em]",
-    subtitle: "text-[11px] tracking-[0.26em]",
     gap: "gap-3.5",
   },
 } as const;
@@ -38,6 +34,7 @@ export function BrandMark({
   variant = "full",
   size = "md",
   tone = "default",
+  shortWordmark = false,
   href,
   className = "",
 }: BrandMarkProps) {
@@ -45,14 +42,16 @@ export function BrandMark({
   const isOnDark = tone === "onDark";
 
   const content = (
-    <span className={`inline-flex items-center ${styles.gap} select-none ${className}`}>
-      {/* Monogram Soft-Editorial rounded-xl — tanpa pill rounded-full */}
+    <span
+      className={`inline-flex items-center ${styles.gap} select-none ${className}`}
+    >
+      {/* Monogram Charcoal Noir rounded-xl */}
       <span
         aria-hidden="true"
         className={`relative inline-flex shrink-0 items-center justify-center rounded-xl border ${
           isOnDark
-            ? "border-[#F7F3EC]/25 bg-[#F7F3EC]/10"
-            : "border-ink bg-ink"
+            ? "border-[#FFFFFF]/25 bg-[#FFFFFF]/10"
+            : "border-[#2B2B2B] bg-[#2B2B2B]"
         } ${styles.box}`}
       >
         <svg
@@ -64,15 +63,15 @@ export function BrandMark({
           {/* Garis monogram M arsitektural */}
           <path
             d="M5.5 21.5V6.5L14 15.5L22.5 6.5V21.5"
-            stroke="#F7F3EC"
+            stroke="#FFFFFF"
             strokeWidth="1.75"
             strokeLinecap="square"
             strokeLinejoin="miter"
           />
-          {/* Garis presisi Burnt Terracotta di dasar monogram */}
+          {/* Garis presisi Moonlit Silver di dasar monogram */}
           <path
             d="M9.5 21.5H18.5"
-            stroke="#C25934"
+            stroke="#B3B3B3"
             strokeWidth="1.75"
             strokeLinecap="square"
           />
@@ -80,29 +79,65 @@ export function BrandMark({
       </span>
 
       {variant !== "monogram" && (
-        <span className="flex flex-col leading-none">
-          <span
-            className={`font-display font-bold tracking-tight ${
-              isOnDark ? "text-[#F7F3EC]" : "text-ink"
-            } ${
-              size === "lg"
-                ? "text-xl"
-                : size === "md"
-                  ? "text-base"
-                  : "text-sm"
-            }`}
-          >
-            Madzhair<span className="text-terracotta">.co</span>
-          </span>
-
-          {variant === "full" && (
+        <span className="flex min-w-0 flex-col leading-none">
+          {shortWordmark ? (
             <span
-              className={`mt-1 font-sans text-[11px] font-medium ${
-                isOnDark ? "text-[#F7F3EC]/70" : "text-muted"
+              className={`font-sans font-bold tracking-tight ${
+                isOnDark ? "text-[#FFFFFF]" : "text-[#2B2B2B]"
+              } ${
+                size === "lg"
+                  ? "text-xl"
+                  : size === "md"
+                    ? "text-base"
+                    : "text-sm"
               }`}
             >
-              Barber &amp; Co
+              Madzhair
             </span>
+          ) : variant === "compact" ? (
+            <span
+              className={`font-sans font-bold tracking-tight leading-tight ${
+                isOnDark ? "text-[#FFFFFF]" : "text-[#2B2B2B]"
+              } ${
+                size === "lg"
+                  ? "text-lg"
+                  : size === "md"
+                    ? "text-sm"
+                    : "text-[13px] sm:text-sm"
+              }`}
+            >
+              Madzhair{" "}
+              <span
+                className={`font-medium ${
+                  isOnDark ? "text-[#E0E0E0]" : "text-[#565656]"
+                }`}
+              >
+                Barber &amp; Co
+              </span>
+            </span>
+          ) : (
+            <>
+              <span
+                className={`font-sans font-bold tracking-tight ${
+                  isOnDark ? "text-[#FFFFFF]" : "text-[#2B2B2B]"
+                } ${
+                  size === "lg"
+                    ? "text-xl"
+                    : size === "md"
+                      ? "text-base"
+                      : "text-sm"
+                }`}
+              >
+                Madzhair
+              </span>
+              <span
+                className={`mt-1 font-sans text-[11px] font-medium ${
+                  isOnDark ? "text-[#E0E0E0]" : "text-[#565656]"
+                }`}
+              >
+                Barber &amp; Co
+              </span>
+            </>
           )}
         </span>
       )}

@@ -51,7 +51,7 @@ export const ALLOWED_EMBED_HOSTS = [
 ] as const;
 
 export const brand: BrandMediaConfig = {
-  name: "Madzhair.co",
+  name: "Madzhair Barber & Co",
   legalName: "Madzhair Barber & Co",
   tagline: "Atur Jadwal Cukur, Datang Tanpa Antre.",
   instagramUrl: "https://www.instagram.com/madzhair.co/",

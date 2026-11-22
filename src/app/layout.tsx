@@ -46,7 +46,7 @@ function resolveSiteUrl(): URL {
   }
 }
 
-const SITE_TITLE = "Madzhair.co — Madzhair Barber & Co | Reservasi & Jadwal";
+const SITE_TITLE = "Madzhair Barber & Co | Reservasi & Jadwal";
 const SITE_DESCRIPTION =
   "Reservasi kursi barbershop satu klik tanpa antre di Madzhair Barber & Co, Jalan Raya Sungai Kunyit, Gang Tani. Haircut & Hair Chemicals dengan jadwal real-time.";
 
@@ -77,7 +77,7 @@ export const metadata: Metadata = {
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     url: "/",
-    siteName: "Madzhair.co",
+    siteName: "Madzhair Barber & Co",
     locale: "id_ID",
     type: "website",
     images: [
@@ -101,7 +101,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#EFE8DD",
+  themeColor: "#F7F7F7",
 };
 
 export default function RootLayout({

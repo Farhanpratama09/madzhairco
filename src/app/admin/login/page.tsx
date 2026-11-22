@@ -30,7 +30,7 @@ export default async function AdminLoginPage() {
       <header className="border-b border-hairline bg-surface/85 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <div className="shrink-0">
-            <BrandMark variant="compact" size="sm" href="/" />
+            <BrandMark variant="full" size="sm" href="/" />
           </div>
           <Link
             href="/"
@@ -57,7 +57,7 @@ export default async function AdminLoginPage() {
         <AdminLoginForm isConfigured={configured} />
 
         <p className="mt-6 text-center font-sans text-xs text-muted">
-          Madzhair.co · Perlindungan sesi terverifikasi
+          Madzhair Barber &amp; Co · Perlindungan sesi terverifikasi
         </p>
       </main>
     </div>

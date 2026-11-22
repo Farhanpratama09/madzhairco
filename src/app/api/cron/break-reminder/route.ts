@@ -207,7 +207,7 @@ async function handleBreakReminder(request: NextRequest) {
   const pushSummary = await sendPushToAllAdmins(
     {
       title: "Jam Istirahat Segera Selesai",
-      body: `Istirahat selesai pukul ${breakEndLabel} WIB. Cek antrean kursi sesi malam di Madzhair.co.`,
+      body: `Istirahat selesai pukul ${breakEndLabel} WIB. Cek antrean kursi sesi malam di Madzhair Barber & Co.`,
       url: "/admin",
       tag: `break-reminder-${todayStr}`,
     },

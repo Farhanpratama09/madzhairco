@@ -83,7 +83,7 @@ export async function generateMetadata({
       title,
       description,
       url: `/tiket/${encodeURIComponent(normalizedCode)}`,
-      siteName: "Madzhair.co",
+      siteName: "Madzhair Barber & Co",
       locale: "id_ID",
       type: "website",
       images: [

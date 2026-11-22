@@ -125,7 +125,7 @@ function buildAdminWhatsAppUpdateUrl(
   const origin =
     typeof window !== "undefined"
       ? window.location.origin
-      : "https://madzhair.vercel.app";
+      : "https://madzhairco.vercel.app";
   const ticketUrl = `${origin}/tiket/${booking.ticket_code}`;
   const formattedDate = formatIndonesianDateFull(booking.booking_date);
   const newTimeRange = `${formatTimeHHMM(booking.start_time)} – ${formatTimeHHMM(
@@ -140,13 +140,14 @@ function buildAdminWhatsAppUpdateUrl(
           )} WIB`
         : null;
     const lines = [
-      `Halo Kak ${booking.customer_name}, info pembaruan jadwal Madzhair.co (Sungai Kunyit, Kalimantan Barat):`,
+      `Halo Kak ${booking.customer_name}, info pembaruan jadwal Madzhair Barber & Co (Sungai Kunyit, Kalimantan Barat):`,
       `• Kode Tiket: ${booking.ticket_code}`,
       `• Layanan: ${booking.service_name}`,
       ...(prevTimeRange ? [`• Jadwal Lama: ${prevTimeRange}`] : []),
       `• Jadwal Baru: ${formattedDate}, ${newTimeRange}`,
       "",
-      `Cek e-tiket terbaru: ${ticketUrl}`,
+      "Cek e-tiket terbaru:",
+      ticketUrl,
     ];
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
       lines.join("\n")
@@ -154,13 +155,14 @@ function buildAdminWhatsAppUpdateUrl(
   }
 
   const lines = [
-    `Halo Kak ${booking.customer_name}, mohon maaf jadwal reservasi Anda di Madzhair.co telah dibatalkan:`,
+    `Halo Kak ${booking.customer_name}, mohon maaf jadwal reservasi Anda di Madzhair Barber & Co telah dibatalkan:`,
     `• Kode Tiket: ${booking.ticket_code}`,
     `• Layanan: ${booking.service_name}`,
     `• Jadwal: ${formattedDate}, ${newTimeRange}`,
+    `• Pilih jadwal baru: ${origin}/#reservasi`,
     "",
-    `Detail status e-tiket: ${ticketUrl}`,
-    `Silakan pilih jadwal baru di: ${origin}/#reservasi`,
+    "Detail status e-tiket:",
+    ticketUrl,
   ];
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
     lines.join("\n")
@@ -421,7 +423,7 @@ export function SmartTicketView({
               Format Kode Tiket Tidak Dikenali
             </h1>
             <p className="mt-2 font-sans text-sm leading-relaxed text-muted">
-              Kode reservasi resmi Madzhair.co menggunakan format{" "}
+              Kode reservasi resmi Madzhair Barber &amp; Co menggunakan format{" "}
               <span className="font-sans font-semibold tracking-[0.04em] text-ink tabular-nums">
                 MDZ-XXXX
               </span>

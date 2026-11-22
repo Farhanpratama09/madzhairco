@@ -306,6 +306,21 @@ function computeServicePricingSummary(variants: PriceVariant[]): {
   };
 }
 
+const TIME_OPTIONS_15M: string[] = Array.from({ length: 96 }, (_, idx) => {
+  const totalMinutes = idx * 15;
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+});
+
+function getTimeOptionsForValue(currentValue: string): string[] {
+  const hhmm = formatTimeHHMM(currentValue);
+  if (!hhmm || TIME_OPTIONS_15M.includes(hhmm)) {
+    return TIME_OPTIONS_15M;
+  }
+  return [...TIME_OPTIONS_15M, hhmm].sort();
+}
+
 function buildAdminWaNotifyUrl(
   phone: string,
   booking: Booking,
@@ -315,7 +330,7 @@ function buildAdminWaNotifyUrl(
   const origin =
     typeof window !== "undefined"
       ? window.location.origin
-      : "https://madzhair.vercel.app";
+      : "https://madzhairco.vercel.app";
   const ticketUrl = `${origin}/tiket/${booking.ticket_code}`;
   const dateLabel = formatIndonesianDateShort(booking.booking_date);
   const timeRange = `${formatTimeHHMM(booking.start_time)} – ${formatTimeHHMM(
@@ -330,13 +345,14 @@ function buildAdminWaNotifyUrl(
           )} WIB`
         : null;
     const lines = [
-      `Halo Kak ${booking.customer_name}, info perubahan jadwal Madzhair.co (Sungai Kunyit, Kalimantan Barat):`,
+      `Halo Kak ${booking.customer_name}, info perubahan jadwal Madzhair Barber & Co (Sungai Kunyit, Kalimantan Barat):`,
       `• Kode Tiket: ${booking.ticket_code}`,
       `• Layanan: ${booking.service_name}`,
       ...(prevRange ? [`• Jadwal Lama: ${prevRange}`] : []),
       `• Jadwal Baru: ${dateLabel}, ${timeRange}`,
       "",
-      `Cek e-tiket terbaru: ${ticketUrl}`,
+      "Cek e-tiket terbaru:",
+      ticketUrl,
     ];
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
       lines.join("\n")
@@ -345,13 +361,14 @@ function buildAdminWaNotifyUrl(
 
   if (action === "early_close") {
     const lines = [
-      `Halo Kak ${booking.customer_name}, info dari Madzhair.co (Sungai Kunyit, Kalimantan Barat):`,
-      `Studio kami perlu tutup lebih awal hari ini. Mohon konfirmasi untuk penyesuaian jadwal reservasi Anda:`,
+      `Halo Kak ${booking.customer_name}, info dari Madzhair Barber & Co (Sungai Kunyit, Kalimantan Barat):`,
+      "Studio kami perlu tutup lebih awal hari ini. Mohon konfirmasi untuk penyesuaian jadwal reservasi Anda:",
       `• Kode Tiket: ${booking.ticket_code}`,
       `• Layanan: ${booking.service_name}`,
       `• Jadwal: ${dateLabel}, ${timeRange}`,
       "",
-      `Detail e-tiket: ${ticketUrl}`,
+      "Detail e-tiket:",
+      ticketUrl,
     ];
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
       lines.join("\n")
@@ -359,13 +376,14 @@ function buildAdminWaNotifyUrl(
   }
 
   const lines = [
-    `Halo Kak ${booking.customer_name}, mohon maaf reservasi Anda di Madzhair.co telah dibatalkan:`,
+    `Halo Kak ${booking.customer_name}, mohon maaf reservasi Anda di Madzhair Barber & Co telah dibatalkan:`,
     `• Kode Tiket: ${booking.ticket_code}`,
     `• Layanan: ${booking.service_name}`,
     `• Jadwal: ${dateLabel}, ${timeRange}`,
+    `• Buat jadwal baru: ${origin}/#reservasi`,
     "",
-    `Detail status e-tiket: ${ticketUrl}`,
-    `Buat jadwal baru di: ${origin}/#reservasi`,
+    "Detail status e-tiket:",
+    ticketUrl,
   ];
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
     lines.join("\n")
@@ -421,9 +439,14 @@ export function AdminCashierDashboard({
     return () => window.clearInterval(timer);
   }, []);
 
-  // Register minimal Web Push Service Worker (/sw.js)
+  // Register minimal Web Push Service Worker (/sw.js) dengan feature guard aman browser lama
   useEffect(() => {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+    if (
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window) ||
+      typeof navigator.serviceWorker?.register !== "function"
+    ) {
       return;
     }
     void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
@@ -1830,14 +1853,14 @@ export function AdminCashierDashboard({
           <button
             type="button"
             onClick={handleResetToTodayQueue}
-            aria-label="Madzhair.co Kasir — Kembali ke jadwal hari ini"
+            aria-label="Madzhair Kasir — Kembali ke jadwal hari ini"
             className="inline-flex min-h-[44px] min-w-0 items-center gap-2 rounded-xl pr-2 text-left transition-opacity hover:opacity-85"
           >
-            <BrandMark variant="compact" size="sm" />
+            <BrandMark variant="compact" size="sm" shortWordmark />
             <span aria-hidden="true" className="text-hairline">
               ·
             </span>
-            <span className="truncate font-sans text-xs font-semibold text-terracotta sm:text-sm">
+            <span className="truncate font-sans text-xs font-semibold text-muted sm:text-sm">
               Kasir
             </span>
           </button>
@@ -2172,6 +2195,20 @@ export function AdminCashierDashboard({
                         return bStart < hourStart + 60 && bEnd > hourStart;
                       });
 
+                      const breakStartMin = parseTimeToMinutes(
+                        settings.break_start || "17:15:00"
+                      );
+                      const breakEndMin = parseTimeToMinutes(
+                        settings.break_end || "18:30:00"
+                      );
+                      const isHourCoveredByBreak = Boolean(
+                        timelineBreakBand &&
+                          settings.break_enabled &&
+                          breakEndMin > breakStartMin &&
+                          hourStart < breakEndMin &&
+                          hourStart + 60 > breakStartMin
+                      );
+
                       const isPastHour =
                         selectedDate < nowParts.dateStr ||
                         (selectedDate === nowParts.dateStr &&
@@ -2191,13 +2228,19 @@ export function AdminCashierDashboard({
                           style={{ height: `${HOUR_ROW_HEIGHT_PX}px` }}
                           className="border-t border-hairline py-1"
                         >
-                          {!isHourOccupied ? (
-                            <div className="flex h-full items-center justify-between gap-2 rounded-xl border border-dashed border-hairline bg-alabaster/50 px-3 py-1.5">
-                              <span className="font-sans text-xs font-medium text-muted tabular-nums">
+                          {!isHourOccupied && !isHourCoveredByBreak ? (
+                            <div className="flex h-full items-center justify-between gap-2 rounded-xl border border-dashed border-[#B3B3B3] bg-[#F7F7F7] px-3 py-1.5">
+                              <span
+                                className={`font-sans text-xs font-medium tabular-nums ${
+                                  isPastHour
+                                    ? "text-[#848484]"
+                                    : "text-[#565656]"
+                                }`}
+                              >
                                 {minutesToTime(hourStart)} –{" "}
                                 {minutesToTime(hourStart + 60)}
                               </span>
-                              <span className="font-sans text-xs text-muted/85">
+                              <span className="font-sans text-xs text-[#848484]">
                                 {settings.is_force_closed || isAfterEarlyClose
                                   ? "Tutup"
                                   : (selectedDateMeta.closedDate &&
@@ -2221,24 +2264,24 @@ export function AdminCashierDashboard({
                       className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-hairline"
                     />
 
-                    {/* Layer 1.5: Blok Jam Istirahat (z-[5] di bawah blok BOOKED z-10) */}
+                    {/* Layer 1.5: Blok Jam Istirahat Solid Cloud Veil (#E0E0E0) tanpa teks tembus di belakangnya */}
                     {timelineBreakBand ? (
                       <div
                         aria-label={`Jam istirahat ${timelineBreakBand.label}`}
                         style={{
-                          top: `${timelineBreakBand.topPx + 2}px`,
-                          height: `${Math.max(38, timelineBreakBand.heightPx - 4)}px`,
+                          top: `${timelineBreakBand.topPx + 3}px`,
+                          height: `${Math.max(44, timelineBreakBand.heightPx - 6)}px`,
                         }}
-                        className="pointer-events-none absolute inset-x-0 z-[5] flex items-center justify-between gap-2 rounded-xl border border-ink/20 bg-surface-elevated/90 px-3 py-1.5"
+                        className="pointer-events-none absolute inset-x-0 z-[5] flex items-center justify-between gap-2 rounded-xl border border-[#B3B3B3] bg-[#E0E0E0] px-3 py-2"
                       >
-                        <div className="flex items-center gap-1.5 font-sans text-xs font-semibold text-ink">
+                        <div className="flex items-center gap-1.5 font-sans text-xs font-semibold text-[#2B2B2B]">
                           <Coffee
                             aria-hidden="true"
-                            className="h-3.5 w-3.5 shrink-0 text-terracotta"
+                            className="h-3.5 w-3.5 shrink-0 text-[#565656]"
                           />
                           <span>Istirahat</span>
                         </div>
-                        <span className="font-sans text-xs font-medium text-muted tabular-nums">
+                        <span className="font-sans text-xs font-medium text-[#565656] tabular-nums">
                           {timelineBreakBand.label}
                         </span>
                       </div>
@@ -2276,20 +2319,20 @@ export function AdminCashierDashboard({
                           }}
                           className={`group absolute inset-x-0 z-10 overflow-hidden rounded-xl border text-left transition-all ${
                             isSelected
-                              ? "border-terracotta bg-surface ring-2 ring-terracotta/25"
-                              : "border-hairline bg-surface shadow-xs hover:border-terracotta/70"
+                              ? "border-[#2B2B2B] bg-[#FFFFFF] ring-2 ring-[#2B2B2B]/20"
+                              : "border-[#B3B3B3] bg-[#FFFFFF] shadow-xs hover:border-[#2B2B2B]"
                           }`}
                         >
                           <span
                             aria-hidden="true"
                             className={`absolute top-0 bottom-0 left-0 w-1 ${
-                              isWalkin ? "bg-ink" : "bg-terracotta"
+                              isWalkin ? "bg-[#565656]" : "bg-[#2B2B2B]"
                             }`}
                           />
 
                           <div className="flex h-full flex-col justify-between px-3 py-1.5 pl-3.5 sm:px-3.5 sm:py-2 sm:pl-4">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-sans text-xs font-semibold text-ink tabular-nums">
+                              <span className="font-sans text-xs font-semibold text-[#2B2B2B] tabular-nums">
                                 {formatTimeHHMM(booking.start_time)}–
                                 {formatTimeHHMM(booking.end_time)}
                               </span>
@@ -2298,8 +2341,8 @@ export function AdminCashierDashboard({
                                 <span
                                   className={`inline-flex items-center rounded-md border px-1.5 py-0.5 font-sans text-[10px] font-semibold ${
                                     isWalkin
-                                      ? "border-ink bg-ink text-surface"
-                                      : "border-terracotta/40 bg-terracotta/12 text-terracotta"
+                                      ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#FFFFFF]"
+                                      : "border-[#B3B3B3] bg-[#F7F7F7] text-[#2B2B2B]"
                                   }`}
                                 >
                                   {isWalkin ? "Walk-in" : "Online"}
@@ -2307,30 +2350,30 @@ export function AdminCashierDashboard({
 
                                 <ChevronRight
                                   aria-hidden="true"
-                                  className="h-3.5 w-3.5 text-muted transition-colors group-hover:text-terracotta"
+                                  className="h-3.5 w-3.5 text-[#848484] transition-colors group-hover:text-[#2B2B2B]"
                                 />
                               </div>
                             </div>
 
                             <div className="min-w-0">
-                              <p className="truncate font-sans text-sm font-semibold leading-tight text-ink">
+                              <p className="truncate font-sans text-sm font-semibold leading-tight text-[#2B2B2B]">
                                 {booking.customer_name}
                               </p>
-                              <p className="truncate font-sans text-[11px] leading-tight text-muted">
+                              <p className="truncate font-sans text-[11px] leading-tight text-[#565656]">
                                 {booking.service_name}
                               </p>
                             </div>
 
                             {isMultiBlock ? (
-                              <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-hairline/80 bg-alabaster/70 px-2.5 py-1">
-                                <span className="inline-flex items-center gap-1 font-sans text-[11px] font-medium text-ink tabular-nums">
+                              <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-[#E0E0E0] bg-[#F7F7F7] px-2.5 py-1">
+                                <span className="inline-flex items-center gap-1 font-sans text-[11px] font-medium text-[#2B2B2B] tabular-nums">
                                   <Sparkles
                                     aria-hidden="true"
-                                    className="h-3 w-3 shrink-0 text-terracotta"
+                                    className="h-3 w-3 shrink-0 text-[#565656]"
                                   />
                                   <span>{durationMin} menit</span>
                                 </span>
-                                <span className="font-sans text-[11px] text-muted tabular-nums">
+                                <span className="font-sans text-[11px] text-[#565656] tabular-nums">
                                   {blockCount} jam
                                 </span>
                               </div>
@@ -2340,14 +2383,14 @@ export function AdminCashierDashboard({
                       );
                     })}
 
-                    {/* Layer 3: Live Current-Time Line (Burnt Terracotta #C25934) */}
+                    {/* Layer 3: Live Current-Time Line (Charcoal Noir #2B2B2B) */}
                     {showCurrentTimeLine ? (
                       <div
                         aria-label={`Waktu saat ini ${nowParts.timeStr} WIB`}
                         style={{ top: `${currentTimeTopPx}px` }}
                         className="pointer-events-none absolute inset-x-0 z-20 flex -translate-y-1/2 items-center"
                       >
-                        <span className="h-[2px] w-full bg-terracotta" />
+                        <span className="h-[2px] w-full bg-[#2B2B2B]" />
                       </div>
                     ) : null}
                   </div>
@@ -2737,36 +2780,48 @@ export function AdminCashierDashboard({
                         </button>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2.5 sm:max-w-sm">
-                        <div className="flex flex-col gap-1">
+                      <div className="mt-3 grid grid-cols-1 gap-2.5 min-[380px]:grid-cols-2 sm:max-w-sm">
+                        <div className="flex min-w-0 flex-col gap-1">
                           <label
                             htmlFor="break-start-time"
-                            className="font-sans text-xs font-medium text-muted"
+                            className="font-sans text-xs font-medium text-[#565656]"
                           >
                             Mulai (WIB)
                           </label>
-                          <input
+                          <select
                             id="break-start-time"
-                            type="time"
-                            value={breakStartDraft}
+                            value={formatTimeHHMM(breakStartDraft)}
                             onChange={(e) => setBreakStartDraft(e.target.value)}
-                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
-                          />
+                            className="box-border min-h-[44px] w-full min-w-0 max-w-full rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-3 font-sans text-base text-[#2B2B2B] tabular-nums focus:border-[#2B2B2B] focus:bg-[#FFFFFF] focus:outline-none"
+                          >
+                            {getTimeOptionsForValue(breakStartDraft).map(
+                              (opt) => (
+                                <option key={`bs-${opt}`} value={opt}>
+                                  {opt} WIB
+                                </option>
+                              )
+                            )}
+                          </select>
                         </div>
-                        <div className="flex flex-col gap-1">
+                        <div className="flex min-w-0 flex-col gap-1">
                           <label
                             htmlFor="break-end-time"
-                            className="font-sans text-xs font-medium text-muted"
+                            className="font-sans text-xs font-medium text-[#565656]"
                           >
                             Selesai (WIB)
                           </label>
-                          <input
+                          <select
                             id="break-end-time"
-                            type="time"
-                            value={breakEndDraft}
+                            value={formatTimeHHMM(breakEndDraft)}
                             onChange={(e) => setBreakEndDraft(e.target.value)}
-                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
-                          />
+                            className="box-border min-h-[44px] w-full min-w-0 max-w-full rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-3 font-sans text-base text-[#2B2B2B] tabular-nums focus:border-[#2B2B2B] focus:bg-[#FFFFFF] focus:outline-none"
+                          >
+                            {getTimeOptionsForValue(breakEndDraft).map((opt) => (
+                              <option key={`be-${opt}`} value={opt}>
+                                {opt} WIB
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 
@@ -2775,7 +2830,7 @@ export function AdminCashierDashboard({
                           type="button"
                           disabled={savingBreak}
                           onClick={() => void handleSaveBreakSettings()}
-                          className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto"
+                          className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#2B2B2B] px-4 font-sans text-xs font-semibold text-[#FFFFFF] transition-colors hover:bg-[#1F1F1F] disabled:opacity-50 sm:w-auto"
                         >
                           <Check aria-hidden="true" className="h-4 w-4" />
                           <span>
@@ -2807,7 +2862,7 @@ export function AdminCashierDashboard({
                     <div className="flex min-w-0 items-center gap-2.5">
                       <Clock
                         aria-hidden="true"
-                        className="h-4 w-4 shrink-0 text-terracotta"
+                        className="h-4 w-4 shrink-0 text-ink"
                       />
                       <div className="min-w-0">
                         <p className="font-sans text-sm font-semibold text-ink">
@@ -2825,7 +2880,7 @@ export function AdminCashierDashboard({
                       aria-hidden="true"
                       className={`h-4 w-4 shrink-0 text-muted transition-transform ${
                         openOpsSection === "weekly"
-                          ? "rotate-180 text-terracotta"
+                          ? "rotate-180 text-ink"
                           : ""
                       }`}
                     />
@@ -2856,49 +2911,89 @@ export function AdminCashierDashboard({
                                 }
                                 className={`inline-flex min-h-[40px] min-w-[76px] items-center justify-center rounded-xl border px-3 font-sans text-xs font-semibold transition-colors ${
                                   row.is_open
-                                    ? "border-ink bg-ink text-surface"
-                                    : "border-hairline bg-surface-elevated text-muted"
+                                    ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#FFFFFF]"
+                                    : "border-[#B3B3B3] bg-[#E0E0E0] text-[#565656]"
                                 }`}
                               >
                                 {row.is_open ? "Buka" : "Libur"}
                               </button>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                              <input
-                                id={`open-${row.day_of_week}`}
-                                aria-label={`Jam buka ${DAY_LABELS[row.day_of_week]}`}
-                                type="time"
-                                disabled={!row.is_open}
-                                value={formatTimeHHMM(row.open_time)}
-                                onChange={(e) =>
-                                  setScheduleDrafts((prev) =>
-                                    prev.map((item) =>
-                                      item.day_of_week === row.day_of_week
-                                        ? { ...item, open_time: e.target.value }
-                                        : item
+                            <div className="grid w-full min-w-0 grid-cols-1 gap-2.5 min-[380px]:grid-cols-2 sm:w-auto sm:min-w-[260px]">
+                              <div className="flex min-w-0 flex-col gap-1">
+                                <label
+                                  htmlFor={`open-${row.day_of_week}`}
+                                  className="font-sans text-[11px] font-medium text-[#565656]"
+                                >
+                                  Jam Buka
+                                </label>
+                                <select
+                                  id={`open-${row.day_of_week}`}
+                                  aria-label={`Jam buka ${DAY_LABELS[row.day_of_week]}`}
+                                  disabled={!row.is_open}
+                                  value={formatTimeHHMM(row.open_time)}
+                                  onChange={(e) =>
+                                    setScheduleDrafts((prev) =>
+                                      prev.map((item) =>
+                                        item.day_of_week === row.day_of_week
+                                          ? { ...item, open_time: e.target.value }
+                                          : item
+                                      )
                                     )
-                                  )
-                                }
-                                className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
-                              />
-                              <input
-                                id={`close-${row.day_of_week}`}
-                                aria-label={`Jam tutup ${DAY_LABELS[row.day_of_week]}`}
-                                type="time"
-                                disabled={!row.is_open}
-                                value={formatTimeHHMM(row.close_time)}
-                                onChange={(e) =>
-                                  setScheduleDrafts((prev) =>
-                                    prev.map((item) =>
-                                      item.day_of_week === row.day_of_week
-                                        ? { ...item, close_time: e.target.value }
-                                        : item
+                                  }
+                                  className="box-border min-h-[44px] w-full min-w-0 max-w-full rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-2.5 font-sans text-base text-[#2B2B2B] tabular-nums focus:border-[#2B2B2B] focus:bg-[#FFFFFF] focus:outline-none disabled:bg-[#E0E0E0] disabled:text-[#848484]"
+                                >
+                                  {getTimeOptionsForValue(row.open_time).map(
+                                    (opt) => (
+                                      <option
+                                        key={`o-${row.day_of_week}-${opt}`}
+                                        value={opt}
+                                      >
+                                        {opt} WIB
+                                      </option>
                                     )
-                                  )
-                                }
-                                className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
-                              />
+                                  )}
+                                </select>
+                              </div>
+
+                              <div className="flex min-w-0 flex-col gap-1">
+                                <label
+                                  htmlFor={`close-${row.day_of_week}`}
+                                  className="font-sans text-[11px] font-medium text-[#565656]"
+                                >
+                                  Jam Tutup
+                                </label>
+                                <select
+                                  id={`close-${row.day_of_week}`}
+                                  aria-label={`Jam tutup ${DAY_LABELS[row.day_of_week]}`}
+                                  disabled={!row.is_open}
+                                  value={formatTimeHHMM(row.close_time)}
+                                  onChange={(e) =>
+                                    setScheduleDrafts((prev) =>
+                                      prev.map((item) =>
+                                        item.day_of_week === row.day_of_week
+                                          ? {
+                                              ...item,
+                                              close_time: e.target.value,
+                                            }
+                                          : item
+                                      )
+                                    )
+                                  }
+                                  className="box-border min-h-[44px] w-full min-w-0 max-w-full rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-2.5 font-sans text-base text-[#2B2B2B] tabular-nums focus:border-[#2B2B2B] focus:bg-[#FFFFFF] focus:outline-none disabled:bg-[#E0E0E0] disabled:text-[#848484]"
+                                >
+                                  {getTimeOptionsForValue(row.close_time).map(
+                                    (opt) => (
+                                      <option
+                                        key={`c-${row.day_of_week}-${opt}`}
+                                        value={opt}
+                                      >
+                                        {opt} WIB
+                                      </option>
+                                    )
+                                  )}
+                                </select>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -2909,7 +3004,7 @@ export function AdminCashierDashboard({
                           type="button"
                           disabled={savingSchedules}
                           onClick={() => void handleSaveSchedules()}
-                          className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto sm:text-sm"
+                          className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#2B2B2B] px-4 font-sans text-xs font-semibold text-[#FFFFFF] transition-colors hover:bg-[#1F1F1F] disabled:opacity-50 sm:w-auto sm:text-sm"
                         >
                           <Check aria-hidden="true" className="h-4 w-4" />
                           <span>
@@ -2941,7 +3036,7 @@ export function AdminCashierDashboard({
                     <div className="flex min-w-0 items-center gap-2.5">
                       <CalendarOff
                         aria-hidden="true"
-                        className="h-4 w-4 shrink-0 text-terracotta"
+                        className="h-4 w-4 shrink-0 text-ink"
                       />
                       <div className="min-w-0">
                         <p className="font-sans text-sm font-semibold text-ink">
@@ -2958,38 +3053,56 @@ export function AdminCashierDashboard({
                       aria-hidden="true"
                       className={`h-4 w-4 shrink-0 text-muted transition-transform ${
                         openOpsSection === "closed"
-                          ? "rotate-180 text-terracotta"
+                          ? "rotate-180 text-ink"
                           : ""
                       }`}
                     />
                   </button>
 
                   {openOpsSection === "closed" ? (
-                    <div className="border-t border-hairline p-3.5 sm:p-4">
+                    <div className="overflow-hidden border-t border-hairline p-3.5 sm:p-4">
                       <form
                         onSubmit={handleAddClosedDate}
-                        className="grid gap-2.5 sm:grid-cols-[170px_1fr_auto]"
+                        className="grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto] sm:items-end"
                       >
-                        <input
-                          type="date"
-                          required
-                          aria-label="Pilih tanggal libur"
-                          value={newClosedDate}
-                          onChange={(e) => setNewClosedDate(e.target.value)}
-                          className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Keterangan (mis. Libur Idul Fitri)"
-                          aria-label="Alasan libur"
-                          value={newClosedReason}
-                          onChange={(e) => setNewClosedReason(e.target.value)}
-                          className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
-                        />
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <label
+                            htmlFor="new-closed-date"
+                            className="font-sans text-xs font-medium text-[#565656]"
+                          >
+                            Pilih Tanggal Libur
+                          </label>
+                          <input
+                            id="new-closed-date"
+                            type="date"
+                            required
+                            value={newClosedDate}
+                            onChange={(e) => setNewClosedDate(e.target.value)}
+                            className="box-border min-h-[44px] w-full min-w-0 max-w-full appearance-none rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-3 font-sans text-base text-[#2B2B2B] tabular-nums focus:border-[#2B2B2B] focus:bg-[#FFFFFF] focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <label
+                            htmlFor="new-closed-reason"
+                            className="font-sans text-xs font-medium text-[#565656]"
+                          >
+                            Keterangan (Opsional)
+                          </label>
+                          <input
+                            id="new-closed-reason"
+                            type="text"
+                            placeholder="Mis. Libur Idul Fitri"
+                            value={newClosedReason}
+                            onChange={(e) => setNewClosedReason(e.target.value)}
+                            className="box-border min-h-[44px] w-full min-w-0 max-w-full rounded-xl border border-[#B3B3B3] bg-[#F7F7F7] px-3 font-sans text-base text-[#2B2B2B] placeholder:text-[#848484] focus:border-[#2B2B2B] focus:bg-[#FFFFFF] focus:outline-none"
+                          />
+                        </div>
+
                         <button
                           type="submit"
                           disabled={savingClosedDate}
-                          className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
+                          className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#2B2B2B] px-4 font-sans text-xs font-semibold text-[#FFFFFF] transition-colors hover:bg-[#1F1F1F] disabled:opacity-50 sm:w-auto"
                         >
                           <Plus aria-hidden="true" className="h-4 w-4" />
                           <span>

@@ -15,7 +15,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("push", (event) => {
   let data = {
-    title: "Madzhair.co",
+    title: "Madzhair Barber & Co",
     body: "Ada pembaruan jadwal antrean studio.",
     url: "/admin",
     tag: "madzhair-admin",

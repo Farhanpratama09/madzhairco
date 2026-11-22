@@ -649,7 +649,7 @@ export function BookingExperience({
     const origin =
       typeof window !== "undefined"
         ? window.location.origin
-        : "https://madzhair.vercel.app";
+        : "https://madzhairco.vercel.app";
     const formattedDate = formatIndonesianDateFull(booking.booking_date);
     const formattedTime = formatTimeHHMM(booking.start_time);
 
@@ -658,9 +658,10 @@ export function BookingExperience({
       `• Kode: ${booking.ticket_code}`,
       `• Nama: ${booking.customer_name}`,
       `• Layanan: ${booking.service_name}`,
-      `• Jadwal: ${formattedDate} pukul ${formattedTime}`,
+      `• Jadwal: ${formattedDate} pukul ${formattedTime} WIB`,
       "",
-      `Detail tiket: ${origin}/tiket/${booking.ticket_code}`,
+      "Detail e-tiket:",
+      `${origin}/tiket/${booking.ticket_code}`,
     ].join("\n");
 
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
@@ -941,7 +942,7 @@ export function BookingExperience({
         aria-label="Layanan, Tarif, Jam Operasional, dan Lokasi Studio"
         className="relative z-30 mt-8 mx-4 scroll-mt-24 pb-10 sm:mx-6 sm:pb-12 lg:mx-auto lg:-mt-12 lg:max-w-5xl lg:pb-14"
       >
-        <div className="relative rounded-3xl bg-[#F7F3EC] px-6 py-4 shadow-[0_20px_50px_-14px_rgba(48,56,65,0.13)] sm:px-8 sm:py-5 lg:rounded-full">
+        <div className="relative rounded-3xl border border-[#E0E0E0] bg-[#FFFFFF] px-6 py-4 shadow-[0_20px_50px_-14px_rgba(43,43,43,0.12)] sm:px-8 sm:py-5 lg:rounded-full">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.1fr_auto_0.9fr_auto_1.45fr] md:items-center md:gap-5 lg:gap-7">
             {/* 1) Segmen Layanan & Tarif (Dropdown Interaktif) */}
             <div
@@ -953,13 +954,13 @@ export function BookingExperience({
                 aria-expanded={isPricelistOpen}
                 aria-haspopup="menu"
                 onClick={() => setIsPricelistOpen((prev) => !prev)}
-                className="group flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+                className="group flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block font-sans text-xs font-medium text-muted">
                     Layanan &amp; tarif
                   </span>
-                  <span className="mt-0.5 block truncate font-sans text-sm font-semibold text-ink tabular-nums transition-colors group-hover:text-terracotta">
+                  <span className="mt-0.5 block truncate font-sans text-sm font-semibold text-ink tabular-nums transition-colors group-hover:text-ink-hover">
                     {activePricelistDisplay}
                   </span>
                 </span>
@@ -967,8 +968,8 @@ export function BookingExperience({
                   aria-hidden="true"
                   className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
                     isPricelistOpen
-                      ? "rotate-180 text-terracotta"
-                      : "text-muted group-hover:text-terracotta"
+                      ? "rotate-180 text-ink"
+                      : "text-muted group-hover:text-ink"
                   }`}
                 />
               </button>
@@ -978,7 +979,7 @@ export function BookingExperience({
                 <div
                   role="menu"
                   aria-label="Daftar harga layanan Madzhair Barber & Co"
-                  className="absolute top-full left-0 z-40 mt-4 w-full min-w-[260px] rounded-2xl border border-hairline bg-[#F7F3EC] p-4 shadow-[0_24px_60px_-16px_rgba(48,56,65,0.22)] sm:w-[380px] sm:p-5"
+                  className="absolute top-full left-0 z-40 mt-4 w-full min-w-[260px] rounded-2xl border border-hairline bg-[#FFFFFF] p-4 shadow-[0_24px_60px_-16px_rgba(43,43,43,0.18)] sm:w-[380px] sm:p-5"
                 >
                   <div className="flex items-center justify-between border-b border-hairline pb-3">
                     <p className="font-sans text-xs font-semibold text-terracotta">
@@ -1153,7 +1154,7 @@ export function BookingExperience({
       <section
         id="reservasi"
         ref={formSectionRef}
-        aria-label="Reservasi Kursi Madzhair.co"
+        aria-label="Reservasi Kursi Madzhair Barber & Co"
         className="scroll-mt-24 border-t border-hairline bg-surface-elevated/45 px-safe py-10 sm:py-16"
       >
         <div className="mx-auto max-w-6xl space-y-6 sm:space-y-8">

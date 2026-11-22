@@ -1,18 +1,28 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* Palet Baku Madzhair Barber & Co (v1.2 — Warm Alabaster Soft-Editorial 60-30-10) */
-  --color-alabaster: #EFE8DD;
-  --color-surface: #F7F3EC;
-  --color-surface-elevated: #E6DDD0;
-  --color-hairline: #DCD4C6;
-  --color-ink: #303841;
-  --color-muted: #5C646D;
-  --color-terracotta: #C25934;
-  --color-emerald-live: #2E6F56;
-  --color-crimson-alert: #B83B3B;
+  /* Palet Baku Madzhair Barber & Co (v2.0 — Charcoal Noir Monochrome System) */
+  --color-alabaster: #F7F7F7;
+  --color-surface: #FFFFFF;
+  --color-surface-elevated: #E0E0E0;
+  --color-hairline: #B3B3B3;
+  --color-ink: #2B2B2B;
+  --color-ink-hover: #1F1F1F;
+  --color-muted: #565656;
+  --color-subtle: #848484;
+  --color-terracotta: #2B2B2B;
+  --color-emerald-live: #2B2B2B;
+  --color-crimson-alert: #9E2A2B;
 
-  /* Tipografi Editorial (Anti-AI-Slop: Poppins UI + Instrument Serif Hero) */
+  /* Alias Semantik Charcoal Noir */
+  --color-charcoal-noir: #2B2B2B;
+  --color-charcoal-hover: #1F1F1F;
+  --color-ironclad-grey: #565656;
+  --color-urban-fog: #848484;
+  --color-moonlit-silver: #B3B3B3;
+  --color-cloud-veil: #E0E0E0;
+
+  /* Tipografi Editorial (Poppins UI + Instrument Serif Hero) */
   --font-display: var(--font-syne), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
   --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
@@ -21,17 +31,18 @@
 
 @layer base {
   html {
-    background-color: #EFE8DD;
-    color: #303841;
+    background-color: #F7F7F7;
+    color: #2B2B2B;
     color-scheme: light;
     -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
   }
 
   body {
-    background-color: #EFE8DD;
-    color: #303841;
+    background-color: #F7F7F7;
+    color: #2B2B2B;
     font-family: var(--font-sans);
+    min-height: 100vh;
     min-height: 100dvh;
     overscroll-behavior-y: contain;
     -webkit-font-smoothing: antialiased;
@@ -39,21 +50,24 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* Anti-zoom Safari iOS: seluruh input/select/textarea minimal 16px */
+  /* Anti-zoom Safari iOS & Android Chrome box-sizing aman */
   input,
   select,
   textarea {
+    font-size: 16px;
     font-size: max(16px, 1rem);
     line-height: 1.5;
+    box-sizing: border-box;
+    max-width: 100%;
   }
 
   ::selection {
-    background-color: rgba(194, 89, 52, 0.18);
-    color: #303841;
+    background-color: #E0E0E0;
+    color: #2B2B2B;
   }
 
   :focus-visible {
-    outline: 2px solid #C25934;
+    outline: 2px solid #2B2B2B;
     outline-offset: 2px;
   }
 }
@@ -73,6 +87,7 @@
 }
 
 @utility pb-safe {
+  padding-bottom: 1rem;
   padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
@@ -81,6 +96,8 @@
 }
 
 @utility px-safe {
+  padding-left: 1rem;
+  padding-right: 1rem;
   padding-left: max(1rem, env(safe-area-inset-left, 0px));
   padding-right: max(1rem, env(safe-area-inset-right, 0px));
 }
@@ -90,25 +107,25 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Garis Batas Arsitektural Tipis (1px solid #DCD4C6) */
+/* Garis Batas Arsitektural Tipis (1px solid #B3B3B3 Moonlit Silver) */
 @utility hairline-border {
-  border: 1px solid #DCD4C6;
+  border: 1px solid #B3B3B3;
 }
 
 @utility hairline-t {
-  border-top: 1px solid #DCD4C6;
+  border-top: 1px solid #B3B3B3;
 }
 
 @utility hairline-b {
-  border-bottom: 1px solid #DCD4C6;
+  border-bottom: 1px solid #B3B3B3;
 }
 
 @utility hairline-l {
-  border-left: 1px solid #DCD4C6;
+  border-left: 1px solid #B3B3B3;
 }
 
 @utility hairline-r {
-  border-right: 1px solid #DCD4C6;
+  border-right: 1px solid #B3B3B3;
 }
 
 /* Standar Area Sentuh Minimal Android & iOS (44px x 44px) */

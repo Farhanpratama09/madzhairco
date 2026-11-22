@@ -19,7 +19,7 @@ export async function POST() {
 
   const summary = await sendPushToAllAdmins(
     {
-      title: "Tes Notifikasi · Madzhair.co",
+      title: "Tes Notifikasi · Madzhair Barber & Co",
       body: "Notifikasi kasir HP aktif untuk Sungai Kunyit, Kalimantan Barat (WIB).",
       url: "/admin",
       tag: "madzhair-test-push",

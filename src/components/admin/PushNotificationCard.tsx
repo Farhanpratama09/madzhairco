@@ -44,6 +44,7 @@ function getPushClientEnv(): PushClientEnv {
   const supportsPush =
     typeof Notification !== "undefined" &&
     "serviceWorker" in navigator &&
+    typeof navigator.serviceWorker?.register === "function" &&
     "PushManager" in window;
 
   if (
@@ -65,7 +66,7 @@ function getPushClientEnv(): PushClientEnv {
 }
 
 function subscribeEnv(callback: () => void): () => void {
-  if (typeof window === "undefined" || !window.matchMedia) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return () => {};
   }
   const mq = window.matchMedia("(display-mode: standalone)");
@@ -73,8 +74,15 @@ function subscribeEnv(callback: () => void): () => void {
     cachedPushEnv = null;
     callback();
   };
-  mq.addEventListener("change", handler);
-  return () => mq.removeEventListener("change", handler);
+  if (typeof mq.addEventListener === "function") {
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }
+  if (typeof mq.addListener === "function") {
+    mq.addListener(handler);
+    return () => mq.removeListener(handler);
+  }
+  return () => {};
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
