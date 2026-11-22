@@ -67,16 +67,17 @@ Satu URL netral yang menyesuaikan tampilan berdasarkan status autentikasi perang
 
 ### 4.3 Dashboard Kasir & Manajemen (`/admin` & `/admin/login`)
 - **Cross-Platform PWA & Minimalis 100% `Poppins`:** Dapat di-install ke *Home Screen* di **Android (Chrome 1-tap)** dan **iOS (modal panduan visual 2 langkah `Cara Pasang di iPhone`)**, didukung `public/sw.js` untuk Web Push tanpa caching route dinamis.
-- **Header 1 Baris Ringkas:** Logo `Madzhair.co` di kiri; status live berikon kalender + Refresh & Keluar di kanan.
+- **Navbar `/admin` Steril & Status Bar 1 Baris (Anti Salah Klik PWA):** Kiri menampilkan tombol **`Madzhair.co · Kasir`** (tap → reset ke tab `Jadwal & Kasir` hari ini, tanpa link `Beranda`/`/`); kanan **hanya** tombol **`Keluar`**. Tepat di bawahnya terdapat 1 baris status operasional hari ini (state-machine `Asia/Pontianak`) + tombol `Refresh`. Link `← Kembali ke Halaman Booking` khusus tersedia di `/admin/login`.
 - **1-Tap Walk-in:** `+ Walk-in Haircut` (1 blok) dan `+ Walk-in Chemicals` (2 blok berurutan), nomor WA opsional/nullable.
-- **Visual Time-Block Timeline Minimalis & 1-Tap WA (Tab `Kasir & Antrean`):** Auto-complete otomatis saat melewati `end_time + 15 menit` (`Asia/Pontianak`), indikator 1 baris `Menunggu · Selesai · Batal` di atas date scrubber, blok `Istirahat` di layer bawah blok `BOOKED` lama, **Bottom Sheet Detail** (`>= 48px`), serta banner & tombol 1-Tap **`Kirim Info ke WA Pelanggan`** setelah Geser Jadwal / Batalkan.
-- **Kontrol Operasional & CMS (Tab `Operasional & CMS`):**
-  - **Tutup Studio Mendadak Khusus Hari Ini:** **`Tutup Mulai Jam Sekarang`** (`closed_dates.close_from_time`), **`Tutup Seharian Ini`** (`close_from_time = NULL`), dan **`Buka Kembali Studio`** tanpa mengubah `weekly_schedules` atau jadwal besok, disertai daftar peringatan booking aktif hari ini dengan tombol `Info WA`.
-  - **Jam Istirahat Harian:** Toggle `break_enabled`, input `break_start` (`17:15`) & `break_end` (`18:30` WIB) dengan validasi irisan interval penuh (1 jam vs 2 jam).
-  - **Notifikasi HP Kasir (Web Push):** Deteksi iOS Home Screen, tombol `Aktifkan Notifikasi HP` & `Tes Kirim Notif`, pemicu instan booking baru + endpoint `/api/cron/break-reminder` (fail-closed `CRON_SECRET`, jendela `[break_end - 15m, break_end + 5m]` `Asia/Pontianak`, dipanggil scheduler eksternal gratis `.github/workflows/break-reminder.yml` agar kompatibel Vercel Hobby).
-  - **QR Code Studio Siap Cetak:** Generator QR lokal via `<canvas>` menuju `${origin}/#reservasi` + tombol **`Download PNG Siap Cetak`** berbingkai `Madzhair.co · Sungai Kunyit, Kalimantan Barat`.
-  - **Tarif & Varian Layanan:** Baris 3 elemen (`Nama Varian`, `Harga (Rp)` otomatis bertitik ribuan, `Hapus`) dengan auto-kalkulasi range `Rp 30k – 40k`.
-  - **Galeri & Reels:** Khusus Instagram Reels & upload foto WebP (Judul + Link/File).
+- **Tab `Jadwal & Kasir` (Fokus Penuh Antrean Harian):** Auto-complete otomatis saat melewati `end_time + 15 menit` (`Asia/Pontianak`), date scrubber horizontal + ringkasan 1 baris `Menunggu · Selesai · Batal`, Visual Time-Block Timeline ringkas (`76px/jam`) dengan blok `Istirahat` (`z-[5]`) di bawah blok `BOOKED` (`z-10`), `Riwayat selesai` & `Riwayat dibatalkan` dalam accordion collapsible, **Bottom Sheet Detail** (`>= 48px`), serta banner & tombol 1-Tap **`Kirim Info ke WA Pelanggan`** setelah Geser Jadwal / Batalkan.
+- **Tab `Operasional & CMS` (3 Sub-Tab Pill + Collapsible Accordion Anti-Scroll Panjang):**
+  - **Sub-tab `Operasional`:**
+    - **Status Studio Hari Ini (State-Machine 5 Kondisi `Asia/Pontianak`):** (a) `Ditutup Mendadak mulai {jam} WIB` + `Buka Kembali Studio`, (b) `Studio Tutup Hari Ini` + `Buka Kembali Studio` (bila override/force-close), (c) `Operasional Hari Ini Selesai (Tutup {jam} WIB)` tanpa tombol tutup mendadak/seharian, (d) `Belum Buka · Buka {jam} WIB` dengan hanya `Tutup Seharian Ini`, (e) `Sedang Buka · Tutup {jam} WIB` dengan `Tutup Mulai Jam Sekarang` & `Tutup Seharian Ini` + daftar peringatan booking aktif ber-tombol `Info WA`.
+    - **Accordion Ringkas:** `Jam Istirahat Harian` (`17:15–18:30 WIB`, irisan penuh 1 jam vs 2 jam), `Jadwal Operasional Mingguan`, dan `Tanggal Libur Khusus` — masing-masing menampilkan ringkasan status 1 baris sebelum dibuka.
+  - **Sub-tab `Layanan & Galeri`:** Accordion per layanan (`Tarif Layanan` 3 elemen 1 baris dengan auto-kalkulasi range) dan accordion `Galeri Foto & Instagram Reels` dengan baris daftar padat.
+  - **Sub-tab `Notifikasi & QR`:**
+    - **Notifikasi HP Kasir (Web Push):** Accordion ringkas berstatus 1 baris, deteksi iOS Home Screen, tombol `Aktifkan Notifikasi HP` & `Tes Kirim Notif`, pemicu instan booking baru + `/api/cron/break-reminder` (fail-closed `CRON_SECRET`, jendela `[break_end - 15m, break_end + 5m]` `Asia/Pontianak`, scheduler `.github/workflows/break-reminder.yml`).
+    - **QR Code Studio Siap Cetak:** Baris ringkas dengan tombol **`Preview & Unduh QR PNG`** yang membuka modal pratinjau `<canvas>` QR, **`Download PNG Siap Cetak`**, **`Salin Link Booking`**, dan **`Buka Halaman Pelanggan`** (tab baru ke `/#reservasi`).
 
 ---
 

@@ -481,6 +481,147 @@ export function isStoreOpenLive({
   };
 }
 
+export type AdminTodayOperationalPhase =
+  | "EARLY_CLOSED"
+  | "CLOSED_ALL_DAY"
+  | "ENDED_TODAY"
+  | "BEFORE_OPEN"
+  | "OPEN_NOW";
+
+export interface AdminTodayOperationalState {
+  phase: AdminTodayOperationalPhase;
+  badgeText: string;
+  description: string;
+  tone: "open" | "closed" | "neutral";
+  openTime: string | null;
+  effectiveCloseTime: string | null;
+  earlyCloseCutoff: string | null;
+  canCloseFromNow: boolean;
+  canCloseAllDay: boolean;
+  canReopen: boolean;
+  isOverrideClosed: boolean;
+}
+
+/**
+ * Computes the exact 5-state operational machine for today in /admin
+ * using local Asia/Pontianak (WIB) time, weekly schedule, and today's closed_dates override.
+ */
+export function getAdminTodayOperationalState({
+  schedules,
+  closedDates,
+  settings,
+  nowParts,
+}: IsStoreOpenLiveInput): AdminTodayOperationalState {
+  const now = nowParts ?? getStoreNowParts(settings.timezone);
+  const todaySchedule =
+    schedules.find((item) => item.day_of_week === now.dayOfWeek) ?? null;
+  const todayClosedEntry =
+    closedDates.find((item) => item.closed_date === now.dateStr) ?? null;
+
+  const isForceClosed = Boolean(settings.is_force_closed);
+  const hasEarlyClose = Boolean(
+    todayClosedEntry && todayClosedEntry.close_from_time !== null
+  );
+  const hasFullDayOverride = Boolean(
+    todayClosedEntry && todayClosedEntry.close_from_time === null
+  );
+  const isWeeklyDayOff = !todaySchedule || !todaySchedule.is_open;
+
+  // (a) Sudah Tutup Mendadak (close_from_time !== null, tanpa force-close global)
+  if (!isForceClosed && hasEarlyClose && todayClosedEntry?.close_from_time) {
+    const cutoffLabel = formatTimeHHMM(todayClosedEntry.close_from_time);
+    return {
+      phase: "EARLY_CLOSED",
+      badgeText: `Ditutup Mendadak mulai ${cutoffLabel} WIB`,
+      description: `Studio ditutup lebih awal mulai ${cutoffLabel} WIB khusus hari ini. Jadwal besok tetap normal.`,
+      tone: "closed",
+      openTime: todaySchedule ? formatTimeHHMM(todaySchedule.open_time) : null,
+      effectiveCloseTime: cutoffLabel,
+      earlyCloseCutoff: cutoffLabel,
+      canCloseFromNow: false,
+      canCloseAllDay: false,
+      canReopen: true,
+      isOverrideClosed: true,
+    };
+  }
+
+  // (b) Libur Seharian (is_force_closed / !is_open / close_from_time === null di closed_dates)
+  if (isForceClosed || isWeeklyDayOff || hasFullDayOverride) {
+    const canReopen = isForceClosed || hasFullDayOverride;
+    return {
+      phase: "CLOSED_ALL_DAY",
+      badgeText: "Studio Tutup Hari Ini",
+      description: isForceClosed
+        ? "Mode tutup sementara aktif. Booking online & walk-in dijeda sampai dibuka kembali."
+        : hasFullDayOverride
+          ? "Studio ditutup seharian khusus hari ini. Jadwal besok tetap normal."
+          : "Hari ini merupakan hari libur rutin sesuai jadwal mingguan.",
+      tone: "closed",
+      openTime: null,
+      effectiveCloseTime: null,
+      earlyCloseCutoff: null,
+      canCloseFromNow: false,
+      canCloseAllDay: false,
+      canReopen,
+      isOverrideClosed: canReopen,
+    };
+  }
+
+  const openMinutes = parseTimeToMinutes(todaySchedule.open_time);
+  const regularCloseMinutes = parseTimeToMinutes(todaySchedule.close_time);
+  const openLabel = formatTimeHHMM(todaySchedule.open_time);
+  const effectiveCloseLabel = minutesToTime(regularCloseMinutes);
+
+  // (c) Jam Operasional Hari Ini Sudah Selesai (nowWib >= effective_close_time)
+  if (now.minutesFromMidnight >= regularCloseMinutes) {
+    return {
+      phase: "ENDED_TODAY",
+      badgeText: `Operasional Hari Ini Selesai (Tutup ${effectiveCloseLabel} WIB)`,
+      description: `Jam layanan hari ini telah berakhir pukul ${effectiveCloseLabel} WIB. Jadwal besok tetap berjalan otomatis.`,
+      tone: "neutral",
+      openTime: openLabel,
+      effectiveCloseTime: effectiveCloseLabel,
+      earlyCloseCutoff: null,
+      canCloseFromNow: false,
+      canCloseAllDay: false,
+      canReopen: false,
+      isOverrideClosed: false,
+    };
+  }
+
+  // (d) Belum Jam Buka (nowWib < open_time)
+  if (now.minutesFromMidnight < openMinutes) {
+    return {
+      phase: "BEFORE_OPEN",
+      badgeText: `Belum Buka · Buka ${openLabel} WIB`,
+      description: `Studio dijadwalkan buka pukul ${openLabel} – ${effectiveCloseLabel} WIB hari ini.`,
+      tone: "neutral",
+      openTime: openLabel,
+      effectiveCloseTime: effectiveCloseLabel,
+      earlyCloseCutoff: null,
+      canCloseFromNow: false,
+      canCloseAllDay: true,
+      canReopen: false,
+      isOverrideClosed: false,
+    };
+  }
+
+  // (e) Sedang Jam Operasional (open_time <= nowWib < effective_close_time)
+  return {
+    phase: "OPEN_NOW",
+    badgeText: `Sedang Buka · Tutup ${effectiveCloseLabel} WIB`,
+    description: `Studio sedang beroperasi (${openLabel} – ${effectiveCloseLabel} WIB). Anda dapat menutup lebih awal khusus hari ini jika diperlukan.`,
+    tone: "open",
+    openTime: openLabel,
+    effectiveCloseTime: effectiveCloseLabel,
+    earlyCloseCutoff: null,
+    canCloseFromNow: true,
+    canCloseAllDay: true,
+    canReopen: false,
+    isOverrideClosed: false,
+  };
+}
+
 /**
  * Generates today and upcoming dates anchored in the store's timezone.
  */

@@ -31,21 +31,28 @@ description: Pengembang aplikasi kasir harian /admin berbasis Progressive Web Ap
    - `GET/POST /api/cron/break-reminder` (fail-closed `CRON_SECRET` `503`/`401`, jendela `[break_end - 15m, break_end + 5m]` zona waktu `Asia/Pontianak`).
 
 ## 4. Spesifikasi UX Kasir Satu Tangan (`/admin` — `src/app/admin/page.tsx` & `src/components/admin/AdminCashierDashboard.tsx`)
-1. **Header 1 Baris Ringkas:** Logo `Madzhair.co` kiri; `LiveStatusTag` berikon kalender, Refresh, & Keluar kanan.
-2. **Visual Time-Block Timeline Minimalis Real-Time (Tab `Kasir & Antrean`):**
+1. **Navbar `/admin` Steril & Bar Status Ringkas (Max 2 Baris Mobile):**
+   - **Hapus total link `Beranda` (`/`):** Kiri navbar menampilkan tombol identitas **`Madzhair.co · Kasir`** yang saat di-tap mereset ke tab `Jadwal & Kasir` pada tanggal hari ini (tetap di dalam `/admin`); kanan navbar **HANYA** tombol **`Keluar`**.
+   - Link `← Kembali ke Halaman Booking` khusus dipertahankan di `/admin/login`.
+   - Tepat di bawah navbar tampil 1 baris status operasional hari ini (berikon kalender + badge state-machine `Asia/Pontianak` + tombol `Refresh`).
+2. **State-Machine 5 Kondisi Status Operasional Hari Ini (`getAdminTodayOperationalState` di `src/lib/slots.ts`):**
+   - `EARLY_CLOSED` (`close_from_time !== null`): badge `Ditutup Mendadak mulai {cutoff} WIB` + hanya tombol `Buka Kembali Studio`.
+   - `CLOSED_ALL_DAY` (`is_force_closed` / `!is_open` / `close_from_time === null`): badge `Studio Tutup Hari Ini` + `Buka Kembali Studio` (bila override/force-close).
+   - `ENDED_TODAY` (`nowWib >= effective_close_time`): badge netral `Operasional Hari Ini Selesai (Tutup {close} WIB)`, sembunyikan tombol `Tutup Mulai Jam Sekarang` & `Tutup Seharian Ini`.
+   - `BEFORE_OPEN` (`nowWib < open_time`): badge `Belum Buka · Buka {open} WIB`, hanya tampilkan `Tutup Seharian Ini`.
+   - `OPEN_NOW` (`open_time <= nowWib < effective_close_time`): badge `Sedang Buka · Tutup {close} WIB` + tombol `Tutup Mulai Jam Sekarang` & `Tutup Seharian Ini`.
+3. **Tab `Jadwal & Kasir` (Fokus Penuh Antrean Harian — Zero CMS Leak):**
    - Menjalankan `auto_complete_overdue_bookings()` berurutan sebelum memuat booking di SSR & secara otomatis saat `nowTick` mendeteksi sesi lewat `end_time + 15 menit` (`Asia/Pontianak`).
-   - Indikator 1 baris `Menunggu · Selesai · Batal` di atas date scrubber horizontal (`snap-x`).
-   - Blok **`Istirahat`** tampil non-interaktif di layer `z-[5]` di bawah blok booking `BOOKED` (`z-10`) agar jadwal lama tetap dapat di-tap & diproses.
+   - Date scrubber horizontal (`snap-x`) + ringkasan 1 baris `Menunggu · Selesai · Batal` + legenda `Online`/`Walk-in`.
+   - Visual Time-Block Timeline ringkas (`76px/jam`), blok **`Istirahat`** non-interaktif di `z-[5]` di bawah blok `BOOKED` (`z-10`), serta `Riwayat selesai` & `Riwayat dibatalkan` dalam accordion collapsible ringkas.
    - **1-Tap WA Notifikasi Perubahan:** Setelah admin berhasil **Geser Jadwal** atau **Batalkan** pada jadwal dengan `booking_contacts.phone`, tampil banner & tombol **`Kirim Info ke WA Pelanggan`** (`https://wa.me/{phone}?text=...`) di Tab 1 dan Bottom Sheet Detail.
-3. **Bottom Sheet Detail & Bar Walk-in Sticky Bottom:**
-   - Tombol aksi lega (`min-h-[48px]`): **Tandai Selesai**, **Geser Jadwal**, **Batalkan**, **Kirim Info ke WA Pelanggan** (kondisional), dan **Buka Smart Ticket**.
-4. **Manajemen Toko & Konten (Tab `Operasional & CMS`):**
-   - **Status Studio Hari Ini (`Sungai Kunyit, Kalimantan Barat — WIB`):** 2 tombol tutup cepat khusus tanggal hari ini (`Tutup Mulai Jam Sekarang` via `closed_dates.close_from_time` & `Tutup Seharian Ini` via `close_from_time = NULL`) + `Buka Kembali Studio`, tanpa mengubah `weekly_schedules`, beserta daftar peringatan booking aktif hari ini dengan tombol `Info WA`.
-   - **Jam Istirahat Harian:** Toggle `break_enabled`, input `break_start` (`17:15`) & `break_end` (`18:30`).
-   - **Notifikasi HP Kasir (`PushNotificationCard.tsx`):** Guard `typeof Notification !== "undefined"` + deteksi iOS Home Screen, tombol `Aktifkan Notifikasi HP` & `Tes Kirim Notif`.
-   - **QR Code Studio Siap Cetak (`StudioQrCodeCard.tsx`):** QR lokal via `<canvas>` menuju `${origin}/#reservasi` + `Download PNG Siap Cetak` berbingkai `Madzhair.co · Sungai Kunyit, Kalimantan Barat`.
-   - **Tarif & Varian Layanan:** Form 3 elemen 1 baris (`Nama Varian`, `Harga (Rp)` bertitik ribuan otomatis, `Hapus`) dengan auto-kalkulasi `price_min`, `price_max`, `price_display`, & preview baca-saja.
-   - **Galeri & Reels:** Khusus Instagram Reels & upload foto WebP (Judul + Link/File), kartu daftar media 1 baris ringkas.
+   - **Bottom Sheet Detail & Bar Walk-in Sticky Bottom:** Tombol aksi lega (`min-h-[48px]`): **Tandai Selesai**, **Geser Jadwal**, **Batalkan**, **Kirim Info ke WA Pelanggan** (kondisional), dan **Buka Smart Ticket**.
+4. **Tab `Operasional & CMS` (3 Sub-Tab Pill + Collapsible Accordion Anti-Scroll Panjang):**
+   - Sub-tab **`Operasional`**: kartu **Status Studio Hari Ini** (state-machine 5 kondisi + daftar peringatan booking aktif ber-tombol `Info WA`) + 3 accordion ringkas (`Jam Istirahat Harian`, `Jadwal Operasional Mingguan`, `Tanggal Libur Khusus`) dengan ringkasan 1 baris pada header masing-masing.
+   - Sub-tab **`Layanan & Galeri`**: accordion per layanan (form tarif 3 elemen 1 baris dengan auto-kalkulasi range) + accordion `Galeri Foto & Instagram Reels` (form padat & daftar media `p-3`).
+   - Sub-tab **`Notifikasi & QR`**:
+     - `PushNotificationCard.tsx`: accordion ringkas berstatus 1 baris (`Aktif` / `Belum aktif` / `iOS Home Screen`) + `Aktifkan Notifikasi HP` & `Tes Kirim Notif`.
+     - `StudioQrCodeCard.tsx`: baris ringkas tanpa preview poster besar terbuka di halaman utama CMS; tombol **`Preview & Unduh QR PNG`** membuka modal pratinjau `<canvas>` QR + **`Download PNG Siap Cetak`** + **`Salin Link Booking`** + **`Buka Halaman Pelanggan`** (tab baru ke `/#reservasi`).
 
 ## 5. Protokol Laporan & Pembaruan Skill
 - Setiap perubahan alur interaksi admin, timeline kasir, atau konfigurasi PWA wajib diperbarui di `SKILL.md` ini dan disetor ke `madzhair-coordinator`.

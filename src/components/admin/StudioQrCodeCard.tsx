@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import QRCode from "qrcode";
-import { Download, QrCode } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, QrCode, X } from "lucide-react";
 
-const DEFAULT_RESERVATION_URL = "https://madzhair.vercel.app/#reservasi";
+const DEFAULT_RESERVATION_URL = "https://madzhairco.vercel.app/#reservasi";
 
 function subscribeNoop(): () => void {
   return () => {};
@@ -23,6 +23,7 @@ function getServerBookingUrl(): string {
 
 interface StudioQrCodeCardProps {
   storeName: string;
+  onNotify?: (type: "success" | "error", message: string) => void;
 }
 
 function drawRoundedRect(
@@ -46,16 +47,22 @@ function drawRoundedRect(
   ctx.closePath();
 }
 
-export function StudioQrCodeCard({ storeName }: StudioQrCodeCardProps) {
+export function StudioQrCodeCard({
+  storeName,
+  onNotify,
+}: StudioQrCodeCardProps) {
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const bookingUrl = useSyncExternalStore(
     subscribeNoop,
     getClientBookingUrl,
     getServerBookingUrl
   );
+  const [modalOpen, setModalOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    if (!modalOpen) return;
     const canvas = previewCanvasRef.current;
     if (!canvas) return;
 
@@ -68,7 +75,29 @@ export function StudioQrCodeCard({ storeName }: StudioQrCodeCardProps) {
         light: "#F7F3EC",
       },
     });
-  }, [bookingUrl]);
+  }, [modalOpen, bookingUrl]);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [modalOpen]);
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(bookingUrl);
+      setCopied(true);
+      onNotify?.("success", "Link booking pelanggan disalin ke clipboard.");
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      onNotify?.("error", "Gagal menyalin link. Salin manual dari alamat yang tampil.");
+    }
+  };
 
   const handleDownloadPrintablePng = async () => {
     setDownloading(true);
@@ -163,56 +192,135 @@ export function StudioQrCodeCard({ storeName }: StudioQrCodeCardProps) {
     }
   };
 
+  const displayHost = bookingUrl.replace(/^https?:\/\//, "");
+
   return (
-    <div className="rounded-2xl border border-hairline bg-surface p-4 sm:p-5">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-        <div className="mx-auto flex shrink-0 flex-col items-center rounded-2xl border border-hairline bg-alabaster/65 p-3.5 sm:mx-0">
-          <canvas
-            ref={previewCanvasRef}
-            width={220}
-            height={220}
-            aria-label={`QR Code Reservasi ${storeName}`}
-            className="h-[180px] w-[180px] rounded-xl bg-surface sm:h-[200px] sm:w-[200px]"
-          />
-          <p className="mt-2 font-sans text-[11px] font-semibold text-ink">
-            {storeName} · Sungai Kunyit
-          </p>
-        </div>
-
-        <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex items-center gap-2 text-terracotta">
-            <QrCode aria-hidden="true" className="h-4 w-4 shrink-0" />
-            <span className="font-sans text-xs font-semibold">
-              Poster Meja Kasir &amp; Cermin
+    <>
+      {/* Baris Ringkas Tanpa Preview Poster Terbuka di Halaman Utama CMS */}
+      <div className="rounded-2xl border border-hairline bg-surface p-3.5 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-terracotta/30 bg-terracotta/10 text-terracotta">
+              <QrCode aria-hidden="true" className="h-5 w-5" />
             </span>
+            <div className="min-w-0">
+              <h3 className="font-sans text-sm font-semibold text-ink">
+                QR Code Studio &amp; Link Booking
+              </h3>
+              <p className="mt-0.5 truncate font-sans text-xs text-muted">
+                {displayHost}
+              </p>
+            </div>
           </div>
-
-          <h3 className="font-sans text-base font-semibold text-ink sm:text-lg">
-            QR Code Reservasi Studio
-          </h3>
-
-          <p className="font-sans text-xs leading-relaxed text-muted sm:text-sm">
-            Cetak dan tempel di kaca atau meja kasir studio. Pelanggan cukup
-            scan dengan kamera HP untuk langsung memilih jadwal di{" "}
-            <span className="font-semibold text-ink break-all">
-              {bookingUrl.replace(/^https?:\/\//, "")}
-            </span>
-            .
-          </p>
 
           <button
             type="button"
-            disabled={downloading}
-            onClick={() => void handleDownloadPrintablePng()}
-            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto sm:text-sm"
+            onClick={() => setModalOpen(true)}
+            className="inline-flex min-h-[44px] w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 sm:w-auto"
           >
-            <Download aria-hidden="true" className="h-4 w-4" />
-            <span>
-              {downloading ? "Menyiapkan PNG..." : "Download PNG Siap Cetak"}
-            </span>
+            <QrCode aria-hidden="true" className="h-4 w-4" />
+            <span>Preview &amp; Unduh QR PNG</span>
           </button>
         </div>
       </div>
-    </div>
+
+      {/* Modal / Drawer Pratinjau QR + Download PNG + Salin/Buka Link Pelanggan */}
+      {modalOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="studio-qr-modal-title"
+          onClick={() => setModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 backdrop-blur-xs sm:items-center sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-hairline bg-surface px-4 pt-3 pb-safe font-sans shadow-2xl sm:rounded-2xl sm:p-5"
+          >
+            <div
+              aria-hidden="true"
+              className="mx-auto mb-3 h-1 w-10 rounded-full bg-hairline sm:hidden"
+            />
+
+            <div className="flex items-start justify-between gap-3 border-b border-hairline pb-3">
+              <div>
+                <p className="text-xs font-semibold text-terracotta">
+                  Poster Meja Kasir &amp; Cermin
+                </p>
+                <h2
+                  id="studio-qr-modal-title"
+                  className="mt-0.5 text-base font-semibold text-ink sm:text-lg"
+                >
+                  QR Code Reservasi Studio
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                aria-label="Tutup pratinjau QR Code"
+                className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-hairline bg-alabaster/75 text-muted hover:border-ink hover:text-ink"
+              >
+                <X aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-col items-center rounded-2xl border border-hairline bg-alabaster/65 p-4 text-center">
+              <canvas
+                ref={previewCanvasRef}
+                width={220}
+                height={220}
+                aria-label={`QR Code Reservasi ${storeName}`}
+                className="h-[196px] w-[196px] rounded-xl bg-surface"
+              />
+              <p className="mt-2.5 text-xs font-semibold text-ink">
+                {storeName} · Sungai Kunyit, Kalimantan Barat
+              </p>
+              <p className="mt-0.5 break-all text-[11px] text-muted">
+                {displayHost}
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-2 pb-2">
+              <button
+                type="button"
+                disabled={downloading}
+                onClick={() => void handleDownloadPrintablePng()}
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
+              >
+                <Download aria-hidden="true" className="h-4 w-4" />
+                <span>
+                  {downloading ? "Menyiapkan PNG..." : "Download PNG Siap Cetak"}
+                </span>
+              </button>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => void handleCopyLink()}
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-hairline bg-alabaster/75 px-3 font-sans text-xs font-semibold text-ink transition-colors hover:border-terracotta hover:text-terracotta"
+                >
+                  {copied ? (
+                    <Check aria-hidden="true" className="h-3.5 w-3.5 text-terracotta" />
+                  ) : (
+                    <Copy aria-hidden="true" className="h-3.5 w-3.5" />
+                  )}
+                  <span>{copied ? "Link Disalin" : "Salin Link Booking"}</span>
+                </button>
+
+                <a
+                  href={bookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-hairline bg-surface-elevated/70 px-3 font-sans text-xs font-semibold text-ink transition-colors hover:border-ink"
+                >
+                  <span>Buka Halaman Pelanggan</span>
+                  <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

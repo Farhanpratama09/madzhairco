@@ -28,14 +28,16 @@ export default async function AdminLoginPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-alabaster text-ink pt-safe pb-safe">
       <header className="border-b border-hairline bg-surface/85 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-xl items-center justify-between px-4 py-3 sm:px-6">
-          <BrandMark variant="compact" size="sm" href="/" />
+        <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
+          <div className="shrink-0">
+            <BrandMark variant="compact" size="sm" href="/" />
+          </div>
           <Link
             href="/"
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-hairline bg-surface px-3.5 font-sans text-xs font-medium text-muted transition-colors hover:border-terracotta hover:text-terracotta"
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-hairline bg-surface px-2.5 font-sans text-[11px] font-medium leading-tight text-muted transition-colors hover:border-terracotta hover:text-terracotta sm:min-h-[44px] sm:px-3 sm:text-xs"
           >
-            <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
-            <span>Beranda</span>
+            <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+            <span>Kembali ke Halaman Booking</span>
           </Link>
         </div>
       </header>

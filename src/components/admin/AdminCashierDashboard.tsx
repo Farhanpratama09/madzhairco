@@ -14,8 +14,11 @@ import { useRouter } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AlertTriangle,
+  Bell,
+  Calendar,
   CalendarOff,
   Check,
+  ChevronDown,
   ChevronRight,
   Clock,
   Coffee,
@@ -38,17 +41,15 @@ import { InstallPwaBanner } from "@/components/admin/InstallPwaBanner";
 import { PushNotificationCard } from "@/components/admin/PushNotificationCard";
 import { StudioQrCodeCard } from "@/components/admin/StudioQrCodeCard";
 import { BrandMark } from "@/components/ui/BrandMark";
-import { EditorialSectionHeader } from "@/components/ui/EditorialSectionHeader";
-import { LiveStatusTag } from "@/components/ui/LiveStatusTag";
 import { validateSocialEmbedUrl } from "@/lib/security/sanitize";
 import {
   calculateAvailableSlots,
   findWalkinTargetSlot,
   formatTimeHHMM,
+  getAdminTodayOperationalState,
   getDayOfWeekFromDateStr,
   getStoreNowParts,
   getTodayAndUpcomingDates,
-  isStoreOpenLive,
   minutesToTime,
   parseTimeToMinutes,
 } from "@/lib/slots";
@@ -76,6 +77,7 @@ export interface AdminCashierDashboardProps {
 }
 
 type DashboardTab = "queue" | "cms";
+type CmsSubTab = "operational" | "catalog" | "notify_qr";
 
 type ToastMessage = {
   type: "success" | "error";
@@ -94,8 +96,8 @@ const DAY_LABELS = [
 
 const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1200;
-/** Tinggi track 60 menit (88px/jam: 1x Haircut ~80px, 2x Hair Chemicals ~168px proporsional) */
-const HOUR_ROW_HEIGHT_PX = 88;
+/** Tinggi track 60 menit (76px/jam: 1x Haircut ~68px, 2x Hair Chemicals ~144px ringkas & proporsional) */
+const HOUR_ROW_HEIGHT_PX = 76;
 
 const MONTH_NAMES_SHORT = [
   "Jan",
@@ -387,6 +389,16 @@ export function AdminCashierDashboard({
   );
 
   const [activeTab, setActiveTab] = useState<DashboardTab>("queue");
+  const [cmsSubTab, setCmsSubTab] = useState<CmsSubTab>("operational");
+  const [openOpsSection, setOpenOpsSection] = useState<
+    "break" | "weekly" | "closed" | null
+  >(null);
+  const [openCatalogSection, setOpenCatalogSection] = useState<string | null>(
+    () => initialServices[0]?.id ?? null
+  );
+  const [showCompletedHistory, setShowCompletedHistory] = useState(false);
+  const [showCancelledHistory, setShowCancelledHistory] = useState(false);
+
   const [settings, setSettings] = useState<StoreSettings>(initialSettings);
   const [schedules, setSchedules] = useState<WeeklySchedule[]>(initialSchedules);
   const [closedDates, setClosedDates] =
@@ -433,9 +445,9 @@ export function AdminCashierDashboard({
     () => getStoreNowParts(initialSettings.timezone).dateStr
   );
 
-  const liveStatus = useMemo(
+  const todayOpState = useMemo(
     () =>
-      isStoreOpenLive({
+      getAdminTodayOperationalState({
         schedules,
         closedDates,
         settings,
@@ -1043,12 +1055,7 @@ export function AdminCashierDashboard({
     router.refresh();
   };
 
-  // Today quick-close metadata (khusus tanggal hari ini Asia/Pontianak)
-  const todayClosedEntry = useMemo(
-    () => closedDates.find((item) => item.closed_date === nowParts.dateStr) ?? null,
-    [closedDates, nowParts.dateStr]
-  );
-
+  // Active bookings hari ini (Asia/Pontianak) untuk peringatan jika studio ditutup mendadak
   const todayActiveBookings = useMemo(
     () =>
       bookings
@@ -1778,89 +1785,122 @@ export function AdminCashierDashboard({
   const isQueueTab = activeTab === "queue";
   const hasActiveBottomDrawer = Boolean(pendingWalkin);
 
+  const openDaysCount = useMemo(
+    () => schedules.filter((row) => row.is_open).length,
+    [schedules]
+  );
+
+  const galleryPhotoCount = useMemo(
+    () => galleryItems.filter((item) => item.media_type === "photo").length,
+    [galleryItems]
+  );
+
+  const galleryReelsCount = useMemo(
+    () => galleryItems.filter((item) => item.media_type !== "photo").length,
+    [galleryItems]
+  );
+
+  const handleResetToTodayQueue = () => {
+    setActiveTab("queue");
+    setSelectedDate(nowParts.dateStr);
+    closeBookingDetail();
+    setPendingWalkin(null);
+  };
+
+  const statusToneClasses =
+    todayOpState.tone === "open"
+      ? "border-terracotta/35 bg-terracotta/10 text-terracotta"
+      : todayOpState.tone === "closed"
+        ? "border-crimson-alert/40 bg-crimson-alert/10 text-crimson-alert"
+        : "border-hairline bg-surface-elevated text-ink";
+
   return (
     <div
       className={`min-h-[100dvh] bg-alabaster font-sans text-ink pt-safe ${
         isQueueTab
           ? hasActiveBottomDrawer
-            ? "pb-60 sm:pb-52"
-            : "pb-36 sm:pb-32"
+            ? "pb-56 sm:pb-48"
+            : "pb-32 sm:pb-28"
           : "pb-safe"
       }`}
     >
-      {/* Header Ringkas Satu Baris: Logo Kiri, Status Studio + Refresh & Keluar di Kanan */}
+      {/* Sterilized Navbar /admin: Tanpa link Beranda (anti salah klik PWA) */}
       <header className="sticky top-0 z-30 border-b border-hairline bg-alabaster/95 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
-          <div className="shrink-0">
-            <BrandMark variant="compact" size="sm" href="/" />
-          </div>
+        <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-2 px-4 py-2 sm:px-6">
+          <button
+            type="button"
+            onClick={handleResetToTodayQueue}
+            aria-label="Madzhair.co Kasir — Kembali ke jadwal hari ini"
+            className="inline-flex min-h-[44px] min-w-0 items-center gap-2 rounded-xl pr-2 text-left transition-opacity hover:opacity-85"
+          >
+            <BrandMark variant="compact" size="sm" />
+            <span aria-hidden="true" className="text-hairline">
+              ·
+            </span>
+            <span className="truncate font-sans text-xs font-semibold text-terracotta sm:text-sm">
+              Kasir
+            </span>
+          </button>
 
-          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-            <div className="hidden rounded-full bg-surface px-3 py-1.5 sm:inline-flex">
-              <LiveStatusTag
-                isOpen={liveStatus.isOpen}
-                isForceClosed={settings.is_force_closed}
-                reason={liveStatus.reason}
-                compact
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => void refreshAllData()}
-              disabled={refreshing}
-              aria-label="Muat ulang data antrean"
-              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-hairline bg-surface text-muted transition-colors hover:border-terracotta hover:text-terracotta disabled:opacity-50"
-            >
-              <RefreshCw
-                aria-hidden="true"
-                className={`h-4 w-4 ${refreshing ? "animate-spin text-terracotta" : ""}`}
-              />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void handleSignOut()}
-              aria-label="Keluar dari akun admin"
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-hairline bg-surface px-3 font-sans text-xs font-medium text-muted transition-colors hover:border-crimson-alert hover:text-crimson-alert"
-            >
-              <LogOut aria-hidden="true" className="h-4 w-4" />
-              <span className="hidden sm:inline">Keluar</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            aria-label="Keluar dari akun admin"
+            className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl border border-hairline bg-surface px-3 font-sans text-xs font-semibold text-muted transition-colors hover:border-crimson-alert hover:text-crimson-alert"
+          >
+            <LogOut aria-hidden="true" className="h-4 w-4" />
+            <span>Keluar</span>
+          </button>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-4xl px-4 pt-4 font-sans sm:px-6">
-        <InstallPwaBanner className="mb-4" />
-
-        {/* Status Studio Mobile Ringkas (Tampil di < sm karena header mobile tetap 1 baris lega) */}
-        <div className="mb-3 flex items-center justify-between gap-2 sm:hidden">
-          <LiveStatusTag
-            isOpen={liveStatus.isOpen}
-            isForceClosed={settings.is_force_closed}
-            reason={liveStatus.reason}
-            compact
-          />
-          {liveStatus.openTime && liveStatus.closeTime && !settings.is_force_closed ? (
-            <span className="font-sans text-xs font-medium text-muted tabular-nums">
-              {liveStatus.openTime} – {liveStatus.closeTime} WIB
+      <main className="mx-auto w-full max-w-4xl px-4 pt-2.5 font-sans sm:px-6">
+        {/* Bar Status Operasional Hari Ini Ringkas (1 baris + tombol Refresh) */}
+        <div className="mb-2.5 flex items-center justify-between gap-2 rounded-xl border border-hairline bg-surface px-3 py-1.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <Calendar
+              aria-hidden="true"
+              className={`h-3.5 w-3.5 shrink-0 ${
+                todayOpState.tone === "closed"
+                  ? "text-crimson-alert"
+                  : todayOpState.tone === "open"
+                    ? "text-terracotta"
+                    : "text-muted"
+              }`}
+            />
+            <span className="font-sans text-[11px] font-semibold leading-snug text-ink tabular-nums sm:text-xs">
+              {todayOpState.badgeText}
             </span>
-          ) : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void refreshAllData()}
+            disabled={refreshing}
+            aria-label="Muat ulang data antrean"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-hairline bg-alabaster/70 text-muted transition-colors hover:border-terracotta hover:text-terracotta disabled:opacity-50"
+          >
+            <RefreshCw
+              aria-hidden="true"
+              className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-terracotta" : ""}`}
+            />
+          </button>
         </div>
 
-        {/* Toast Notifikasi Aksi (Tanpa titik bulat, selaras palet #303841 & #C25934) */}
+        <InstallPwaBanner className="mb-2.5" />
+
+        {/* Toast Notifikasi Aksi */}
         {toast ? (
           <div
             role="status"
             aria-live="polite"
-            className={`mb-4 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-sm text-ink ${
+            className={`mb-2.5 flex items-center justify-between gap-2.5 rounded-xl border px-3 py-2 text-xs text-ink sm:text-sm ${
               toast.type === "success"
                 ? "border-ink/25 bg-surface"
                 : "border-crimson-alert/50 bg-crimson-alert/10"
             }`}
           >
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               {toast.type === "success" ? (
                 <Check
                   aria-hidden="true"
@@ -1878,52 +1918,52 @@ export function AdminCashierDashboard({
               type="button"
               onClick={() => setToast(null)}
               aria-label="Tutup notifikasi"
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-muted hover:text-ink"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted hover:text-ink"
             >
               <X aria-hidden="true" className="h-4 w-4" />
             </button>
           </div>
         ) : null}
 
-        {/* Navigasi Mode Utama */}
+        {/* Navigasi Mode Utama (2 Tab Bersih) */}
         <nav
           aria-label="Navigasi Dashboard Kasir"
-          className="mb-4 grid grid-cols-2 gap-1.5 rounded-2xl border border-hairline bg-surface p-1.5"
+          className="mb-3 grid grid-cols-2 gap-1.5 rounded-2xl border border-hairline bg-surface p-1"
         >
           <button
             type="button"
             onClick={() => setActiveTab("queue")}
-            className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-3 font-sans text-xs font-semibold transition-colors sm:text-sm ${
+            className={`flex min-h-[44px] items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 font-sans text-[11px] font-semibold transition-colors sm:px-3 sm:text-sm ${
               activeTab === "queue"
                 ? "bg-terracotta text-surface"
                 : "text-muted hover:bg-surface-elevated hover:text-ink"
             }`}
           >
-            <Scissors aria-hidden="true" className="h-4 w-4" />
-            <span>Kasir &amp; Antrean</span>
+            <Scissors aria-hidden="true" className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+            <span>Jadwal &amp; Kasir</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("cms")}
-            className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-3 font-sans text-xs font-semibold transition-colors sm:text-sm ${
+            className={`flex min-h-[44px] items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 font-sans text-[11px] font-semibold transition-colors sm:px-3 sm:text-sm ${
               activeTab === "cms"
                 ? "bg-terracotta text-surface"
                 : "text-muted hover:bg-surface-elevated hover:text-ink"
             }`}
           >
-            <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
+            <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             <span>Operasional &amp; CMS</span>
           </button>
         </nav>
 
         {/* ================================================================ */}
-        {/* TAB 1: KASIR & ANTREAN REAL-TIME (VISUAL TIME-BLOCK TIMELINE)    */}
+        {/* TAB 1: JADWAL & KASIR (FOKUS PENUH ANTREAN HARIAN, ZERO CMS)     */}
         {/* ================================================================ */}
         {activeTab === "queue" ? (
           <section aria-label="Antrean Real-time">
             {/* Aksi Cepat 1-Tap Kirim Info Perubahan ke WA Pelanggan (sesudah Geser Jadwal / Batalkan) */}
             {recentWaPrompt ? (
-              <div className="mb-4 rounded-2xl border border-terracotta/50 bg-surface p-3.5 shadow-xs sm:p-4">
+              <div className="mb-3 rounded-2xl border border-terracotta/50 bg-surface p-3.5 shadow-xs">
                 <div className="flex items-start justify-between gap-2.5">
                   <div className="min-w-0">
                     <p className="font-sans text-xs font-semibold text-terracotta">
@@ -1931,19 +1971,19 @@ export function AdminCashierDashboard({
                         ? "Jadwal berhasil digeser"
                         : "Jadwal berhasil dibatalkan"}
                     </p>
-                    <p className="mt-0.5 font-sans text-xs text-ink sm:text-sm">
-                      Kirim notifikasi perubahan ke{" "}
+                    <p className="mt-0.5 font-sans text-xs text-ink">
+                      Kirim info perubahan ke{" "}
                       <strong className="font-semibold">
                         {recentWaPrompt.booking.customer_name}
                       </strong>{" "}
-                      ({recentWaPrompt.booking.ticket_code}) melalui WhatsApp.
+                      ({recentWaPrompt.booking.ticket_code}) via WhatsApp.
                     </p>
                   </div>
                   <button
                     type="button"
                     aria-label="Tutup tombol WA"
                     onClick={() => setRecentWaPrompt(null)}
-                    className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-xl text-muted hover:bg-surface-elevated hover:text-ink"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-surface-elevated hover:text-ink"
                   >
                     <X aria-hidden="true" className="h-4 w-4" />
                   </button>
@@ -1957,7 +1997,7 @@ export function AdminCashierDashboard({
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 sm:w-auto sm:text-sm"
+                  className="mt-2.5 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 sm:w-auto"
                 >
                   <MessageCircle aria-hidden="true" className="h-4 w-4" />
                   <span>Kirim Info ke WA Pelanggan</span>
@@ -1966,73 +2006,8 @@ export function AdminCashierDashboard({
               </div>
             ) : null}
 
-            {/* Peringatan jika Tutup Darurat / Tutup Hari Ini aktif */}
-            {settings.is_force_closed || todayClosedEntry ? (
-              <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-crimson-alert/45 bg-crimson-alert/10 p-3.5 text-sm text-ink">
-                <div className="flex items-start gap-2.5">
-                  <AlertTriangle
-                    aria-hidden="true"
-                    className="mt-0.5 h-4 w-4 shrink-0 text-crimson-alert"
-                  />
-                  <p className="text-xs sm:text-sm">
-                    <strong className="font-semibold">
-                      {settings.is_force_closed
-                        ? "Studio ditutup sementara."
-                        : todayClosedEntry?.close_from_time
-                          ? `Studio tutup mulai ${formatTimeHHMM(
-                              todayClosedEntry.close_from_time
-                            )} WIB hari ini.`
-                          : "Studio tutup seharian hari ini."}
-                    </strong>{" "}
-                    Atur atau buka kembali lewat tab Operasional &amp; CMS.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("cms")}
-                  className="inline-flex min-h-[40px] shrink-0 items-center rounded-xl border border-crimson-alert/40 bg-surface px-3 font-sans text-xs font-semibold text-crimson-alert transition-colors hover:bg-crimson-alert hover:text-surface"
-                >
-                  Atur
-                </button>
-              </div>
-            ) : null}
-
-            {/* Indikator Ringkas 1 Baris (Menunggu · Selesai · Batal) di Atas Strip Tanggal */}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-hairline bg-surface px-3.5 py-2.5 text-xs sm:text-sm">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="inline-flex items-center gap-1.5 text-muted">
-                  <span>Menunggu</span>
-                  <strong className="font-semibold text-terracotta tabular-nums">
-                    {dayCounts.booked}
-                  </strong>
-                </span>
-                <span aria-hidden="true" className="text-hairline">
-                  ·
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-muted">
-                  <span>Selesai</span>
-                  <strong className="font-semibold text-ink tabular-nums">
-                    {dayCounts.completed}
-                  </strong>
-                </span>
-                <span aria-hidden="true" className="text-hairline">
-                  ·
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-muted">
-                  <span>Batal</span>
-                  <strong className="font-semibold text-muted tabular-nums">
-                    {dayCounts.cancelled}
-                  </strong>
-                </span>
-              </div>
-
-              <span className="font-sans text-xs font-medium text-muted tabular-nums">
-                {formatIndonesianDateShort(selectedDate)}
-              </span>
-            </div>
-
             {/* Horizontal Date Scrubber (Hari Ini + 7 Hari ke Depan) */}
-            <div className="mb-4 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 no-scrollbar">
+            <div className="mb-2.5 flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
               {upcomingDates.map((d) => {
                 const isSelected = d.dateStr === selectedDate;
                 const count = activeCountByDate.get(d.dateStr) ?? 0;
@@ -2044,7 +2019,7 @@ export function AdminCashierDashboard({
                       setSelectedDate(d.dateStr);
                       closeBookingDetail();
                     }}
-                    className={`flex min-h-[48px] shrink-0 snap-start items-center gap-2.5 rounded-xl border px-3.5 py-2 text-left transition-colors ${
+                    className={`flex min-h-[44px] shrink-0 snap-start items-center gap-2 rounded-xl border px-3 py-1.5 text-left transition-colors ${
                       isSelected
                         ? "border-terracotta bg-terracotta text-surface"
                         : "border-hairline bg-surface text-ink hover:border-terracotta/60 hover:bg-surface-elevated"
@@ -2052,7 +2027,7 @@ export function AdminCashierDashboard({
                   >
                     <div className="flex flex-col leading-tight">
                       <span
-                        className={`font-sans text-[11px] font-medium ${
+                        className={`font-sans text-[10px] font-medium ${
                           isSelected ? "text-surface/85" : "text-terracotta"
                         }`}
                       >
@@ -2064,7 +2039,7 @@ export function AdminCashierDashboard({
                     </div>
                     {count > 0 ? (
                       <span
-                        className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1.5 font-sans text-[11px] font-semibold tabular-nums ${
+                        className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1 font-sans text-[11px] font-semibold tabular-nums ${
                           isSelected
                             ? "bg-surface text-terracotta"
                             : "bg-surface-elevated text-ink"
@@ -2078,87 +2053,79 @@ export function AdminCashierDashboard({
               })}
             </div>
 
-            {/* Header & Tag Legenda Timeline (Tanpa Titik Bulat) */}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-0.5">
-              <p className="font-sans text-xs font-semibold text-ink sm:text-sm">
-                Timeline kursi{" "}
-                {timelineRange ? (
-                  <span className="font-sans font-medium text-muted tabular-nums">
-                    · {minutesToTime(timelineRange.startMinutes)}–
-                    {minutesToTime(timelineRange.endMinutes)} WIB
-                  </span>
-                ) : (
-                  <span className="font-medium text-muted">· Libur</span>
-                )}
-              </p>
+            {/* Ringkasan 1 Baris Sesi Hari Ini + Legenda */}
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-hairline bg-surface px-3 py-2 text-xs">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                <span className="inline-flex items-center gap-1 text-muted">
+                  <span>Menunggu</span>
+                  <strong className="font-semibold text-terracotta tabular-nums">
+                    {dayCounts.booked}
+                  </strong>
+                </span>
+                <span aria-hidden="true" className="text-hairline">
+                  ·
+                </span>
+                <span className="inline-flex items-center gap-1 text-muted">
+                  <span>Selesai</span>
+                  <strong className="font-semibold text-ink tabular-nums">
+                    {dayCounts.completed}
+                  </strong>
+                </span>
+                <span aria-hidden="true" className="text-hairline">
+                  ·
+                </span>
+                <span className="inline-flex items-center gap-1 text-muted">
+                  <span>Batal</span>
+                  <strong className="font-semibold text-muted tabular-nums">
+                    {dayCounts.cancelled}
+                  </strong>
+                </span>
+              </div>
 
-              <div className="flex items-center gap-2 font-sans text-[11px] font-semibold">
-                <span className="rounded-md border border-terracotta/35 bg-terracotta/12 px-2 py-0.5 text-terracotta">
+              <div className="flex items-center gap-1.5 font-sans text-[11px] font-semibold">
+                <span className="rounded-md border border-terracotta/35 bg-terracotta/12 px-1.5 py-0.5 text-terracotta">
                   Online
                 </span>
-                <span className="rounded-md bg-ink px-2 py-0.5 text-surface">
+                <span className="rounded-md bg-ink px-1.5 py-0.5 text-surface">
                   Walk-in
                 </span>
               </div>
             </div>
 
-            {/* Peringatan bila tanggal terpilih libur / tutup awal tetapi masih ada jadwal aktif */}
-            {(selectedDateMeta.closedDate ||
-              !selectedDateMeta.schedule?.is_open) &&
-            timelineBookings.length > 0 ? (
-              <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-crimson-alert/45 bg-crimson-alert/10 p-3.5 text-xs text-ink">
-                <AlertTriangle
-                  aria-hidden="true"
-                  className="mt-0.5 h-4 w-4 shrink-0 text-crimson-alert"
-                />
-                <p>
-                  Tanggal ini berstatus{" "}
-                  <strong className="font-semibold">
-                    {selectedDateMeta.closedDate?.close_from_time
-                      ? `Tutup mulai ${formatTimeHHMM(
-                          selectedDateMeta.closedDate.close_from_time
-                        )} WIB`
-                      : selectedDateMeta.closedDate
-                        ? `Libur khusus (${selectedDateMeta.closedDate.reason || "Tutup"})`
-                        : "Hari libur rutin"}
-                  </strong>
-                  , namun masih memiliki jadwal aktif yang tampil di timeline.
-                </p>
-              </div>
-            ) : null}
-
             {/* Visual Time-Block Timeline Utama */}
             {!timelineRange ? (
-              <div className="rounded-2xl border border-hairline bg-surface px-5 py-10 text-center">
+              <div className="rounded-2xl border border-hairline bg-surface px-4 py-8 text-center">
                 <p className="font-sans text-xs font-semibold text-crimson-alert">
                   {selectedDateMeta.closedDate
                     ? "Libur khusus"
                     : "Hari libur rutin"}
                 </p>
-                <p className="mt-1.5 font-sans text-lg font-semibold text-ink">
-                  Toko Tidak Beroperasi
+                <p className="mt-1 font-sans text-base font-semibold text-ink">
+                  Studio Tidak Beroperasi
                 </p>
-                <p className="mt-1.5 text-sm text-muted">
+                <p className="mt-1 text-xs text-muted">
                   {selectedDateMeta.closedDate?.reason ||
                     "Tanggal ini ditandai libur pada jadwal operasional."}
                 </p>
               </div>
             ) : (
-              <div className="rounded-2xl border border-hairline bg-surface p-2.5 sm:p-4">
-                {timelineBookings.length === 0 ? (
-                  <div className="mb-3 rounded-xl border border-hairline bg-alabaster/70 px-3.5 py-2.5 text-xs text-muted">
-                    {selectedDate === nowParts.dateStr
-                      ? "Belum ada antrean aktif hari ini — gunakan tombol + Walk-in di bawah untuk mengunci kursi."
-                      : "Belum ada reservasi aktif pada tanggal ini."}
-                  </div>
-                ) : null}
+              <div className="rounded-2xl border border-hairline bg-surface p-2.5 sm:p-3.5">
+                <div className="mb-2 flex items-center justify-between gap-2 px-0.5 text-xs">
+                  <span className="font-semibold text-ink tabular-nums">
+                    {formatIndonesianDateShort(selectedDate)}
+                  </span>
+                  <span className="font-medium text-muted tabular-nums">
+                    {minutesToTime(timelineRange.startMinutes)}–
+                    {minutesToTime(timelineRange.endMinutes)} WIB
+                  </span>
+                </div>
 
                 <div className="relative flex gap-2 sm:gap-3">
                   {/* Kolom Penanda Jam (Left Time Axis) */}
                   <div
                     aria-hidden="true"
                     style={{ height: `${timelineRange.totalHeightPx}px` }}
-                    className="relative w-12 shrink-0 select-none sm:w-16"
+                    className="relative w-11 shrink-0 select-none sm:w-14"
                   >
                     {timelineRange.hours.map((hourStart, idx) => (
                       <span
@@ -2169,7 +2136,7 @@ export function AdminCashierDashboard({
                               ? "4px"
                               : `${idx * HOUR_ROW_HEIGHT_PX}px`,
                         }}
-                        className={`absolute right-1 font-sans text-[11px] font-medium text-muted tabular-nums sm:right-2 sm:text-xs ${
+                        className={`absolute right-1 font-sans text-[11px] font-medium text-muted tabular-nums sm:right-2 ${
                           idx === 0 ? "translate-y-0" : "-translate-y-1/2"
                         }`}
                       >
@@ -2177,7 +2144,7 @@ export function AdminCashierDashboard({
                       </span>
                     ))}
 
-                    <span className="absolute right-1 bottom-0 font-sans text-[11px] font-medium text-muted/75 tabular-nums sm:right-2 sm:text-xs">
+                    <span className="absolute right-1 bottom-0 font-sans text-[11px] font-medium text-muted/75 tabular-nums sm:right-2">
                       {minutesToTime(timelineRange.endMinutes)}
                     </span>
 
@@ -2225,7 +2192,7 @@ export function AdminCashierDashboard({
                           className="border-t border-hairline py-1"
                         >
                           {!isHourOccupied ? (
-                            <div className="flex h-full items-center justify-between gap-2 rounded-xl border border-dashed border-hairline bg-alabaster/50 px-3 py-2">
+                            <div className="flex h-full items-center justify-between gap-2 rounded-xl border border-dashed border-hairline bg-alabaster/50 px-3 py-1.5">
                               <span className="font-sans text-xs font-medium text-muted tabular-nums">
                                 {minutesToTime(hourStart)} –{" "}
                                 {minutesToTime(hourStart + 60)}
@@ -2254,17 +2221,17 @@ export function AdminCashierDashboard({
                       className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-hairline"
                     />
 
-                    {/* Layer 1.5: Blok Jam Istirahat (z-[5] DI BAWAH blok BOOKED z-10 agar booking lama tetap bisa di-tap) */}
+                    {/* Layer 1.5: Blok Jam Istirahat (z-[5] di bawah blok BOOKED z-10) */}
                     {timelineBreakBand ? (
                       <div
                         aria-label={`Jam istirahat ${timelineBreakBand.label}`}
                         style={{
                           top: `${timelineBreakBand.topPx + 2}px`,
-                          height: `${Math.max(40, timelineBreakBand.heightPx - 4)}px`,
+                          height: `${Math.max(38, timelineBreakBand.heightPx - 4)}px`,
                         }}
-                        className="pointer-events-none absolute inset-x-0 z-[5] flex items-center justify-between gap-2 rounded-xl border border-ink/20 bg-surface-elevated/90 px-3.5 py-2"
+                        className="pointer-events-none absolute inset-x-0 z-[5] flex items-center justify-between gap-2 rounded-xl border border-ink/20 bg-surface-elevated/90 px-3 py-1.5"
                       >
-                        <div className="flex items-center gap-2 font-sans text-xs font-semibold text-ink">
+                        <div className="flex items-center gap-1.5 font-sans text-xs font-semibold text-ink">
                           <Coffee
                             aria-hidden="true"
                             className="h-3.5 w-3.5 shrink-0 text-terracotta"
@@ -2277,7 +2244,7 @@ export function AdminCashierDashboard({
                       </div>
                     ) : null}
 
-                    {/* Layer 2: Blok Booking Aktif Bersih (z-10 di atas Istirahat, Tap -> Bottom Sheet Detail) */}
+                    {/* Layer 2: Blok Booking Aktif Bersih (z-10, Tap -> Bottom Sheet Detail) */}
                     {timelineBookings.map((booking) => {
                       const startMin = parseTimeToMinutes(booking.start_time);
                       const endMin = parseTimeToMinutes(booking.end_time);
@@ -2304,8 +2271,8 @@ export function AdminCashierDashboard({
                             booking.start_time
                           )} sampai ${formatTimeHHMM(booking.end_time)}`}
                           style={{
-                            top: `${topPx + 4}px`,
-                            height: `${Math.max(76, heightPx - 8)}px`,
+                            top: `${topPx + 3}px`,
+                            height: `${Math.max(68, heightPx - 6)}px`,
                           }}
                           className={`group absolute inset-x-0 z-10 overflow-hidden rounded-xl border text-left transition-all ${
                             isSelected
@@ -2313,7 +2280,6 @@ export function AdminCashierDashboard({
                               : "border-hairline bg-surface shadow-xs hover:border-terracotta/70"
                           }`}
                         >
-                          {/* Bar aksen vertikal kiri */}
                           <span
                             aria-hidden="true"
                             className={`absolute top-0 bottom-0 left-0 w-1 ${
@@ -2321,8 +2287,7 @@ export function AdminCashierDashboard({
                             }`}
                           />
 
-                          <div className="flex h-full flex-col justify-between px-3 py-2 pl-3.5 sm:px-3.5 sm:py-2.5 sm:pl-4">
-                            {/* Baris Atas: Jam + Tag Online/Walk-in + Detail */}
+                          <div className="flex h-full flex-col justify-between px-3 py-1.5 pl-3.5 sm:px-3.5 sm:py-2 sm:pl-4">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-sans text-xs font-semibold text-ink tabular-nums">
                                 {formatTimeHHMM(booking.start_time)}–
@@ -2331,7 +2296,7 @@ export function AdminCashierDashboard({
 
                               <div className="flex shrink-0 items-center gap-1.5">
                                 <span
-                                  className={`inline-flex items-center rounded-md border px-1.5 py-0.5 font-sans text-[11px] font-semibold ${
+                                  className={`inline-flex items-center rounded-md border px-1.5 py-0.5 font-sans text-[10px] font-semibold ${
                                     isWalkin
                                       ? "border-ink bg-ink text-surface"
                                       : "border-terracotta/40 bg-terracotta/12 text-terracotta"
@@ -2347,20 +2312,18 @@ export function AdminCashierDashboard({
                               </div>
                             </div>
 
-                            {/* Tengah: Nama Pelanggan & Layanan */}
                             <div className="min-w-0">
-                              <p className="truncate font-sans text-sm font-semibold leading-tight text-ink sm:text-[15px]">
+                              <p className="truncate font-sans text-sm font-semibold leading-tight text-ink">
                                 {booking.customer_name}
                               </p>
-                              <p className="mt-0.5 truncate font-sans text-xs leading-tight text-muted">
+                              <p className="truncate font-sans text-[11px] leading-tight text-muted">
                                 {booking.service_name}
                               </p>
                             </div>
 
-                            {/* Indikator Blok 2 Jam (Hair Chemicals 120 Menit) */}
                             {isMultiBlock ? (
-                              <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-hairline/80 bg-alabaster/70 px-2.5 py-1.5">
-                                <span className="inline-flex items-center gap-1.5 font-sans text-[11px] font-medium text-ink tabular-nums">
+                              <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-hairline/80 bg-alabaster/70 px-2.5 py-1">
+                                <span className="inline-flex items-center gap-1 font-sans text-[11px] font-medium text-ink tabular-nums">
                                   <Sparkles
                                     aria-hidden="true"
                                     className="h-3 w-3 shrink-0 text-terracotta"
@@ -2392,561 +2355,699 @@ export function AdminCashierDashboard({
               </div>
             )}
 
-            {/* Daftar Ringkas Riwayat Selesai (Tanpa titik bulat, warna #303841) */}
+            {/* Riwayat Selesai (Collapsible Ringkas) */}
             {completedBookings.length > 0 ? (
-              <div className="mt-6 rounded-2xl border border-hairline bg-surface p-4">
-                <div className="mb-3 flex items-center justify-between border-b border-hairline pb-2.5">
-                  <h3 className="font-sans text-sm font-semibold text-ink">
-                    Riwayat selesai
-                  </h3>
-                  <span className="font-sans text-xs font-medium text-muted tabular-nums">
-                    {completedBookings.length} jadwal
+              <div className="mt-3 overflow-hidden rounded-2xl border border-hairline bg-surface">
+                <button
+                  type="button"
+                  onClick={() => setShowCompletedHistory((prev) => !prev)}
+                  aria-expanded={showCompletedHistory}
+                  className="flex min-h-[44px] w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left transition-colors hover:bg-alabaster/45"
+                >
+                  <span className="font-sans text-xs font-semibold text-ink sm:text-sm">
+                    Riwayat selesai ({completedBookings.length})
                   </span>
-                </div>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`h-4 w-4 text-muted transition-transform ${
+                      showCompletedHistory ? "rotate-180 text-terracotta" : ""
+                    }`}
+                  />
+                </button>
 
-                <div className="divide-y divide-hairline">
-                  {completedBookings.map((booking) => (
-                    <button
-                      key={booking.id}
-                      type="button"
-                      onClick={() => openBookingDetail(booking.id)}
-                      className="flex min-h-[48px] w-full items-center justify-between gap-2.5 py-2.5 text-left transition-colors first:pt-0 last:pb-0 hover:text-terracotta"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-sans text-xs font-semibold text-ink tabular-nums">
-                            {formatTimeHHMM(booking.start_time)}–
-                            {formatTimeHHMM(booking.end_time)}
-                          </span>
-                          <span className="truncate font-sans text-sm font-semibold text-ink">
-                            {booking.customer_name}
-                          </span>
-                          <span className="rounded-md border border-ink/20 bg-surface-elevated px-1.5 py-0.5 font-sans text-[11px] font-medium text-ink">
-                            Selesai
-                          </span>
+                {showCompletedHistory ? (
+                  <div className="divide-y divide-hairline border-t border-hairline px-3.5">
+                    {completedBookings.map((booking) => (
+                      <button
+                        key={booking.id}
+                        type="button"
+                        onClick={() => openBookingDetail(booking.id)}
+                        className="flex min-h-[44px] w-full items-center justify-between gap-2 py-2.5 text-left transition-colors hover:text-terracotta"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-sans text-xs font-semibold text-ink tabular-nums">
+                              {formatTimeHHMM(booking.start_time)}–
+                              {formatTimeHHMM(booking.end_time)}
+                            </span>
+                            <span className="truncate font-sans text-xs font-semibold text-ink sm:text-sm">
+                              {booking.customer_name}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted">
+                            {booking.service_name} ·{" "}
+                            {booking.source === "WALKIN" ? "Walk-in" : "Online"}
+                          </p>
                         </div>
-                        <p className="mt-0.5 text-xs text-muted">
-                          {booking.service_name} ·{" "}
-                          {booking.source === "WALKIN" ? "Walk-in" : "Online"}
-                        </p>
-                      </div>
 
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-2.5 py-1.5 font-sans text-xs font-medium text-muted tabular-nums">
-                        <span>{booking.ticket_code}</span>
-                        <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-hairline bg-alabaster/70 px-2 py-1 font-sans text-[11px] font-medium text-muted tabular-nums">
+                          <span>{booking.ticket_code}</span>
+                          <ChevronRight aria-hidden="true" className="h-3 w-3" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
-            {/* Daftar Ringkas Riwayat Dibatalkan (Tanpa titik bulat) */}
+            {/* Riwayat Dibatalkan (Collapsible Ringkas) */}
             {cancelledBookings.length > 0 ? (
-              <div className="mt-6 rounded-2xl border border-hairline bg-surface p-4">
-                <div className="mb-3 flex items-center justify-between border-b border-hairline pb-2.5">
-                  <h3 className="font-sans text-sm font-semibold text-ink">
-                    Riwayat dibatalkan
-                  </h3>
-                  <span className="font-sans text-xs font-medium text-muted tabular-nums">
-                    {cancelledBookings.length} jadwal
+              <div className="mt-2.5 overflow-hidden rounded-2xl border border-hairline bg-surface">
+                <button
+                  type="button"
+                  onClick={() => setShowCancelledHistory((prev) => !prev)}
+                  aria-expanded={showCancelledHistory}
+                  className="flex min-h-[44px] w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left transition-colors hover:bg-alabaster/45"
+                >
+                  <span className="font-sans text-xs font-semibold text-muted sm:text-sm">
+                    Riwayat dibatalkan ({cancelledBookings.length})
                   </span>
-                </div>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`h-4 w-4 text-muted transition-transform ${
+                      showCancelledHistory ? "rotate-180 text-terracotta" : ""
+                    }`}
+                  />
+                </button>
 
-                <div className="divide-y divide-hairline">
-                  {cancelledBookings.map((booking) => (
-                    <button
-                      key={booking.id}
-                      type="button"
-                      onClick={() => openBookingDetail(booking.id)}
-                      className="flex min-h-[48px] w-full items-center justify-between gap-2.5 py-2.5 text-left transition-colors first:pt-0 last:pb-0 hover:text-terracotta"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-sans text-xs font-semibold text-ink tabular-nums">
-                            {formatTimeHHMM(booking.start_time)}–
-                            {formatTimeHHMM(booking.end_time)}
-                          </span>
-                          <span className="truncate font-sans text-sm font-semibold text-ink">
-                            {booking.customer_name}
-                          </span>
-                          <span className="rounded-md border border-hairline bg-surface-elevated px-1.5 py-0.5 font-sans text-[11px] font-medium text-muted">
-                            {booking.source === "WALKIN" ? "Walk-in" : "Online"}
-                          </span>
+                {showCancelledHistory ? (
+                  <div className="divide-y divide-hairline border-t border-hairline px-3.5">
+                    {cancelledBookings.map((booking) => (
+                      <button
+                        key={booking.id}
+                        type="button"
+                        onClick={() => openBookingDetail(booking.id)}
+                        className="flex min-h-[44px] w-full items-center justify-between gap-2 py-2.5 text-left transition-colors hover:text-terracotta"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-sans text-xs font-semibold text-ink tabular-nums">
+                              {formatTimeHHMM(booking.start_time)}–
+                              {formatTimeHHMM(booking.end_time)}
+                            </span>
+                            <span className="truncate font-sans text-xs font-semibold text-ink sm:text-sm">
+                              {booking.customer_name}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted">
+                            {booking.service_name} · Slot dibebaskan
+                          </p>
                         </div>
-                        <p className="mt-0.5 text-xs text-muted">
-                          {booking.service_name} · Slot dibebaskan
-                        </p>
-                      </div>
 
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-2.5 py-1.5 font-sans text-xs font-medium text-muted tabular-nums">
-                        <span>{booking.ticket_code}</span>
-                        <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-hairline bg-alabaster/70 px-2 py-1 font-sans text-[11px] font-medium text-muted tabular-nums">
+                          <span>{booking.ticket_code}</span>
+                          <ChevronRight aria-hidden="true" className="h-3 w-3" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </section>
         ) : (
           /* ================================================================ */
-          /* TAB 2: OPERASIONAL & CMS RINGAN                                  */
+          /* TAB 2: OPERASIONAL & CMS (SUB-PILL + COLLAPSIBLE ACCORDION)      */
           /* ================================================================ */
-          <div className="space-y-8 pb-10">
-            {/* STATUS STUDIO HARI INI & JAM OPERASIONAL */}
-            <section aria-label="Pengaturan Jam Operasional dan Status Studio">
-              <EditorialSectionHeader
-                title="Jam Operasional"
-                description="Kelola status buka hari ini (Sungai Kunyit, Kalimantan Barat — WIB), jam istirahat, dan jadwal rutin."
-                className="mb-4"
-              />
+          <div className="space-y-3 pb-8">
+            {/* Sub-Tab Pill Bersih (Operasional · Layanan & Galeri · Notifikasi & QR) */}
+            <div
+              role="tablist"
+              aria-label="Sub-menu Operasional dan CMS"
+              className="grid grid-cols-3 gap-1.5 rounded-2xl border border-hairline bg-surface p-1"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cmsSubTab === "operational"}
+                onClick={() => setCmsSubTab("operational")}
+                className={`min-h-[40px] rounded-xl px-2 font-sans text-xs font-semibold transition-colors ${
+                  cmsSubTab === "operational"
+                    ? "bg-ink text-surface"
+                    : "text-muted hover:bg-surface-elevated hover:text-ink"
+                }`}
+              >
+                Operasional
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cmsSubTab === "catalog"}
+                onClick={() => setCmsSubTab("catalog")}
+                className={`min-h-[40px] rounded-xl px-2 font-sans text-xs font-semibold transition-colors ${
+                  cmsSubTab === "catalog"
+                    ? "bg-ink text-surface"
+                    : "text-muted hover:bg-surface-elevated hover:text-ink"
+                }`}
+              >
+                Layanan &amp; Galeri
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cmsSubTab === "notify_qr"}
+                onClick={() => setCmsSubTab("notify_qr")}
+                className={`min-h-[40px] rounded-xl px-2 font-sans text-xs font-semibold transition-colors ${
+                  cmsSubTab === "notify_qr"
+                    ? "bg-ink text-surface"
+                    : "text-muted hover:bg-surface-elevated hover:text-ink"
+                }`}
+              >
+                Notifikasi &amp; QR
+              </button>
+            </div>
 
-              {/* Kartu Tutup Studio Mendadak Khusus Hari Ini */}
-              <div className="mb-4 rounded-2xl border border-hairline bg-surface p-4 sm:p-5">
-                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-hairline pb-3">
-                  <div>
-                    <p className="font-sans text-sm font-semibold text-ink sm:text-base">
-                      Status studio hari ini ({formatIndonesianDateShort(nowParts.dateStr)})
-                    </p>
-                    <p className="mt-0.5 font-sans text-xs text-muted">
-                      {settings.is_force_closed
-                        ? "Mode tutup sementara aktif. Booking online & walk-in dijeda."
-                        : todayClosedEntry
-                          ? todayClosedEntry.close_from_time
-                            ? `Tutup lebih awal mulai ${formatTimeHHMM(
-                                todayClosedEntry.close_from_time
-                              )} WIB khusus hari ini. Jadwal besok tetap normal.`
-                            : "Studio tutup seharian khusus hari ini. Jadwal besok tetap normal."
-                          : "Studio beroperasi mengikuti jadwal rutin hari ini."}
-                    </p>
-                  </div>
-
-                  <span
-                    className={`inline-flex items-center rounded-lg border px-2.5 py-1 font-sans text-xs font-semibold ${
-                      settings.is_force_closed || todayClosedEntry
-                        ? "border-crimson-alert/40 bg-crimson-alert/10 text-crimson-alert"
-                        : "border-ink/20 bg-surface-elevated text-ink"
-                    }`}
-                  >
-                    {settings.is_force_closed
-                      ? "Tutup sementara"
-                      : todayClosedEntry?.close_from_time
-                        ? `Tutup mulai ${formatTimeHHMM(
-                            todayClosedEntry.close_from_time
-                          )} WIB`
-                        : todayClosedEntry
-                          ? "Tutup seharian"
-                          : "Buka normal"}
-                  </span>
-                </div>
-
-                <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-                  <button
-                    type="button"
-                    disabled={updatingQuickClose}
-                    onClick={() => void handleCloseFromNowToday()}
-                    className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-terracotta/50 bg-terracotta/10 px-3.5 font-sans text-xs font-semibold text-terracotta transition-colors hover:bg-terracotta hover:text-surface disabled:opacity-50 sm:flex-none"
-                  >
-                    <Clock aria-hidden="true" className="h-3.5 w-3.5" />
-                    <span>
-                      Tutup Mulai Jam Sekarang ({nowParts.timeStr} WIB)
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={updatingQuickClose}
-                    onClick={() => void handleCloseAllDayToday()}
-                    className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 px-3.5 font-sans text-xs font-semibold text-crimson-alert transition-colors hover:bg-crimson-alert hover:text-surface disabled:opacity-50 sm:flex-none"
-                  >
-                    <Power aria-hidden="true" className="h-3.5 w-3.5" />
-                    <span>Tutup Seharian Ini</span>
-                  </button>
-
-                  {settings.is_force_closed || todayClosedEntry ? (
-                    <button
-                      type="button"
-                      disabled={updatingQuickClose}
-                      onClick={() => void handleReopenStudio()}
-                      className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-ink px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:flex-none"
-                    >
-                      <Check aria-hidden="true" className="h-3.5 w-3.5" />
-                      <span>Buka Kembali Studio</span>
-                    </button>
-                  ) : null}
-                </div>
-
-                {/* Daftar Booking Aktif Hari Ini yang Masih BOOKED (Tidak dibatalkan diam-diam) */}
-                {(settings.is_force_closed || todayClosedEntry) &&
-                todayActiveBookings.length > 0 ? (
-                  <div className="mt-4 rounded-xl border border-crimson-alert/35 bg-crimson-alert/8 p-3.5">
-                    <div className="flex items-start gap-2 text-xs text-ink">
-                      <AlertTriangle
-                        aria-hidden="true"
-                        className="mt-0.5 h-4 w-4 shrink-0 text-crimson-alert"
-                      />
-                      <p>
-                        Masih ada{" "}
-                        <strong className="font-semibold tabular-nums">
-                          {todayActiveBookings.length} jadwal BOOKED
-                        </strong>{" "}
-                        hari ini. Booking lama tidak dibatalkan otomatis —
-                        hubungi pelanggan via WA atau geser/batalkan dari
-                        timeline.
+            {/* SUB-TAB A: OPERASIONAL (Status Hari Ini + 3 Accordion Ringkas) */}
+            {cmsSubTab === "operational" ? (
+              <div className="space-y-3">
+                {/* Kartu Status Studio Hari Ini (State-Machine 5 Kondisi Asia/Pontianak) */}
+                <section
+                  aria-label="Status Studio Hari Ini"
+                  className="rounded-2xl border border-hairline bg-surface p-3.5 sm:p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-sans text-sm font-semibold text-ink">
+                        Status Studio Hari Ini
+                      </p>
+                      <p className="mt-0.5 font-sans text-[11px] text-muted">
+                        {formatIndonesianDateShort(nowParts.dateStr)} · Sungai
+                        Kunyit, Kalimantan Barat (WIB)
                       </p>
                     </div>
 
-                    <div className="mt-2.5 space-y-2">
-                      {todayActiveBookings.map((b) => {
-                        const phone = bookingPhones[b.id];
-                        return (
-                          <div
-                            key={b.id}
-                            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-hairline bg-surface px-3 py-2"
-                          >
-                            <div className="min-w-0 font-sans text-xs">
-                              <p className="font-semibold text-ink tabular-nums">
-                                {formatTimeHHMM(b.start_time)}–
-                                {formatTimeHHMM(b.end_time)} WIB ·{" "}
-                                {b.customer_name}
-                              </p>
-                              <p className="text-muted">
-                                {b.service_name} · {b.ticket_code}
-                              </p>
-                            </div>
-                            {phone ? (
-                              <a
-                                href={buildAdminWaNotifyUrl(
-                                  phone,
-                                  b,
-                                  "early_close"
-                                )}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-terracotta px-3 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90"
-                              >
-                                <MessageCircle
-                                  aria-hidden="true"
-                                  className="h-3.5 w-3.5"
-                                />
-                                <span>Info WA</span>
-                              </a>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveTab("queue");
-                                  setSelectedDate(b.booking_date);
-                                  openBookingDetail(b.id);
-                                }}
-                                className="inline-flex min-h-[40px] items-center rounded-xl border border-hairline bg-alabaster/70 px-3 font-sans text-xs font-medium text-ink hover:border-terracotta"
-                              >
-                                Kelola
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Kartu Pengaturan Jam Istirahat Harian (Default 17:15 – 18:30 WIB) */}
-              <div className="mb-4 rounded-2xl border border-hairline bg-surface p-4 sm:p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Coffee
-                        aria-hidden="true"
-                        className="h-4 w-4 text-terracotta"
-                      />
-                      <p className="font-sans text-sm font-semibold text-ink sm:text-base">
-                        Jam istirahat harian
-                      </p>
-                    </div>
-                    <p className="mt-0.5 font-sans text-xs text-muted">
-                      Saat aktif, slot yang beririsan (1 jam maupun 2 jam)
-                      otomatis dikunci. Booking lama yang sudah masuk tetap aman.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setBreakEnabledDraft((prev) => !prev)}
-                    className={`inline-flex min-h-[44px] min-w-[96px] items-center justify-center rounded-xl border px-3.5 font-sans text-xs font-semibold transition-colors ${
-                      breakEnabledDraft
-                        ? "border-terracotta bg-terracotta text-surface"
-                        : "border-hairline bg-surface-elevated text-muted"
-                    }`}
-                  >
-                    {breakEnabledDraft ? "Aktif" : "Nonaktif"}
-                  </button>
-                </div>
-
-                <div className="mt-3.5 grid grid-cols-2 gap-3 sm:max-w-sm">
-                  <div className="flex flex-col gap-1">
-                    <label
-                      htmlFor="break-start-time"
-                      className="font-sans text-xs font-medium text-muted"
+                    <span
+                      className={`inline-flex items-center rounded-lg border px-2.5 py-1 font-sans text-xs font-semibold tabular-nums ${statusToneClasses}`}
                     >
-                      Mulai (WIB)
-                    </label>
-                    <input
-                      id="break-start-time"
-                      type="time"
-                      value={breakStartDraft}
-                      onChange={(e) => setBreakStartDraft(e.target.value)}
-                      className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label
-                      htmlFor="break-end-time"
-                      className="font-sans text-xs font-medium text-muted"
-                    >
-                      Selesai (WIB)
-                    </label>
-                    <input
-                      id="break-end-time"
-                      type="time"
-                      value={breakEndDraft}
-                      onChange={(e) => setBreakEndDraft(e.target.value)}
-                      className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-3.5">
-                  <button
-                    type="button"
-                    disabled={savingBreak}
-                    onClick={() => void handleSaveBreakSettings()}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
-                  >
-                    <Check aria-hidden="true" className="h-4 w-4" />
-                    <span>
-                      {savingBreak ? "Menyimpan..." : "Simpan Jam Istirahat"}
+                      {todayOpState.badgeText}
                     </span>
-                  </button>
-                </div>
-              </div>
+                  </div>
 
-              {/* Editor Jam Buka Mingguan */}
-              <div className="overflow-hidden rounded-2xl border border-hairline bg-surface">
-                <div className="divide-y divide-hairline">
-                  {scheduleDrafts.map((row) => (
-                    <div
-                      key={row.day_of_week}
-                      className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="flex items-center justify-between gap-3 sm:w-44">
-                        <span className="font-sans text-sm font-semibold text-ink">
-                          {DAY_LABELS[row.day_of_week]}
-                        </span>
+                  <p className="mt-2 font-sans text-xs leading-relaxed text-muted">
+                    {todayOpState.description}
+                  </p>
+
+                  {/* Tombol Aksi Kondisional sesuai State-Machine Waktu WIB */}
+                  {todayOpState.canCloseFromNow ||
+                  todayOpState.canCloseAllDay ||
+                  todayOpState.canReopen ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {todayOpState.canCloseFromNow ? (
                         <button
                           type="button"
-                          onClick={() =>
-                            setScheduleDrafts((prev) =>
-                              prev.map((item) =>
-                                item.day_of_week === row.day_of_week
-                                  ? { ...item, is_open: !item.is_open }
-                                  : item
-                              )
-                            )
-                          }
-                          className={`inline-flex min-h-[44px] min-w-[84px] items-center justify-center rounded-xl border px-3 font-sans text-xs font-semibold transition-colors ${
-                            row.is_open
-                              ? "border-ink bg-ink text-surface"
+                          disabled={updatingQuickClose}
+                          onClick={() => void handleCloseFromNowToday()}
+                          className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-terracotta/50 bg-terracotta/10 px-3 font-sans text-xs font-semibold text-terracotta transition-colors hover:bg-terracotta hover:text-surface disabled:opacity-50 sm:flex-none"
+                        >
+                          <Clock aria-hidden="true" className="h-3.5 w-3.5" />
+                          <span>
+                            Tutup Mulai Jam Sekarang ({nowParts.timeStr} WIB)
+                          </span>
+                        </button>
+                      ) : null}
+
+                      {todayOpState.canCloseAllDay ? (
+                        <button
+                          type="button"
+                          disabled={updatingQuickClose}
+                          onClick={() => void handleCloseAllDayToday()}
+                          className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 px-3 font-sans text-xs font-semibold text-crimson-alert transition-colors hover:bg-crimson-alert hover:text-surface disabled:opacity-50 sm:flex-none"
+                        >
+                          <Power aria-hidden="true" className="h-3.5 w-3.5" />
+                          <span>Tutup Seharian Ini</span>
+                        </button>
+                      ) : null}
+
+                      {todayOpState.canReopen ? (
+                        <button
+                          type="button"
+                          disabled={updatingQuickClose}
+                          onClick={() => void handleReopenStudio()}
+                          className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-ink px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:flex-none"
+                        >
+                          <Check aria-hidden="true" className="h-3.5 w-3.5" />
+                          <span>Buka Kembali Studio</span>
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {/* Peringatan Booking Aktif jika Studio Ditutup Mendadak / Seharian */}
+                  {todayOpState.isOverrideClosed &&
+                  todayActiveBookings.length > 0 ? (
+                    <div className="mt-3 rounded-xl border border-crimson-alert/35 bg-crimson-alert/8 p-3">
+                      <div className="flex items-start gap-2 text-xs text-ink">
+                        <AlertTriangle
+                          aria-hidden="true"
+                          className="mt-0.5 h-4 w-4 shrink-0 text-crimson-alert"
+                        />
+                        <p>
+                          Masih ada{" "}
+                          <strong className="font-semibold tabular-nums">
+                            {todayActiveBookings.length} jadwal BOOKED
+                          </strong>{" "}
+                          hari ini. Booking lama tidak dibatalkan otomatis —
+                          hubungi pelanggan via WA atau kelola di timeline.
+                        </p>
+                      </div>
+
+                      <div className="mt-2 space-y-1.5">
+                        {todayActiveBookings.map((b) => {
+                          const phone = bookingPhones[b.id];
+                          return (
+                            <div
+                              key={b.id}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-hairline bg-surface px-3 py-2"
+                            >
+                              <div className="min-w-0 font-sans text-xs">
+                                <p className="font-semibold text-ink tabular-nums">
+                                  {formatTimeHHMM(b.start_time)}–
+                                  {formatTimeHHMM(b.end_time)} WIB ·{" "}
+                                  {b.customer_name}
+                                </p>
+                                <p className="text-[11px] text-muted">
+                                  {b.service_name} · {b.ticket_code}
+                                </p>
+                              </div>
+                              {phone ? (
+                                <a
+                                  href={buildAdminWaNotifyUrl(
+                                    phone,
+                                    b,
+                                    "early_close"
+                                  )}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-terracotta px-3 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90"
+                                >
+                                  <MessageCircle
+                                    aria-hidden="true"
+                                    className="h-3.5 w-3.5"
+                                  />
+                                  <span>Info WA</span>
+                                </a>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTab("queue");
+                                    setSelectedDate(b.booking_date);
+                                    openBookingDetail(b.id);
+                                  }}
+                                  className="inline-flex min-h-[40px] items-center rounded-xl border border-hairline bg-alabaster/70 px-3 font-sans text-xs font-medium text-ink hover:border-terracotta"
+                                >
+                                  Kelola
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+
+                {/* Accordion 1: Jam Istirahat Harian */}
+                <section
+                  aria-label="Jam Istirahat Harian"
+                  className="overflow-hidden rounded-2xl border border-hairline bg-surface"
+                >
+                  <button
+                    type="button"
+                    aria-expanded={openOpsSection === "break"}
+                    onClick={() =>
+                      setOpenOpsSection((prev) =>
+                        prev === "break" ? null : "break"
+                      )
+                    }
+                    className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors hover:bg-alabaster/45 sm:px-4"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Coffee
+                        aria-hidden="true"
+                        className="h-4 w-4 shrink-0 text-terracotta"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-sans text-sm font-semibold text-ink">
+                          Jam Istirahat Harian
+                        </p>
+                        <p className="truncate font-sans text-xs text-muted tabular-nums">
+                          {settings.break_enabled
+                            ? `Aktif ${formatTimeHHMM(
+                                settings.break_start || "17:15:00"
+                              )}–${formatTimeHHMM(
+                                settings.break_end || "18:30:00"
+                              )} WIB`
+                            : `Nonaktif (${formatTimeHHMM(
+                                settings.break_start || "17:15:00"
+                              )}–${formatTimeHHMM(
+                                settings.break_end || "18:30:00"
+                              )} WIB)`}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={`h-4 w-4 shrink-0 text-muted transition-transform ${
+                        openOpsSection === "break"
+                          ? "rotate-180 text-terracotta"
+                          : ""
+                      }`}
+                    />
+                  </button>
+
+                  {openOpsSection === "break" ? (
+                    <div className="border-t border-hairline p-3.5 sm:p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-sans text-xs text-muted">
+                          Kunci otomatis slot 1 jam &amp; 2 jam yang beririsan
+                          dengan jam istirahat.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setBreakEnabledDraft((prev) => !prev)}
+                          className={`inline-flex min-h-[40px] min-w-[88px] shrink-0 items-center justify-center rounded-xl border px-3 font-sans text-xs font-semibold transition-colors ${
+                            breakEnabledDraft
+                              ? "border-terracotta bg-terracotta text-surface"
                               : "border-hairline bg-surface-elevated text-muted"
                           }`}
                         >
-                          {row.is_open ? "Buka" : "Libur"}
+                          {breakEnabledDraft ? "Aktif" : "Nonaktif"}
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2.5 sm:flex sm:items-center">
+                      <div className="mt-3 grid grid-cols-2 gap-2.5 sm:max-w-sm">
                         <div className="flex flex-col gap-1">
                           <label
-                            htmlFor={`open-${row.day_of_week}`}
-                            className="font-sans text-xs text-muted"
+                            htmlFor="break-start-time"
+                            className="font-sans text-xs font-medium text-muted"
                           >
-                            Buka
+                            Mulai (WIB)
                           </label>
                           <input
-                            id={`open-${row.day_of_week}`}
+                            id="break-start-time"
                             type="time"
-                            disabled={!row.is_open}
-                            value={formatTimeHHMM(row.open_time)}
-                            onChange={(e) =>
-                              setScheduleDrafts((prev) =>
-                                prev.map((item) =>
-                                  item.day_of_week === row.day_of_week
-                                    ? { ...item, open_time: e.target.value }
-                                    : item
-                                )
-                              )
-                            }
-                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
+                            value={breakStartDraft}
+                            onChange={(e) => setBreakStartDraft(e.target.value)}
+                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
                           />
                         </div>
-
                         <div className="flex flex-col gap-1">
                           <label
-                            htmlFor={`close-${row.day_of_week}`}
-                            className="font-sans text-xs text-muted"
+                            htmlFor="break-end-time"
+                            className="font-sans text-xs font-medium text-muted"
                           >
-                            Tutup
+                            Selesai (WIB)
                           </label>
                           <input
-                            id={`close-${row.day_of_week}`}
+                            id="break-end-time"
                             type="time"
-                            disabled={!row.is_open}
-                            value={formatTimeHHMM(row.close_time)}
-                            onChange={(e) =>
-                              setScheduleDrafts((prev) =>
-                                prev.map((item) =>
-                                  item.day_of_week === row.day_of_week
-                                    ? { ...item, close_time: e.target.value }
-                                    : item
-                                )
-                              )
-                            }
-                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
+                            value={breakEndDraft}
+                            onChange={(e) => setBreakEndDraft(e.target.value)}
+                            className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
                           />
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
 
-                <div className="border-t border-hairline p-4">
-                  <button
-                    type="button"
-                    disabled={savingSchedules}
-                    onClick={() => void handleSaveSchedules()}
-                    className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-5 font-sans text-sm font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto"
-                  >
-                    <Check aria-hidden="true" className="h-4 w-4" />
-                    <span>
-                      {savingSchedules
-                        ? "Menyimpan..."
-                        : "Simpan Jam Operasional"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            {/* TANGGAL LIBUR KHUSUS */}
-            <section aria-label="Pengelola Tanggal Libur">
-              <EditorialSectionHeader
-                title="Tanggal Libur Khusus"
-                description="Blokir tanggal tertentu seperti hari raya atau acara pribadi."
-                className="mb-4"
-              />
-
-              <div className="rounded-2xl border border-hairline bg-surface p-4">
-                <form
-                  onSubmit={handleAddClosedDate}
-                  className="grid gap-3 sm:grid-cols-[180px_1fr_auto]"
-                >
-                  <input
-                    type="date"
-                    required
-                    aria-label="Pilih tanggal libur"
-                    value={newClosedDate}
-                    onChange={(e) => setNewClosedDate(e.target.value)}
-                    className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Keterangan (mis. Libur Idul Fitri)"
-                    aria-label="Alasan libur"
-                    value={newClosedReason}
-                    onChange={(e) => setNewClosedReason(e.target.value)}
-                    className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={savingClosedDate}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
-                  >
-                    <CalendarOff aria-hidden="true" className="h-4 w-4" />
-                    <span>
-                      {savingClosedDate ? "Menyimpan..." : "Tambah Libur"}
-                    </span>
-                  </button>
-                </form>
-
-                <div className="mt-4 divide-y divide-hairline border-t border-hairline">
-                  {closedDates.length === 0 ? (
-                    <p className="py-4 text-sm text-muted">
-                      Tidak ada tanggal libur khusus yang terdaftar.
-                    </p>
-                  ) : (
-                    closedDates.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between gap-3 py-3"
-                      >
-                        <div>
-                          <p className="font-sans text-sm font-semibold text-ink tabular-nums">
-                            {item.closed_date}
-                          </p>
-                          <p className="text-xs text-muted">
-                            {item.close_from_time
-                              ? `Tutup mulai ${formatTimeHHMM(item.close_from_time)} WIB`
-                              : item.reason || "Libur khusus seharian"}
-                          </p>
-                        </div>
-
+                      <div className="mt-3">
                         <button
                           type="button"
-                          disabled={deletingClosedId === item.id}
-                          onClick={() => void handleDeleteClosedDate(item.id)}
-                          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-hairline bg-alabaster/70 px-3 font-sans text-xs font-medium text-crimson-alert transition-colors hover:border-crimson-alert hover:bg-crimson-alert/10 disabled:opacity-50"
+                          disabled={savingBreak}
+                          onClick={() => void handleSaveBreakSettings()}
+                          className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto"
                         >
-                          <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                          <span>Hapus</span>
+                          <Check aria-hidden="true" className="h-4 w-4" />
+                          <span>
+                            {savingBreak
+                              ? "Menyimpan..."
+                              : "Simpan Jam Istirahat"}
+                          </span>
                         </button>
                       </div>
-                    ))
-                  )}
-                </div>
+                    </div>
+                  ) : null}
+                </section>
+
+                {/* Accordion 2: Jadwal Mingguan */}
+                <section
+                  aria-label="Jadwal Mingguan"
+                  className="overflow-hidden rounded-2xl border border-hairline bg-surface"
+                >
+                  <button
+                    type="button"
+                    aria-expanded={openOpsSection === "weekly"}
+                    onClick={() =>
+                      setOpenOpsSection((prev) =>
+                        prev === "weekly" ? null : "weekly"
+                      )
+                    }
+                    className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors hover:bg-alabaster/45 sm:px-4"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Clock
+                        aria-hidden="true"
+                        className="h-4 w-4 shrink-0 text-terracotta"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-sans text-sm font-semibold text-ink">
+                          Jadwal Operasional Mingguan
+                        </p>
+                        <p className="truncate font-sans text-xs text-muted tabular-nums">
+                          {openDaysCount} hari buka
+                          {7 - openDaysCount > 0
+                            ? ` · ${7 - openDaysCount} hari libur`
+                            : " · Setiap hari"}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={`h-4 w-4 shrink-0 text-muted transition-transform ${
+                        openOpsSection === "weekly"
+                          ? "rotate-180 text-terracotta"
+                          : ""
+                      }`}
+                    />
+                  </button>
+
+                  {openOpsSection === "weekly" ? (
+                    <div className="border-t border-hairline">
+                      <div className="divide-y divide-hairline">
+                        {scheduleDrafts.map((row) => (
+                          <div
+                            key={row.day_of_week}
+                            className="flex flex-col gap-2.5 p-3.5 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="flex items-center justify-between gap-3 sm:w-40">
+                              <span className="font-sans text-sm font-semibold text-ink">
+                                {DAY_LABELS[row.day_of_week]}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setScheduleDrafts((prev) =>
+                                    prev.map((item) =>
+                                      item.day_of_week === row.day_of_week
+                                        ? { ...item, is_open: !item.is_open }
+                                        : item
+                                    )
+                                  )
+                                }
+                                className={`inline-flex min-h-[40px] min-w-[76px] items-center justify-center rounded-xl border px-3 font-sans text-xs font-semibold transition-colors ${
+                                  row.is_open
+                                    ? "border-ink bg-ink text-surface"
+                                    : "border-hairline bg-surface-elevated text-muted"
+                                }`}
+                              >
+                                {row.is_open ? "Buka" : "Libur"}
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                              <input
+                                id={`open-${row.day_of_week}`}
+                                aria-label={`Jam buka ${DAY_LABELS[row.day_of_week]}`}
+                                type="time"
+                                disabled={!row.is_open}
+                                value={formatTimeHHMM(row.open_time)}
+                                onChange={(e) =>
+                                  setScheduleDrafts((prev) =>
+                                    prev.map((item) =>
+                                      item.day_of_week === row.day_of_week
+                                        ? { ...item, open_time: e.target.value }
+                                        : item
+                                    )
+                                  )
+                                }
+                                className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
+                              />
+                              <input
+                                id={`close-${row.day_of_week}`}
+                                aria-label={`Jam tutup ${DAY_LABELS[row.day_of_week]}`}
+                                type="time"
+                                disabled={!row.is_open}
+                                value={formatTimeHHMM(row.close_time)}
+                                onChange={(e) =>
+                                  setScheduleDrafts((prev) =>
+                                    prev.map((item) =>
+                                      item.day_of_week === row.day_of_week
+                                        ? { ...item, close_time: e.target.value }
+                                        : item
+                                    )
+                                  )
+                                }
+                                className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none disabled:opacity-40"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="border-t border-hairline p-3.5">
+                        <button
+                          type="button"
+                          disabled={savingSchedules}
+                          onClick={() => void handleSaveSchedules()}
+                          className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto sm:text-sm"
+                        >
+                          <Check aria-hidden="true" className="h-4 w-4" />
+                          <span>
+                            {savingSchedules
+                              ? "Menyimpan..."
+                              : "Simpan Jam Operasional"}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+
+                {/* Accordion 3: Tanggal Libur Khusus */}
+                <section
+                  aria-label="Tanggal Libur Khusus"
+                  className="overflow-hidden rounded-2xl border border-hairline bg-surface"
+                >
+                  <button
+                    type="button"
+                    aria-expanded={openOpsSection === "closed"}
+                    onClick={() =>
+                      setOpenOpsSection((prev) =>
+                        prev === "closed" ? null : "closed"
+                      )
+                    }
+                    className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors hover:bg-alabaster/45 sm:px-4"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <CalendarOff
+                        aria-hidden="true"
+                        className="h-4 w-4 shrink-0 text-terracotta"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-sans text-sm font-semibold text-ink">
+                          Tanggal Libur Khusus
+                        </p>
+                        <p className="truncate font-sans text-xs text-muted tabular-nums">
+                          {closedDates.length > 0
+                            ? `${closedDates.length} tanggal terdaftar`
+                            : "Tidak ada tanggal libur khusus"}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={`h-4 w-4 shrink-0 text-muted transition-transform ${
+                        openOpsSection === "closed"
+                          ? "rotate-180 text-terracotta"
+                          : ""
+                      }`}
+                    />
+                  </button>
+
+                  {openOpsSection === "closed" ? (
+                    <div className="border-t border-hairline p-3.5 sm:p-4">
+                      <form
+                        onSubmit={handleAddClosedDate}
+                        className="grid gap-2.5 sm:grid-cols-[170px_1fr_auto]"
+                      >
+                        <input
+                          type="date"
+                          required
+                          aria-label="Pilih tanggal libur"
+                          value={newClosedDate}
+                          onChange={(e) => setNewClosedDate(e.target.value)}
+                          className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Keterangan (mis. Libur Idul Fitri)"
+                          aria-label="Alasan libur"
+                          value={newClosedReason}
+                          onChange={(e) => setNewClosedReason(e.target.value)}
+                          className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          disabled={savingClosedDate}
+                          className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
+                        >
+                          <Plus aria-hidden="true" className="h-4 w-4" />
+                          <span>
+                            {savingClosedDate ? "Menyimpan..." : "Tambah"}
+                          </span>
+                        </button>
+                      </form>
+
+                      <div className="mt-3 divide-y divide-hairline border-t border-hairline">
+                        {closedDates.length === 0 ? (
+                          <p className="pt-3 text-xs text-muted">
+                            Belum ada tanggal libur khusus yang terdaftar.
+                          </p>
+                        ) : (
+                          closedDates.map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between gap-2.5 py-2.5 last:pb-0"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-sans text-sm font-semibold text-ink tabular-nums">
+                                  {item.closed_date}
+                                </p>
+                                <p className="truncate text-xs text-muted">
+                                  {item.close_from_time
+                                    ? `Tutup mulai ${formatTimeHHMM(item.close_from_time)} WIB`
+                                    : item.reason || "Libur khusus seharian"}
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                disabled={deletingClosedId === item.id}
+                                onClick={() =>
+                                  void handleDeleteClosedDate(item.id)
+                                }
+                                aria-label={`Hapus libur ${item.closed_date}`}
+                                className="inline-flex min-h-[40px] items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-2.5 font-sans text-xs font-medium text-crimson-alert transition-colors hover:border-crimson-alert hover:bg-crimson-alert/10 disabled:opacity-50"
+                              >
+                                <Trash2
+                                  aria-hidden="true"
+                                  className="h-3.5 w-3.5"
+                                />
+                                <span>Hapus</span>
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
               </div>
-            </section>
+            ) : null}
 
-            {/* NOTIFIKASI HP KASIR (WEB PUSH PWA) */}
-            <section aria-label="Notifikasi HP Kasir">
-              <EditorialSectionHeader
-                title="Notifikasi HP Kasir"
-                description="Pemberitahuan instan booking baru dan pengingat selesai istirahat."
-                className="mb-4"
-              />
-              <PushNotificationCard onNotify={showToast} />
-            </section>
-
-            {/* GENERATOR QR CODE STUDIO SIAP CETAK */}
-            <section aria-label="QR Code Studio">
-              <EditorialSectionHeader
-                title="QR Code Studio"
-                description="Poster QR siap cetak untuk ditempel di meja kasir atau cermin."
-                className="mb-4"
-              />
-              <StudioQrCodeCard storeName={settings.store_name} />
-            </section>
-
-            {/* EDITOR HARGA LAYANAN */}
-            <section aria-label="Editor Harga Layanan">
-              <EditorialSectionHeader
-                title="Harga Layanan"
-                description="Cukup ubah nama dan harga varian; rentang tarif halaman depan dihitung otomatis."
-                className="mb-4"
-              />
-
-              <div className="space-y-4">
+            {/* SUB-TAB B: LAYANAN & GALERI (Accordion Ringkas Per Layanan + Galeri) */}
+            {cmsSubTab === "catalog" ? (
+              <div className="space-y-2.5">
                 {serviceDrafts.map((service) => {
                   const pricingSummary = computeServicePricingSummary(
                     service.price_variants
@@ -2955,417 +3056,492 @@ export function AdminCashierDashboard({
                     pricingSummary.priceMax > 0
                       ? pricingSummary.priceDisplay
                       : service.price_display || "Rp 0";
+                  const isOpen = openCatalogSection === service.id;
 
                   return (
-                    <div
+                    <section
                       key={service.id}
-                      className="rounded-2xl border border-hairline bg-surface p-3.5 sm:p-4"
+                      aria-label={`Tarif ${service.name}`}
+                      className="overflow-hidden rounded-2xl border border-hairline bg-surface"
                     >
-                      <div className="mb-3.5 border-b border-hairline pb-3">
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <h3 className="font-sans text-base font-semibold text-ink sm:text-lg">
-                            {service.name}
-                          </h3>
-                          <span className="font-sans text-xs text-muted tabular-nums">
-                            Durasi sistem: {service.slot_duration_minutes} menit
-                          </span>
-                        </div>
-                        <p className="mt-1.5 font-sans text-xs text-muted sm:text-sm">
-                          Tampil di halaman depan:{" "}
-                          <span className="font-semibold text-terracotta tabular-nums">
-                            {previewPriceLabel}
-                          </span>
-                        </p>
-                      </div>
-
-                      {/* Rincian Varian Harga (3 elemen 1 baris) */}
-                      <div>
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <span className="font-sans text-xs font-medium text-muted">
-                            Daftar varian tarif
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateServiceDraft(service.id, (prev) => ({
-                                ...prev,
-                                price_variants: [
-                                  ...prev.price_variants,
-                                  { label: "", price: 0, display: "0" },
-                                ],
-                              }))
-                            }
-                            className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-3 font-sans text-xs font-semibold text-terracotta transition-colors hover:border-terracotta"
-                          >
-                            <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-                            <span>Varian</span>
-                          </button>
-                        </div>
-
-                        {service.price_variants.length > 0 ? (
-                          <div className="mb-1.5 flex items-center gap-1.5 px-0.5 font-sans text-[11px] font-medium text-muted sm:gap-2">
-                            <span className="min-w-0 flex-1">Nama varian</span>
-                            <span className="w-36 shrink-0">Harga (Rp)</span>
-                            <span className="w-[44px] shrink-0 text-center">
-                              Hapus
-                            </span>
-                          </div>
-                        ) : (
-                          <p className="rounded-xl border border-dashed border-hairline bg-alabaster/40 px-3 py-3 font-sans text-xs text-muted">
-                            Belum ada varian tarif. Tekan tombol{" "}
-                            <span className="font-semibold text-ink">
-                              + Varian
-                            </span>{" "}
-                            untuk menambahkan.
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        onClick={() =>
+                          setOpenCatalogSection((prev) =>
+                            prev === service.id ? null : service.id
+                          )
+                        }
+                        className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors hover:bg-alabaster/45 sm:px-4"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-sans text-sm font-semibold text-ink">
+                            Tarif {service.name}
                           </p>
-                        )}
+                          <p className="truncate font-sans text-xs text-muted tabular-nums">
+                            <span className="font-semibold text-terracotta">
+                              {previewPriceLabel}
+                            </span>{" "}
+                            · {service.slot_duration_minutes} mnt ·{" "}
+                            {service.price_variants.length} varian
+                          </p>
+                        </div>
+                        <ChevronDown
+                          aria-hidden="true"
+                          className={`h-4 w-4 shrink-0 text-muted transition-transform ${
+                            isOpen ? "rotate-180 text-terracotta" : ""
+                          }`}
+                        />
+                      </button>
 
-                        <div className="space-y-2">
-                          {service.price_variants.map((variant, idx) => (
-                            <div
-                              key={`${service.id}-var-${idx}`}
-                              className="flex items-center gap-1.5 sm:gap-2"
+                      {isOpen ? (
+                        <div className="border-t border-hairline p-3.5 sm:p-4">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <span className="font-sans text-xs font-medium text-muted">
+                              Varian tarif · tampil:{" "}
+                              <strong className="font-semibold text-terracotta tabular-nums">
+                                {previewPriceLabel}
+                              </strong>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateServiceDraft(service.id, (prev) => ({
+                                  ...prev,
+                                  price_variants: [
+                                    ...prev.price_variants,
+                                    { label: "", price: 0, display: "0" },
+                                  ],
+                                }))
+                              }
+                              className="inline-flex min-h-[40px] items-center gap-1 rounded-xl border border-hairline bg-alabaster/70 px-2.5 font-sans text-xs font-semibold text-terracotta transition-colors hover:border-terracotta"
                             >
-                              <input
-                                type="text"
-                                aria-label={`Nama varian ${service.name} ${idx + 1}`}
-                                placeholder="Nama varian"
-                                value={variant.label}
-                                onChange={(e) =>
-                                  updateServiceDraft(service.id, (prev) => {
-                                    const nextVariants: PriceVariant[] =
-                                      prev.price_variants.map((v, vIdx) =>
-                                        vIdx === idx
-                                          ? { ...v, label: e.target.value }
-                                          : v
-                                      );
-                                    return {
-                                      ...prev,
-                                      price_variants: nextVariants,
-                                    };
-                                  })
-                                }
-                                className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-hairline bg-alabaster/60 px-2.5 font-sans text-base text-ink focus:border-terracotta focus:bg-surface focus:outline-none sm:px-3"
-                              />
+                              <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+                              <span>Varian</span>
+                            </button>
+                          </div>
 
-                              <div className="relative w-36 shrink-0">
-                                <span
-                                  aria-hidden="true"
-                                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 font-sans text-xs font-medium text-muted"
-                                >
-                                  Rp
-                                </span>
+                          {service.price_variants.length > 0 ? (
+                            <div className="mb-1.5 flex items-center gap-1.5 px-0.5 font-sans text-[11px] font-medium text-muted sm:gap-2">
+                              <span className="min-w-0 flex-1">Nama varian</span>
+                              <span className="w-36 shrink-0">Harga (Rp)</span>
+                              <span className="w-[44px] shrink-0 text-center">
+                                Hapus
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="rounded-xl border border-dashed border-hairline bg-alabaster/40 px-3 py-2.5 font-sans text-xs text-muted">
+                              Belum ada varian tarif. Tekan{" "}
+                              <strong className="font-semibold text-ink">
+                                + Varian
+                              </strong>
+                              .
+                            </p>
+                          )}
+
+                          <div className="space-y-2">
+                            {service.price_variants.map((variant, idx) => (
+                              <div
+                                key={`${service.id}-var-${idx}`}
+                                className="flex items-center gap-1.5 sm:gap-2"
+                              >
                                 <input
                                   type="text"
-                                  inputMode="numeric"
-                                  autoComplete="off"
-                                  aria-label={`Harga varian ${service.name} ${idx + 1} dalam Rupiah`}
-                                  placeholder="30.000"
-                                  value={formatThousandsId(variant.price)}
-                                  onChange={(e) => {
-                                    const parsedPrice = parseRupiahDigits(
-                                      e.target.value
-                                    );
-                                    updateServiceDraft(service.id, (prev) => {
-                                      const nextVariants: PriceVariant[] =
-                                        prev.price_variants.map((v, vIdx) =>
+                                  aria-label={`Nama varian ${service.name} ${idx + 1}`}
+                                  placeholder="Nama varian"
+                                  value={variant.label}
+                                  onChange={(e) =>
+                                    updateServiceDraft(service.id, (prev) => ({
+                                      ...prev,
+                                      price_variants: prev.price_variants.map(
+                                        (v, vIdx) =>
                                           vIdx === idx
-                                            ? {
-                                                ...v,
-                                                price: parsedPrice,
-                                                display:
-                                                  formatShortPrice(parsedPrice),
-                                              }
+                                            ? { ...v, label: e.target.value }
                                             : v
-                                        );
-                                      return {
-                                        ...prev,
-                                        price_variants: nextVariants,
-                                      };
-                                    });
-                                  }}
-                                  className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 pr-3 pl-9 text-right font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
+                                      ),
+                                    }))
+                                  }
+                                  className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-hairline bg-alabaster/60 px-2.5 font-sans text-base text-ink focus:border-terracotta focus:bg-surface focus:outline-none sm:px-3"
                                 />
+
+                                <div className="relative w-36 shrink-0">
+                                  <span
+                                    aria-hidden="true"
+                                    className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 font-sans text-xs font-medium text-muted"
+                                  >
+                                    Rp
+                                  </span>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="off"
+                                    aria-label={`Harga varian ${service.name} ${idx + 1} dalam Rupiah`}
+                                    placeholder="30.000"
+                                    value={formatThousandsId(variant.price)}
+                                    onChange={(e) => {
+                                      const parsedPrice = parseRupiahDigits(
+                                        e.target.value
+                                      );
+                                      updateServiceDraft(
+                                        service.id,
+                                        (prev) => ({
+                                          ...prev,
+                                          price_variants:
+                                            prev.price_variants.map((v, vIdx) =>
+                                              vIdx === idx
+                                                ? {
+                                                    ...v,
+                                                    price: parsedPrice,
+                                                    display:
+                                                      formatShortPrice(
+                                                        parsedPrice
+                                                      ),
+                                                  }
+                                                : v
+                                            ),
+                                        })
+                                      );
+                                    }}
+                                    className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 pr-3 pl-9 text-right font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
+                                  />
+                                </div>
+
+                                <button
+                                  type="button"
+                                  aria-label={`Hapus varian ${variant.label || idx + 1}`}
+                                  onClick={() =>
+                                    updateServiceDraft(service.id, (prev) => ({
+                                      ...prev,
+                                      price_variants:
+                                        prev.price_variants.filter(
+                                          (_, vIdx) => vIdx !== idx
+                                        ),
+                                    }))
+                                  }
+                                  className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface text-muted transition-colors hover:border-crimson-alert hover:text-crimson-alert"
+                                >
+                                  <Trash2
+                                    aria-hidden="true"
+                                    className="h-4 w-4"
+                                  />
+                                </button>
                               </div>
+                            ))}
+                          </div>
 
-                              <button
-                                type="button"
-                                aria-label={`Hapus varian ${variant.label || idx + 1}`}
-                                onClick={() =>
-                                  updateServiceDraft(service.id, (prev) => ({
-                                    ...prev,
-                                    price_variants: prev.price_variants.filter(
-                                      (_, vIdx) => vIdx !== idx
-                                    ),
-                                  }))
-                                }
-                                className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface text-muted transition-colors hover:border-crimson-alert hover:text-crimson-alert"
-                              >
-                                <Trash2
-                                  aria-hidden="true"
-                                  className="h-4 w-4"
-                                />
-                              </button>
-                            </div>
-                          ))}
+                          <div className="mt-3">
+                            <button
+                              type="button"
+                              disabled={savingServiceId === service.id}
+                              onClick={() => void handleSaveService(service)}
+                              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto"
+                            >
+                              <Check aria-hidden="true" className="h-4 w-4" />
+                              <span>
+                                {savingServiceId === service.id
+                                  ? "Menyimpan..."
+                                  : `Simpan Tarif ${service.name}`}
+                              </span>
+                            </button>
+                          </div>
                         </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <button
-                          type="button"
-                          disabled={savingServiceId === service.id}
-                          onClick={() => void handleSaveService(service)}
-                          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
-                        >
-                          <Check aria-hidden="true" className="h-4 w-4" />
-                          <span>
-                            {savingServiceId === service.id
-                              ? "Menyimpan..."
-                              : `Simpan Tarif ${service.name}`}
-                          </span>
-                        </button>
-                      </div>
-                    </div>
+                      ) : null}
+                    </section>
                   );
                 })}
-              </div>
-            </section>
 
-            {/* PENGELOLA GALERI (KHUSUS INSTAGRAM REELS + UPLOAD FOTO WEBP RINGKAS) */}
-            <section aria-label="Pengelola Galeri">
-              <EditorialSectionHeader
-                title="Galeri & Reels"
-                description="Tambah link Instagram Reels atau unggah foto (otomatis dikompresi ke WebP)."
-                className="mb-4"
-              />
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {/* Form A: Tambah Link Instagram Reels (Judul + Link saja) */}
-                <form
-                  onSubmit={handleAddSocialEmbed}
-                  className="rounded-2xl border border-hairline bg-surface p-4"
+                {/* Accordion Galeri & Reels */}
+                <section
+                  aria-label="Pengelola Galeri"
+                  className="overflow-hidden rounded-2xl border border-hairline bg-surface"
                 >
-                  <div className="mb-3 flex items-center gap-2 border-b border-hairline pb-2.5">
-                    <Link2
-                      aria-hidden="true"
-                      className="h-4 w-4 text-terracotta"
-                    />
-                    <h3 className="font-sans text-sm font-semibold text-ink">
-                      Tambah Link Instagram Reels
-                    </h3>
-                  </div>
-
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Judul reels (mis. Taper Fade)"
-                      value={socialTitle}
-                      onChange={(e) => setSocialTitle(e.target.value)}
-                      className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
-                    />
-
-                    <div>
-                      <input
-                        type="url"
-                        required
-                        placeholder="https://www.instagram.com/reel/..."
-                        value={socialUrl}
-                        onChange={(e) => setSocialUrl(e.target.value)}
-                        className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
-                      />
-                      {socialValidation ? (
-                        <p
-                          className={`mt-1.5 font-sans text-xs ${
-                            socialValidation.valid
-                              ? "text-ink"
-                              : "text-crimson-alert"
-                          }`}
-                        >
-                          {socialValidation.valid
-                            ? "Link Instagram Reels siap disimpan."
-                            : socialValidation.error}
-                        </p>
-                      ) : (
-                        <p className="mt-1.5 font-sans text-xs text-muted">
-                          Gunakan tautan resmi instagram.com/reel/...
-                        </p>
-                      )}
+                  <button
+                    type="button"
+                    aria-expanded={openCatalogSection === "gallery"}
+                    onClick={() =>
+                      setOpenCatalogSection((prev) =>
+                        prev === "gallery" ? null : "gallery"
+                      )
+                    }
+                    className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors hover:bg-alabaster/45 sm:px-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-sans text-sm font-semibold text-ink">
+                        Galeri Foto &amp; Instagram Reels
+                      </p>
+                      <p className="truncate font-sans text-xs text-muted tabular-nums">
+                        {galleryPhotoCount} foto · {galleryReelsCount} reels
+                      </p>
                     </div>
-
-                    <button
-                      type="submit"
-                      disabled={
-                        savingSocial ||
-                        (socialValidation ? !socialValidation.valid : false)
-                      }
-                      className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
-                    >
-                      <Plus aria-hidden="true" className="h-4 w-4" />
-                      <span>
-                        {savingSocial
-                          ? "Menyimpan..."
-                          : "Simpan Instagram Reels"}
-                      </span>
-                    </button>
-                  </div>
-                </form>
-
-                {/* Form B: Upload Foto WebP Otomatis (Judul + File saja) */}
-                <form
-                  onSubmit={handleUploadCompressedPhoto}
-                  className="rounded-2xl border border-hairline bg-surface p-4"
-                >
-                  <div className="mb-3 flex items-center gap-2 border-b border-hairline pb-2.5">
-                    <ImagePlus
+                    <ChevronDown
                       aria-hidden="true"
-                      className="h-4 w-4 text-terracotta"
+                      className={`h-4 w-4 shrink-0 text-muted transition-transform ${
+                        openCatalogSection === "gallery"
+                          ? "rotate-180 text-terracotta"
+                          : ""
+                      }`}
                     />
-                    <h3 className="font-sans text-sm font-semibold text-ink">
-                      Upload Foto
-                    </h3>
-                  </div>
+                  </button>
 
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Judul foto (mis. Skin Fade Mid)"
-                      value={photoTitle}
-                      onChange={(e) => setPhotoTitle(e.target.value)}
-                      className="min-h-[44px] w-full rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:bg-surface focus:outline-none"
-                    />
-
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => void handlePhotoFileChange(e)}
-                      className="hidden"
-                    />
-
-                    <button
-                      type="button"
-                      disabled={compressingPhoto}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-dashed border-hairline bg-alabaster/60 px-3 font-sans text-xs font-medium text-ink transition-colors hover:border-terracotta sm:text-sm"
-                    >
-                      <Upload
-                        aria-hidden="true"
-                        className="h-4 w-4 text-terracotta"
-                      />
-                      <span>
-                        {compressingPhoto
-                          ? "Mengompresi ke WebP..."
-                          : compressedPhoto
-                            ? "Ganti Foto Terpilih"
-                            : "Pilih Foto (JPG / PNG / WebP)"}
-                      </span>
-                    </button>
-
-                    {compressedPhoto ? (
-                      <div className="flex items-center gap-3 rounded-xl border border-hairline bg-alabaster/70 p-2.5">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={compressedPhoto.previewUrl}
-                          alt="Preview foto terkompresi WebP"
-                          className="h-12 w-12 shrink-0 rounded-lg object-cover"
-                        />
-                        <div className="min-w-0 flex-1 font-sans text-xs text-muted">
-                          <p className="truncate font-semibold text-ink">
-                            {compressedPhoto.originalName}
-                          </p>
-                          <p className="tabular-nums">
-                            {compressedPhoto.width}×{compressedPhoto.height}px ·{" "}
-                            <span className="font-semibold text-ink">
-                              {formatBytes(compressedPhoto.blob.size)} WebP
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <button
-                      type="submit"
-                      disabled={!compressedPhoto || uploadingPhoto}
-                      className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
-                    >
-                      <Upload aria-hidden="true" className="h-4 w-4" />
-                      <span>
-                        {uploadingPhoto ? "Mengunggah..." : "Unggah Foto"}
-                      </span>
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Daftar Media Aktif Ringkas: Thumbnail Kiri, Judul Tengah, Toggle + Hapus Kanan */}
-              <div className="mt-4 divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
-                {galleryItems.length === 0 ? (
-                  <p className="p-4 text-sm text-muted">
-                    Belum ada media tersimpan di galeri.
-                  </p>
-                ) : (
-                  galleryItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-3 p-3.5"
-                    >
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        {item.media_type === "photo" ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={item.media_url}
-                            alt={item.title}
-                            loading="lazy"
-                            className="h-12 w-12 shrink-0 rounded-xl border border-hairline object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface-elevated font-sans text-xs font-semibold text-terracotta">
-                            Reels
+                  {openCatalogSection === "gallery" ? (
+                    <div className="space-y-3 border-t border-hairline p-3.5 sm:p-4">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {/* Form A: Instagram Reels */}
+                        <form
+                          onSubmit={handleAddSocialEmbed}
+                          className="rounded-xl border border-hairline bg-alabaster/50 p-3.5"
+                        >
+                          <div className="mb-2.5 flex items-center gap-1.5">
+                            <Link2
+                              aria-hidden="true"
+                              className="h-4 w-4 text-terracotta"
+                            />
+                            <h3 className="font-sans text-xs font-semibold text-ink">
+                              Tambah Instagram Reels
+                            </h3>
                           </div>
-                        )}
 
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-sans text-sm font-semibold text-ink">
-                            {item.title}
-                          </p>
-                          <p className="font-sans text-xs text-muted">
-                            {item.media_type === "photo"
-                              ? "Foto"
-                              : "Instagram Reels"}
-                          </p>
-                        </div>
+                          <div className="space-y-2.5">
+                            <input
+                              type="text"
+                              placeholder="Judul reels (mis. Taper Fade)"
+                              value={socialTitle}
+                              onChange={(e) => setSocialTitle(e.target.value)}
+                              className="min-h-[44px] w-full rounded-xl border border-hairline bg-surface px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:outline-none"
+                            />
+
+                            <div>
+                              <input
+                                type="url"
+                                required
+                                placeholder="https://www.instagram.com/reel/..."
+                                value={socialUrl}
+                                onChange={(e) => setSocialUrl(e.target.value)}
+                                className="min-h-[44px] w-full rounded-xl border border-hairline bg-surface px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:outline-none"
+                              />
+                              {socialValidation ? (
+                                <p
+                                  className={`mt-1 font-sans text-xs ${
+                                    socialValidation.valid
+                                      ? "text-ink"
+                                      : "text-crimson-alert"
+                                  }`}
+                                >
+                                  {socialValidation.valid
+                                    ? "Link Instagram Reels siap disimpan."
+                                    : socialValidation.error}
+                                </p>
+                              ) : null}
+                            </div>
+
+                            <button
+                              type="submit"
+                              disabled={
+                                savingSocial ||
+                                (socialValidation
+                                  ? !socialValidation.valid
+                                  : false)
+                              }
+                              className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-terracotta px-3 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
+                            >
+                              <Plus aria-hidden="true" className="h-4 w-4" />
+                              <span>
+                                {savingSocial
+                                  ? "Menyimpan..."
+                                  : "Simpan Reels"}
+                              </span>
+                            </button>
+                          </div>
+                        </form>
+
+                        {/* Form B: Upload Foto WebP */}
+                        <form
+                          onSubmit={handleUploadCompressedPhoto}
+                          className="rounded-xl border border-hairline bg-alabaster/50 p-3.5"
+                        >
+                          <div className="mb-2.5 flex items-center gap-1.5">
+                            <ImagePlus
+                              aria-hidden="true"
+                              className="h-4 w-4 text-terracotta"
+                            />
+                            <h3 className="font-sans text-xs font-semibold text-ink">
+                              Upload Foto (Otomatis WebP)
+                            </h3>
+                          </div>
+
+                          <div className="space-y-2.5">
+                            <input
+                              type="text"
+                              placeholder="Judul foto (mis. Skin Fade Mid)"
+                              value={photoTitle}
+                              onChange={(e) => setPhotoTitle(e.target.value)}
+                              className="min-h-[44px] w-full rounded-xl border border-hairline bg-surface px-3 font-sans text-base text-ink placeholder:text-muted/60 focus:border-terracotta focus:outline-none"
+                            />
+
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) => void handlePhotoFileChange(e)}
+                              className="hidden"
+                            />
+
+                            <button
+                              type="button"
+                              disabled={compressingPhoto}
+                              onClick={() => fileInputRef.current?.click()}
+                              className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-hairline bg-surface px-3 font-sans text-xs font-medium text-ink transition-colors hover:border-terracotta"
+                            >
+                              <Upload
+                                aria-hidden="true"
+                                className="h-4 w-4 text-terracotta"
+                              />
+                              <span>
+                                {compressingPhoto
+                                  ? "Mengompresi WebP..."
+                                  : compressedPhoto
+                                    ? "Ganti Foto Terpilih"
+                                    : "Pilih Foto (JPG / PNG / WebP)"}
+                              </span>
+                            </button>
+
+                            {compressedPhoto ? (
+                              <div className="flex items-center gap-2.5 rounded-xl border border-hairline bg-surface p-2">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={compressedPhoto.previewUrl}
+                                  alt="Preview foto terkompresi WebP"
+                                  className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                                />
+                                <div className="min-w-0 flex-1 font-sans text-xs text-muted">
+                                  <p className="truncate font-semibold text-ink">
+                                    {compressedPhoto.originalName}
+                                  </p>
+                                  <p className="tabular-nums">
+                                    {compressedPhoto.width}×
+                                    {compressedPhoto.height}px ·{" "}
+                                    {formatBytes(compressedPhoto.blob.size)}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <button
+                              type="submit"
+                              disabled={!compressedPhoto || uploadingPhoto}
+                              className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-terracotta px-3 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
+                            >
+                              <Upload aria-hidden="true" className="h-4 w-4" />
+                              <span>
+                                {uploadingPhoto
+                                  ? "Mengunggah..."
+                                  : "Unggah Foto"}
+                              </span>
+                            </button>
+                          </div>
+                        </form>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={busyGalleryId === item.id}
-                          onClick={() => void handleToggleGalleryActive(item)}
-                          className={`inline-flex min-h-[44px] items-center rounded-xl border px-3 font-sans text-xs font-semibold transition-colors ${
-                            item.is_active
-                              ? "border-ink bg-ink text-surface"
-                              : "border-hairline bg-surface-elevated text-muted"
-                          }`}
-                        >
-                          {item.is_active ? "Tampil" : "Sembunyi"}
-                        </button>
+                      {/* Daftar Media Padat */}
+                      <div className="divide-y divide-hairline overflow-hidden rounded-xl border border-hairline bg-alabaster/35">
+                        {galleryItems.length === 0 ? (
+                          <p className="p-3.5 text-xs text-muted">
+                            Belum ada media tersimpan di galeri.
+                          </p>
+                        ) : (
+                          galleryItems.map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between gap-2.5 p-3"
+                            >
+                              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                                {item.media_type === "photo" ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img
+                                    src={item.media_url}
+                                    alt={item.title}
+                                    loading="lazy"
+                                    className="h-10 w-10 shrink-0 rounded-lg border border-hairline object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hairline bg-surface-elevated font-sans text-[11px] font-semibold text-terracotta">
+                                    Reels
+                                  </div>
+                                )}
 
-                        <button
-                          type="button"
-                          disabled={busyGalleryId === item.id}
-                          onClick={() => void handleDeleteGalleryItem(item)}
-                          aria-label={`Hapus ${item.title}`}
-                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-hairline bg-alabaster/70 text-crimson-alert transition-colors hover:border-crimson-alert hover:bg-crimson-alert/10"
-                        >
-                          <Trash2 aria-hidden="true" className="h-4 w-4" />
-                        </button>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-sans text-xs font-semibold text-ink sm:text-sm">
+                                    {item.title}
+                                  </p>
+                                  <p className="font-sans text-[11px] text-muted">
+                                    {item.media_type === "photo"
+                                      ? "Foto"
+                                      : "Instagram Reels"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={busyGalleryId === item.id}
+                                  onClick={() =>
+                                    void handleToggleGalleryActive(item)
+                                  }
+                                  className={`inline-flex min-h-[40px] items-center rounded-xl border px-2.5 font-sans text-xs font-semibold transition-colors ${
+                                    item.is_active
+                                      ? "border-ink bg-ink text-surface"
+                                      : "border-hairline bg-surface-elevated text-muted"
+                                  }`}
+                                >
+                                  {item.is_active ? "Tampil" : "Sembunyi"}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={busyGalleryId === item.id}
+                                  onClick={() =>
+                                    void handleDeleteGalleryItem(item)
+                                  }
+                                  aria-label={`Hapus ${item.title}`}
+                                  className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-xl border border-hairline bg-surface text-crimson-alert transition-colors hover:border-crimson-alert hover:bg-crimson-alert/10"
+                                >
+                                  <Trash2
+                                    aria-hidden="true"
+                                    className="h-4 w-4"
+                                  />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
-                  ))
-                )}
+                  ) : null}
+                </section>
               </div>
-            </section>
+            ) : null}
+
+            {/* SUB-TAB C: NOTIFIKASI & QR (Ringkas + Modal Preview QR) */}
+            {cmsSubTab === "notify_qr" ? (
+              <div className="space-y-3">
+                <PushNotificationCard onNotify={showToast} />
+                <StudioQrCodeCard
+                  storeName={settings.store_name}
+                  onNotify={showToast}
+                />
+                <div className="flex items-center gap-2 rounded-xl border border-hairline bg-surface px-3.5 py-2.5 text-xs text-muted">
+                  <Bell
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 shrink-0 text-terracotta"
+                  />
+                  <span>
+                    Zona waktu pengingat istirahat: Sungai Kunyit, Kalimantan
+                    Barat (WIB).
+                  </span>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
       </main>
