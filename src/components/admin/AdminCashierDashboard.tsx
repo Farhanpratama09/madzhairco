@@ -18,10 +18,12 @@ import {
   Check,
   ChevronRight,
   Clock,
+  Coffee,
   ExternalLink,
   ImagePlus,
   Link2,
   LogOut,
+  MessageCircle,
   Plus,
   Power,
   RefreshCw,
@@ -33,6 +35,8 @@ import {
   X,
 } from "lucide-react";
 import { InstallPwaBanner } from "@/components/admin/InstallPwaBanner";
+import { PushNotificationCard } from "@/components/admin/PushNotificationCard";
+import { StudioQrCodeCard } from "@/components/admin/StudioQrCodeCard";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { EditorialSectionHeader } from "@/components/ui/EditorialSectionHeader";
 import { LiveStatusTag } from "@/components/ui/LiveStatusTag";
@@ -68,6 +72,7 @@ export interface AdminCashierDashboardProps {
   initialServices: Service[];
   initialGalleryItems: GalleryItem[];
   initialBookings: Booking[];
+  initialBookingPhones?: Record<string, string>;
 }
 
 type DashboardTab = "queue" | "cms";
@@ -299,6 +304,72 @@ function computeServicePricingSummary(variants: PriceVariant[]): {
   };
 }
 
+function buildAdminWaNotifyUrl(
+  phone: string,
+  booking: Booking,
+  action: "reschedule" | "cancel" | "early_close"
+): string {
+  const cleanPhone = phone.replace(/\D/g, "");
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://madzhair.vercel.app";
+  const ticketUrl = `${origin}/tiket/${booking.ticket_code}`;
+  const dateLabel = formatIndonesianDateShort(booking.booking_date);
+  const timeRange = `${formatTimeHHMM(booking.start_time)} – ${formatTimeHHMM(
+    booking.end_time
+  )} WIB`;
+
+  if (action === "reschedule") {
+    const prevRange =
+      booking.previous_start_time && booking.previous_end_time
+        ? `${formatTimeHHMM(booking.previous_start_time)} – ${formatTimeHHMM(
+            booking.previous_end_time
+          )} WIB`
+        : null;
+    const lines = [
+      `Halo Kak ${booking.customer_name}, info perubahan jadwal Madzhair.co (Sungai Kunyit, Kalimantan Barat):`,
+      `• Kode Tiket: ${booking.ticket_code}`,
+      `• Layanan: ${booking.service_name}`,
+      ...(prevRange ? [`• Jadwal Lama: ${prevRange}`] : []),
+      `• Jadwal Baru: ${dateLabel}, ${timeRange}`,
+      "",
+      `Cek e-tiket terbaru: ${ticketUrl}`,
+    ];
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+      lines.join("\n")
+    )}`;
+  }
+
+  if (action === "early_close") {
+    const lines = [
+      `Halo Kak ${booking.customer_name}, info dari Madzhair.co (Sungai Kunyit, Kalimantan Barat):`,
+      `Studio kami perlu tutup lebih awal hari ini. Mohon konfirmasi untuk penyesuaian jadwal reservasi Anda:`,
+      `• Kode Tiket: ${booking.ticket_code}`,
+      `• Layanan: ${booking.service_name}`,
+      `• Jadwal: ${dateLabel}, ${timeRange}`,
+      "",
+      `Detail e-tiket: ${ticketUrl}`,
+    ];
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+      lines.join("\n")
+    )}`;
+  }
+
+  const lines = [
+    `Halo Kak ${booking.customer_name}, mohon maaf reservasi Anda di Madzhair.co telah dibatalkan:`,
+    `• Kode Tiket: ${booking.ticket_code}`,
+    `• Layanan: ${booking.service_name}`,
+    `• Jadwal: ${dateLabel}, ${timeRange}`,
+    "",
+    `Detail status e-tiket: ${ticketUrl}`,
+    `Buat jadwal baru di: ${origin}/#reservasi`,
+  ];
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+    lines.join("\n")
+  )}`;
+}
+
 export function AdminCashierDashboard({
   initialSettings,
   initialSchedules,
@@ -306,6 +377,7 @@ export function AdminCashierDashboard({
   initialServices,
   initialGalleryItems,
   initialBookings,
+  initialBookingPhones = {},
 }: AdminCashierDashboardProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -325,6 +397,8 @@ export function AdminCashierDashboard({
   const [bookings, setBookings] = useState<Booking[]>(() =>
     sortBookings(initialBookings)
   );
+  const [bookingPhones, setBookingPhones] =
+    useState<Record<string, string>>(initialBookingPhones);
 
   // Clock tick every 30 seconds so live status & walk-in target slots stay fresh
   const [nowTick, setNowTick] = useState<number>(() => Date.now());
@@ -333,6 +407,16 @@ export function AdminCashierDashboard({
       setNowTick(Date.now());
     }, 30_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  // Register minimal Web Push Service Worker (/sw.js)
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+      return;
+    }
+    void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+      // Ignore SW registration failure on unsupported environments
+    });
   }, []);
 
   const nowParts = useMemo(
@@ -372,9 +456,27 @@ export function AdminCashierDashboard({
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  // Emergency Force Close confirmation state (1-tap arm -> 1-tap confirm)
-  const [forceCloseConfirmOpen, setForceCloseConfirmOpen] = useState(false);
-  const [updatingForceClose, setUpdatingForceClose] = useState(false);
+  // Emergency & Today Quick Close state
+  const [updatingQuickClose, setUpdatingQuickClose] = useState(false);
+
+  // 1-Tap WhatsApp notification banner right after reschedule/cancel
+  const [recentWaPrompt, setRecentWaPrompt] = useState<{
+    booking: Booking;
+    phone: string;
+    action: "reschedule" | "cancel";
+  } | null>(null);
+
+  // Daily Break Time Draft state (default 17:15 - 18:30 WIB)
+  const [breakEnabledDraft, setBreakEnabledDraft] = useState<boolean>(
+    Boolean(initialSettings.break_enabled)
+  );
+  const [breakStartDraft, setBreakStartDraft] = useState<string>(
+    formatTimeHHMM(initialSettings.break_start || "17:15:00")
+  );
+  const [breakEndDraft, setBreakEndDraft] = useState<string>(
+    formatTimeHHMM(initialSettings.break_end || "18:30:00")
+  );
+  const [savingBreak, setSavingBreak] = useState(false);
 
   // Walk-in Thumb-Zone state (2-tap max, zero typing)
   const [pendingWalkin, setPendingWalkin] = useState<{
@@ -463,6 +565,13 @@ export function AdminCashierDashboard({
     if (!supabase) return;
     setRefreshing(true);
     try {
+      // Jalankan auto-complete berurutan sebelum mengambil ulang booking
+      try {
+        await fetch("/api/admin/auto-complete", { method: "POST" });
+      } catch {
+        // Fallback aman
+      }
+
       const startDate = upcomingDates[0]?.dateStr ?? nowParts.dateStr;
       const endDate =
         upcomingDates[upcomingDates.length - 1]?.dateStr ?? startDate;
@@ -508,7 +617,11 @@ export function AdminCashierDashboard({
       ]);
 
       if (settingsRes.data) {
-        setSettings(settingsRes.data as StoreSettings);
+        const nextSettings = settingsRes.data as StoreSettings;
+        setSettings(nextSettings);
+        setBreakEnabledDraft(Boolean(nextSettings.break_enabled));
+        setBreakStartDraft(formatTimeHHMM(nextSettings.break_start || "17:15:00"));
+        setBreakEndDraft(formatTimeHHMM(nextSettings.break_end || "18:30:00"));
       }
       if (schedulesRes.data) {
         const nextSchedules = schedulesRes.data as WeeklySchedule[];
@@ -532,7 +645,35 @@ export function AdminCashierDashboard({
         setGalleryItems(galleryRes.data as GalleryItem[]);
       }
       if (bookingsRes.data) {
-        setBookings(sortBookings(bookingsRes.data as Booking[]));
+        const nextBookings = sortBookings(bookingsRes.data as Booking[]);
+        setBookings(nextBookings);
+
+        if (nextBookings.length > 0) {
+          try {
+            const { data: contactRows } = await supabase
+              .from("booking_contacts")
+              .select("booking_id, phone")
+              .in(
+                "booking_id",
+                nextBookings.map((b) => b.id)
+              );
+            if (Array.isArray(contactRows)) {
+              const phoneMap: Record<string, string> = {};
+              for (const row of contactRows) {
+                if (
+                  row &&
+                  typeof row.booking_id === "string" &&
+                  typeof row.phone === "string"
+                ) {
+                  phoneMap[row.booking_id] = row.phone;
+                }
+              }
+              setBookingPhones((prev) => ({ ...prev, ...phoneMap }));
+            }
+          } catch {
+            // Abaikan bila booking_contacts belum tersedia
+          }
+        }
       }
       setNowTick(Date.now());
     } catch {
@@ -541,6 +682,36 @@ export function AdminCashierDashboard({
       setRefreshing(false);
     }
   }, [supabase, upcomingDates, nowParts.dateStr, showToast]);
+
+  // Auto-complete real-time saat ada booking BOOKED melewati end_time + 15 menit (Asia/Pontianak)
+  const autoCompletingRef = useRef(false);
+  useEffect(() => {
+    const hasOverdueBooked = bookings.some((b) => {
+      if (b.status !== "BOOKED") return false;
+      if (b.booking_date < nowParts.dateStr) return true;
+      if (b.booking_date === nowParts.dateStr) {
+        return parseTimeToMinutes(b.end_time) + 15 <= nowParts.minutesFromMidnight;
+      }
+      return false;
+    });
+
+    if (!hasOverdueBooked || autoCompletingRef.current) return;
+
+    autoCompletingRef.current = true;
+    void fetch("/api/admin/auto-complete", { method: "POST" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { updatedCount?: number } | null) => {
+        if (data && (data.updatedCount ?? 0) > 0) {
+          void refreshAllData();
+        }
+      })
+      .catch(() => {
+        // Ignore transient network errors
+      })
+      .finally(() => {
+        autoCompletingRef.current = false;
+      });
+  }, [bookings, nowParts.dateStr, nowParts.minutesFromMidnight, refreshAllData]);
 
   // Realtime subscription to bookings, store_settings, weekly_schedules, closed_dates
   useEffect(() => {
@@ -726,8 +897,9 @@ export function AdminCashierDashboard({
 
   const timelineRange = useMemo(() => {
     const { schedule, closedDate } = selectedDateMeta;
+    const isFullDayClosed = Boolean(closedDate && !closedDate.close_from_time);
     const hasOpenSchedule = Boolean(
-      schedule && schedule.is_open && !closedDate
+      schedule && schedule.is_open && !isFullDayClosed
     );
 
     let minMinutes = Number.POSITIVE_INFINITY;
@@ -777,6 +949,29 @@ export function AdminCashierDashboard({
       totalHeightPx: hours.length * HOUR_ROW_HEIGHT_PX,
     };
   }, [selectedDateMeta, timelineBookings]);
+
+  const timelineBreakBand = useMemo(() => {
+    if (!timelineRange || !settings.break_enabled) return null;
+    const bStart = parseTimeToMinutes(settings.break_start || "17:15:00");
+    const bEnd = parseTimeToMinutes(settings.break_end || "18:30:00");
+    if (bEnd <= bStart) return null;
+
+    const clampedStart = Math.max(bStart, timelineRange.startMinutes);
+    const clampedEnd = Math.min(bEnd, timelineRange.endMinutes);
+    if (clampedEnd <= clampedStart) return null;
+
+    const topPx =
+      ((clampedStart - timelineRange.startMinutes) / 60) * HOUR_ROW_HEIGHT_PX;
+    const heightPx = ((clampedEnd - clampedStart) / 60) * HOUR_ROW_HEIGHT_PX;
+
+    return {
+      topPx,
+      heightPx: Math.max(44, heightPx),
+      label: `${formatTimeHHMM(settings.break_start || "17:15:00")} – ${formatTimeHHMM(
+        settings.break_end || "18:30:00"
+      )} WIB`,
+    };
+  }, [timelineRange, settings.break_enabled, settings.break_start, settings.break_end]);
 
   const showCurrentTimeLine = Boolean(
     timelineRange &&
@@ -848,35 +1043,210 @@ export function AdminCashierDashboard({
     router.refresh();
   };
 
-  // Handlers: Emergency Force Close Toggle
-  const handleToggleForceClose = async () => {
+  // Today quick-close metadata (khusus tanggal hari ini Asia/Pontianak)
+  const todayClosedEntry = useMemo(
+    () => closedDates.find((item) => item.closed_date === nowParts.dateStr) ?? null,
+    [closedDates, nowParts.dateStr]
+  );
+
+  const todayActiveBookings = useMemo(
+    () =>
+      bookings
+        .filter(
+          (b) => b.booking_date === nowParts.dateStr && b.status === "BOOKED"
+        )
+        .sort((a, b) => a.start_time.localeCompare(b.start_time)),
+    [bookings, nowParts.dateStr]
+  );
+
+  // Handlers: Tutup Mulai Jam Sekarang (khusus tanggal hari ini, tanpa ubah weekly_schedules)
+  const handleCloseFromNowToday = async () => {
     if (!db) return;
-    const nextState = !settings.is_force_closed;
-    setUpdatingForceClose(true);
+    setUpdatingQuickClose(true);
     try {
+      const freshNow = getStoreNowParts(settings.timezone);
+      const cutoffTimeSql = `${freshNow.timeStr}:00`;
+      const { data, error } = await db
+        .from("closed_dates")
+        .upsert(
+          {
+            closed_date: freshNow.dateStr,
+            close_from_time: cutoffTimeSql,
+            reason: `Tutup mulai ${freshNow.timeStr} WIB`,
+          },
+          { onConflict: "closed_date" }
+        )
+        .select("*")
+        .single();
+
+      if (error || !data) {
+        showToast(
+          "error",
+          error?.message || "Gagal mengaktifkan tutup mulai jam sekarang."
+        );
+        return;
+      }
+
+      const saved = data as ClosedDate;
+      setClosedDates((prev) => {
+        const filtered = prev.filter((item) => item.closed_date !== saved.closed_date);
+        return [...filtered, saved].sort((a, b) =>
+          a.closed_date.localeCompare(b.closed_date)
+        );
+      });
+      setPendingWalkin(null);
+      showToast(
+        "success",
+        `Studio ditutup mulai ${freshNow.timeStr} WIB khusus hari ini. Jadwal besok tetap normal.`
+      );
+    } finally {
+      setUpdatingQuickClose(false);
+    }
+  };
+
+  // Handlers: Tutup Seharian Ini (khusus tanggal hari ini, close_from_time = NULL)
+  const handleCloseAllDayToday = async () => {
+    if (!db) return;
+    setUpdatingQuickClose(true);
+    try {
+      const freshNow = getStoreNowParts(settings.timezone);
+      const { data, error } = await db
+        .from("closed_dates")
+        .upsert(
+          {
+            closed_date: freshNow.dateStr,
+            close_from_time: null,
+            reason: "Tutup seharian ini",
+          },
+          { onConflict: "closed_date" }
+        )
+        .select("*")
+        .single();
+
+      if (error || !data) {
+        showToast(
+          "error",
+          error?.message || "Gagal mengaktifkan tutup seharian ini."
+        );
+        return;
+      }
+
+      const saved = data as ClosedDate;
+      setClosedDates((prev) => {
+        const filtered = prev.filter((item) => item.closed_date !== saved.closed_date);
+        return [...filtered, saved].sort((a, b) =>
+          a.closed_date.localeCompare(b.closed_date)
+        );
+      });
+      setPendingWalkin(null);
+      showToast(
+        "success",
+        "Studio ditutup seharian khusus hari ini. Jadwal besok tetap normal."
+      );
+    } finally {
+      setUpdatingQuickClose(false);
+    }
+  };
+
+  // Handlers: Buka Kembali Studio (hapus closed_dates hari ini & pastikan is_force_closed = false)
+  const handleReopenStudio = async () => {
+    if (!db) return;
+    setUpdatingQuickClose(true);
+    try {
+      const freshNow = getStoreNowParts(settings.timezone);
+      const { error: deleteErr } = await db
+        .from("closed_dates")
+        .delete()
+        .eq("closed_date", freshNow.dateStr);
+
+      if (deleteErr) {
+        showToast("error", deleteErr.message || "Gagal membuka kembali studio.");
+        return;
+      }
+
+      if (settings.is_force_closed) {
+        const { data: updatedSettings, error: settingsErr } = await db
+          .from("store_settings")
+          .update({ is_force_closed: false })
+          .eq("id", settings.id)
+          .select("*")
+          .single();
+
+        if (settingsErr || !updatedSettings) {
+          showToast(
+            "error",
+            settingsErr?.message || "Gagal mematikan mode tutup darurat."
+          );
+          return;
+        }
+        setSettings(updatedSettings as StoreSettings);
+      }
+
+      setClosedDates((prev) =>
+        prev.filter((item) => item.closed_date !== freshNow.dateStr)
+      );
+      setPendingWalkin(null);
+      showToast(
+        "success",
+        "Studio kembali BUKA mengikuti jadwal operasional hari ini."
+      );
+    } finally {
+      setUpdatingQuickClose(false);
+    }
+  };
+
+  // Handlers: Simpan Jam Istirahat Harian (default 17:15 - 18:30 WIB)
+  const handleSaveBreakSettings = async () => {
+    if (!db) return;
+    if (breakEndDraft <= breakStartDraft) {
+      showToast(
+        "error",
+        "Jam selesai istirahat harus lebih akhir dari jam mulai istirahat."
+      );
+      return;
+    }
+
+    setSavingBreak(true);
+    try {
+      const breakStartSql =
+        breakStartDraft.length === 5 ? `${breakStartDraft}:00` : breakStartDraft;
+      const breakEndSql =
+        breakEndDraft.length === 5 ? `${breakEndDraft}:00` : breakEndDraft;
+
       const { data, error } = await db
         .from("store_settings")
-        .update({ is_force_closed: nextState })
+        .update({
+          break_enabled: breakEnabledDraft,
+          break_start: breakStartSql,
+          break_end: breakEndSql,
+        })
         .eq("id", settings.id)
         .select("*")
         .single();
 
       if (error || !data) {
-        showToast("error", error?.message || "Gagal memperbarui status toko.");
+        showToast(
+          "error",
+          error?.message || "Gagal menyimpan pengaturan jam istirahat."
+        );
         return;
       }
 
-      setSettings(data as StoreSettings);
-      setForceCloseConfirmOpen(false);
-      setPendingWalkin(null);
+      const updated = data as StoreSettings;
+      setSettings(updated);
+      setBreakEnabledDraft(Boolean(updated.break_enabled));
+      setBreakStartDraft(formatTimeHHMM(updated.break_start || "17:15:00"));
+      setBreakEndDraft(formatTimeHHMM(updated.break_end || "18:30:00"));
       showToast(
         "success",
-        nextState
-          ? "Mode Tutup Darurat AKTIF. Booking publik ditutup."
-          : "Toko kembali BUKA menerima reservasi & walk-in."
+        updated.break_enabled
+          ? `Jam istirahat aktif (${formatTimeHHMM(updated.break_start)} – ${formatTimeHHMM(
+              updated.break_end
+            )} WIB).`
+          : "Jam istirahat harian dinonaktifkan."
       );
     } finally {
-      setUpdatingForceClose(false);
+      setSavingBreak(false);
     }
   };
 
@@ -941,6 +1311,7 @@ export function AdminCashierDashboard({
 
       const data = (await res.json()) as {
         booking?: Booking;
+        customerPhone?: string | null;
         error?: string;
       };
 
@@ -949,21 +1320,52 @@ export function AdminCashierDashboard({
         return;
       }
 
-      setBookings((prev) => upsertBooking(prev, data.booking!));
+      const updatedBooking = data.booking;
+      const resolvedPhone =
+        (typeof data.customerPhone === "string" && data.customerPhone) ||
+        bookingPhones[updatedBooking.id] ||
+        null;
+
+      if (resolvedPhone) {
+        setBookingPhones((prev) => ({
+          ...prev,
+          [updatedBooking.id]: resolvedPhone,
+        }));
+      }
+
+      setBookings((prev) => upsertBooking(prev, updatedBooking));
       closeBookingDetail();
 
       if (payload.action === "complete") {
-        showToast("success", `Sesi ${data.booking.ticket_code} ditandai selesai.`);
-      } else if (payload.action === "cancel") {
+        setRecentWaPrompt(null);
         showToast(
           "success",
-          `Jadwal ${data.booking.ticket_code} dibatalkan. Slot kini bebas.`
+          `Sesi ${updatedBooking.ticket_code} ditandai selesai.`
+        );
+      } else if (payload.action === "cancel") {
+        if (resolvedPhone) {
+          setRecentWaPrompt({
+            booking: updatedBooking,
+            phone: resolvedPhone,
+            action: "cancel",
+          });
+        }
+        showToast(
+          "success",
+          `Jadwal ${updatedBooking.ticket_code} dibatalkan. Slot kini bebas.`
         );
       } else {
+        if (resolvedPhone) {
+          setRecentWaPrompt({
+            booking: updatedBooking,
+            phone: resolvedPhone,
+            action: "reschedule",
+          });
+        }
         showToast(
           "success",
-          `Jadwal ${data.booking.ticket_code} digeser ke ${formatTimeHHMM(
-            data.booking.start_time
+          `Jadwal ${updatedBooking.ticket_code} digeser ke ${formatTimeHHMM(
+            updatedBooking.start_time
           )}.`
         );
       }
@@ -1519,8 +1921,53 @@ export function AdminCashierDashboard({
         {/* ================================================================ */}
         {activeTab === "queue" ? (
           <section aria-label="Antrean Real-time">
-            {/* Peringatan jika Tutup Darurat aktif */}
-            {settings.is_force_closed ? (
+            {/* Aksi Cepat 1-Tap Kirim Info Perubahan ke WA Pelanggan (sesudah Geser Jadwal / Batalkan) */}
+            {recentWaPrompt ? (
+              <div className="mb-4 rounded-2xl border border-terracotta/50 bg-surface p-3.5 shadow-xs sm:p-4">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="min-w-0">
+                    <p className="font-sans text-xs font-semibold text-terracotta">
+                      {recentWaPrompt.action === "reschedule"
+                        ? "Jadwal berhasil digeser"
+                        : "Jadwal berhasil dibatalkan"}
+                    </p>
+                    <p className="mt-0.5 font-sans text-xs text-ink sm:text-sm">
+                      Kirim notifikasi perubahan ke{" "}
+                      <strong className="font-semibold">
+                        {recentWaPrompt.booking.customer_name}
+                      </strong>{" "}
+                      ({recentWaPrompt.booking.ticket_code}) melalui WhatsApp.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Tutup tombol WA"
+                    onClick={() => setRecentWaPrompt(null)}
+                    className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-xl text-muted hover:bg-surface-elevated hover:text-ink"
+                  >
+                    <X aria-hidden="true" className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <a
+                  href={buildAdminWaNotifyUrl(
+                    recentWaPrompt.phone,
+                    recentWaPrompt.booking,
+                    recentWaPrompt.action
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 sm:w-auto sm:text-sm"
+                >
+                  <MessageCircle aria-hidden="true" className="h-4 w-4" />
+                  <span>Kirim Info ke WA Pelanggan</span>
+                  <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            ) : null}
+
+            {/* Peringatan jika Tutup Darurat / Tutup Hari Ini aktif */}
+            {settings.is_force_closed || todayClosedEntry ? (
               <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-crimson-alert/45 bg-crimson-alert/10 p-3.5 text-sm text-ink">
                 <div className="flex items-start gap-2.5">
                   <AlertTriangle
@@ -1529,9 +1976,15 @@ export function AdminCashierDashboard({
                   />
                   <p className="text-xs sm:text-sm">
                     <strong className="font-semibold">
-                      Studio ditutup sementara.
+                      {settings.is_force_closed
+                        ? "Studio ditutup sementara."
+                        : todayClosedEntry?.close_from_time
+                          ? `Studio tutup mulai ${formatTimeHHMM(
+                              todayClosedEntry.close_from_time
+                            )} WIB hari ini.`
+                          : "Studio tutup seharian hari ini."}
                     </strong>{" "}
-                    Buka kembali lewat tab Operasional &amp; CMS.
+                    Atur atau buka kembali lewat tab Operasional &amp; CMS.
                   </p>
                 </div>
                 <button
@@ -1649,7 +2102,7 @@ export function AdminCashierDashboard({
               </div>
             </div>
 
-            {/* Peringatan bila tanggal terpilih libur tetapi masih ada jadwal aktif */}
+            {/* Peringatan bila tanggal terpilih libur / tutup awal tetapi masih ada jadwal aktif */}
             {(selectedDateMeta.closedDate ||
               !selectedDateMeta.schedule?.is_open) &&
             timelineBookings.length > 0 ? (
@@ -1661,9 +2114,13 @@ export function AdminCashierDashboard({
                 <p>
                   Tanggal ini berstatus{" "}
                   <strong className="font-semibold">
-                    {selectedDateMeta.closedDate
-                      ? `Libur khusus (${selectedDateMeta.closedDate.reason || "Tutup"})`
-                      : "Hari libur rutin"}
+                    {selectedDateMeta.closedDate?.close_from_time
+                      ? `Tutup mulai ${formatTimeHHMM(
+                          selectedDateMeta.closedDate.close_from_time
+                        )} WIB`
+                      : selectedDateMeta.closedDate
+                        ? `Libur khusus (${selectedDateMeta.closedDate.reason || "Tutup"})`
+                        : "Hari libur rutin"}
                   </strong>
                   , namun masih memiliki jadwal aktif yang tampil di timeline.
                 </p>
@@ -1735,7 +2192,7 @@ export function AdminCashierDashboard({
                     ) : null}
                   </div>
 
-                  {/* Kolom Track Timeline (Slot Kosong + Blok Booking + Live Line) */}
+                  {/* Kolom Track Timeline (Slot Kosong + Blok Istirahat + Blok Booking + Live Line) */}
                   <div
                     style={{ height: `${timelineRange.totalHeightPx}px` }}
                     className="relative min-w-0 flex-1"
@@ -1753,6 +2210,14 @@ export function AdminCashierDashboard({
                         (selectedDate === nowParts.dateStr &&
                           hourStart + 60 <= nowParts.minutesFromMidnight);
 
+                      const isAfterEarlyClose = Boolean(
+                        selectedDateMeta.closedDate?.close_from_time &&
+                          hourStart >=
+                            parseTimeToMinutes(
+                              selectedDateMeta.closedDate.close_from_time
+                            )
+                      );
+
                       return (
                         <div
                           key={hourStart}
@@ -1766,9 +2231,11 @@ export function AdminCashierDashboard({
                                 {minutesToTime(hourStart + 60)}
                               </span>
                               <span className="font-sans text-xs text-muted/85">
-                                {settings.is_force_closed
+                                {settings.is_force_closed || isAfterEarlyClose
                                   ? "Tutup"
-                                  : selectedDateMeta.closedDate ||
+                                  : (selectedDateMeta.closedDate &&
+                                        !selectedDateMeta.closedDate
+                                          .close_from_time) ||
                                       !selectedDateMeta.schedule?.is_open
                                     ? "Libur"
                                     : isPastHour
@@ -1787,7 +2254,30 @@ export function AdminCashierDashboard({
                       className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-hairline"
                     />
 
-                    {/* Layer 2: Blok Booking Aktif Bersih (Tap -> Bottom Sheet Detail) */}
+                    {/* Layer 1.5: Blok Jam Istirahat (z-[5] DI BAWAH blok BOOKED z-10 agar booking lama tetap bisa di-tap) */}
+                    {timelineBreakBand ? (
+                      <div
+                        aria-label={`Jam istirahat ${timelineBreakBand.label}`}
+                        style={{
+                          top: `${timelineBreakBand.topPx + 2}px`,
+                          height: `${Math.max(40, timelineBreakBand.heightPx - 4)}px`,
+                        }}
+                        className="pointer-events-none absolute inset-x-0 z-[5] flex items-center justify-between gap-2 rounded-xl border border-ink/20 bg-surface-elevated/90 px-3.5 py-2"
+                      >
+                        <div className="flex items-center gap-2 font-sans text-xs font-semibold text-ink">
+                          <Coffee
+                            aria-hidden="true"
+                            className="h-3.5 w-3.5 shrink-0 text-terracotta"
+                          />
+                          <span>Istirahat</span>
+                        </div>
+                        <span className="font-sans text-xs font-medium text-muted tabular-nums">
+                          {timelineBreakBand.label}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {/* Layer 2: Blok Booking Aktif Bersih (z-10 di atas Istirahat, Tap -> Bottom Sheet Detail) */}
                     {timelineBookings.map((booking) => {
                       const startMin = parseTimeToMinutes(booking.start_time);
                       const endMin = parseTimeToMinutes(booking.end_time);
@@ -2004,80 +2494,242 @@ export function AdminCashierDashboard({
           /* TAB 2: OPERASIONAL & CMS RINGAN                                  */
           /* ================================================================ */
           <div className="space-y-8 pb-10">
-            {/* STATUS STUDIO & SAKELAR TUTUP STUDIO + JAM OPERASIONAL */}
+            {/* STATUS STUDIO HARI INI & JAM OPERASIONAL */}
             <section aria-label="Pengaturan Jam Operasional dan Status Studio">
               <EditorialSectionHeader
                 title="Jam Operasional"
-                description="Kelola status buka studio dan jam operasional rutin harian."
+                description="Kelola status buka hari ini (Sungai Kunyit, Kalimantan Barat — WIB), jam istirahat, dan jadwal rutin."
                 className="mb-4"
               />
 
-              {/* Kartu Sakelar Tutup Studio (Pindahan dari Header agar Atas Kasir Ringkas) */}
-              <div className="mb-4 rounded-2xl border border-hairline bg-surface p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {/* Kartu Tutup Studio Mendadak Khusus Hari Ini */}
+              <div className="mb-4 rounded-2xl border border-hairline bg-surface p-4 sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-hairline pb-3">
                   <div>
-                    <p className="font-sans text-sm font-semibold text-ink">
-                      Status buka studio
+                    <p className="font-sans text-sm font-semibold text-ink sm:text-base">
+                      Status studio hari ini ({formatIndonesianDateShort(nowParts.dateStr)})
                     </p>
                     <p className="mt-0.5 font-sans text-xs text-muted">
                       {settings.is_force_closed
-                        ? "Studio sedang ditutup sementara. Booking online dan walk-in dijeda."
-                        : "Studio mengikuti jadwal operasional rutin harian."}
+                        ? "Mode tutup sementara aktif. Booking online & walk-in dijeda."
+                        : todayClosedEntry
+                          ? todayClosedEntry.close_from_time
+                            ? `Tutup lebih awal mulai ${formatTimeHHMM(
+                                todayClosedEntry.close_from_time
+                              )} WIB khusus hari ini. Jadwal besok tetap normal.`
+                            : "Studio tutup seharian khusus hari ini. Jadwal besok tetap normal."
+                          : "Studio beroperasi mengikuti jadwal rutin hari ini."}
                     </p>
                   </div>
 
-                  {forceCloseConfirmOpen ? (
-                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-hairline bg-alabaster/70 px-3 py-2">
-                      <span className="font-sans text-xs font-medium text-ink">
-                        {settings.is_force_closed
-                          ? "Buka kembali studio?"
-                          : "Tutup studio sementara?"}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => void handleToggleForceClose()}
-                          disabled={updatingForceClose}
-                          className={`inline-flex min-h-[44px] items-center rounded-xl px-3.5 font-sans text-xs font-semibold transition-opacity disabled:opacity-50 ${
-                            settings.is_force_closed
-                              ? "bg-ink text-surface"
-                              : "bg-crimson-alert text-surface"
-                          }`}
-                        >
-                          {updatingForceClose
-                            ? "Menyimpan..."
-                            : settings.is_force_closed
-                              ? "Ya, Buka"
-                              : "Ya, Tutup"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setForceCloseConfirmOpen(false)}
-                          disabled={updatingForceClose}
-                          className="inline-flex min-h-[44px] items-center rounded-xl border border-hairline bg-surface px-3 font-sans text-xs font-medium text-muted hover:text-ink"
-                        >
-                          Batal
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
+                  <span
+                    className={`inline-flex items-center rounded-lg border px-2.5 py-1 font-sans text-xs font-semibold ${
+                      settings.is_force_closed || todayClosedEntry
+                        ? "border-crimson-alert/40 bg-crimson-alert/10 text-crimson-alert"
+                        : "border-ink/20 bg-surface-elevated text-ink"
+                    }`}
+                  >
+                    {settings.is_force_closed
+                      ? "Tutup sementara"
+                      : todayClosedEntry?.close_from_time
+                        ? `Tutup mulai ${formatTimeHHMM(
+                            todayClosedEntry.close_from_time
+                          )} WIB`
+                        : todayClosedEntry
+                          ? "Tutup seharian"
+                          : "Buka normal"}
+                  </span>
+                </div>
+
+                <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    disabled={updatingQuickClose}
+                    onClick={() => void handleCloseFromNowToday()}
+                    className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-terracotta/50 bg-terracotta/10 px-3.5 font-sans text-xs font-semibold text-terracotta transition-colors hover:bg-terracotta hover:text-surface disabled:opacity-50 sm:flex-none"
+                  >
+                    <Clock aria-hidden="true" className="h-3.5 w-3.5" />
+                    <span>
+                      Tutup Mulai Jam Sekarang ({nowParts.timeStr} WIB)
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={updatingQuickClose}
+                    onClick={() => void handleCloseAllDayToday()}
+                    className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 px-3.5 font-sans text-xs font-semibold text-crimson-alert transition-colors hover:bg-crimson-alert hover:text-surface disabled:opacity-50 sm:flex-none"
+                  >
+                    <Power aria-hidden="true" className="h-3.5 w-3.5" />
+                    <span>Tutup Seharian Ini</span>
+                  </button>
+
+                  {settings.is_force_closed || todayClosedEntry ? (
                     <button
                       type="button"
-                      onClick={() => setForceCloseConfirmOpen(true)}
-                      className={`inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border px-4 font-sans text-xs font-semibold transition-colors ${
-                        settings.is_force_closed
-                          ? "border-ink bg-ink text-surface hover:opacity-90"
-                          : "border-crimson-alert/50 bg-crimson-alert/10 text-crimson-alert hover:bg-crimson-alert hover:text-surface"
-                      }`}
+                      disabled={updatingQuickClose}
+                      onClick={() => void handleReopenStudio()}
+                      className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-ink px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:flex-none"
                     >
-                      <Power aria-hidden="true" className="h-3.5 w-3.5" />
-                      <span>
-                        {settings.is_force_closed
-                          ? "Buka Studio Kembali"
-                          : "Tutup Darurat"}
-                      </span>
+                      <Check aria-hidden="true" className="h-3.5 w-3.5" />
+                      <span>Buka Kembali Studio</span>
                     </button>
-                  )}
+                  ) : null}
+                </div>
+
+                {/* Daftar Booking Aktif Hari Ini yang Masih BOOKED (Tidak dibatalkan diam-diam) */}
+                {(settings.is_force_closed || todayClosedEntry) &&
+                todayActiveBookings.length > 0 ? (
+                  <div className="mt-4 rounded-xl border border-crimson-alert/35 bg-crimson-alert/8 p-3.5">
+                    <div className="flex items-start gap-2 text-xs text-ink">
+                      <AlertTriangle
+                        aria-hidden="true"
+                        className="mt-0.5 h-4 w-4 shrink-0 text-crimson-alert"
+                      />
+                      <p>
+                        Masih ada{" "}
+                        <strong className="font-semibold tabular-nums">
+                          {todayActiveBookings.length} jadwal BOOKED
+                        </strong>{" "}
+                        hari ini. Booking lama tidak dibatalkan otomatis —
+                        hubungi pelanggan via WA atau geser/batalkan dari
+                        timeline.
+                      </p>
+                    </div>
+
+                    <div className="mt-2.5 space-y-2">
+                      {todayActiveBookings.map((b) => {
+                        const phone = bookingPhones[b.id];
+                        return (
+                          <div
+                            key={b.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-hairline bg-surface px-3 py-2"
+                          >
+                            <div className="min-w-0 font-sans text-xs">
+                              <p className="font-semibold text-ink tabular-nums">
+                                {formatTimeHHMM(b.start_time)}–
+                                {formatTimeHHMM(b.end_time)} WIB ·{" "}
+                                {b.customer_name}
+                              </p>
+                              <p className="text-muted">
+                                {b.service_name} · {b.ticket_code}
+                              </p>
+                            </div>
+                            {phone ? (
+                              <a
+                                href={buildAdminWaNotifyUrl(
+                                  phone,
+                                  b,
+                                  "early_close"
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-terracotta px-3 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90"
+                              >
+                                <MessageCircle
+                                  aria-hidden="true"
+                                  className="h-3.5 w-3.5"
+                                />
+                                <span>Info WA</span>
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab("queue");
+                                  setSelectedDate(b.booking_date);
+                                  openBookingDetail(b.id);
+                                }}
+                                className="inline-flex min-h-[40px] items-center rounded-xl border border-hairline bg-alabaster/70 px-3 font-sans text-xs font-medium text-ink hover:border-terracotta"
+                              >
+                                Kelola
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Kartu Pengaturan Jam Istirahat Harian (Default 17:15 – 18:30 WIB) */}
+              <div className="mb-4 rounded-2xl border border-hairline bg-surface p-4 sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Coffee
+                        aria-hidden="true"
+                        className="h-4 w-4 text-terracotta"
+                      />
+                      <p className="font-sans text-sm font-semibold text-ink sm:text-base">
+                        Jam istirahat harian
+                      </p>
+                    </div>
+                    <p className="mt-0.5 font-sans text-xs text-muted">
+                      Saat aktif, slot yang beririsan (1 jam maupun 2 jam)
+                      otomatis dikunci. Booking lama yang sudah masuk tetap aman.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setBreakEnabledDraft((prev) => !prev)}
+                    className={`inline-flex min-h-[44px] min-w-[96px] items-center justify-center rounded-xl border px-3.5 font-sans text-xs font-semibold transition-colors ${
+                      breakEnabledDraft
+                        ? "border-terracotta bg-terracotta text-surface"
+                        : "border-hairline bg-surface-elevated text-muted"
+                    }`}
+                  >
+                    {breakEnabledDraft ? "Aktif" : "Nonaktif"}
+                  </button>
+                </div>
+
+                <div className="mt-3.5 grid grid-cols-2 gap-3 sm:max-w-sm">
+                  <div className="flex flex-col gap-1">
+                    <label
+                      htmlFor="break-start-time"
+                      className="font-sans text-xs font-medium text-muted"
+                    >
+                      Mulai (WIB)
+                    </label>
+                    <input
+                      id="break-start-time"
+                      type="time"
+                      value={breakStartDraft}
+                      onChange={(e) => setBreakStartDraft(e.target.value)}
+                      className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label
+                      htmlFor="break-end-time"
+                      className="font-sans text-xs font-medium text-muted"
+                    >
+                      Selesai (WIB)
+                    </label>
+                    <input
+                      id="break-end-time"
+                      type="time"
+                      value={breakEndDraft}
+                      onChange={(e) => setBreakEndDraft(e.target.value)}
+                      className="min-h-[44px] rounded-xl border border-hairline bg-alabaster/60 px-3 font-sans text-base text-ink tabular-nums focus:border-terracotta focus:bg-surface focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3.5">
+                  <button
+                    type="button"
+                    disabled={savingBreak}
+                    onClick={() => void handleSaveBreakSettings()}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
+                  >
+                    <Check aria-hidden="true" className="h-4 w-4" />
+                    <span>
+                      {savingBreak ? "Menyimpan..." : "Simpan Jam Istirahat"}
+                    </span>
+                  </button>
                 </div>
               </div>
 
@@ -2244,7 +2896,9 @@ export function AdminCashierDashboard({
                             {item.closed_date}
                           </p>
                           <p className="text-xs text-muted">
-                            {item.reason || "Libur khusus"}
+                            {item.close_from_time
+                              ? `Tutup mulai ${formatTimeHHMM(item.close_from_time)} WIB`
+                              : item.reason || "Libur khusus seharian"}
                           </p>
                         </div>
 
@@ -2262,6 +2916,26 @@ export function AdminCashierDashboard({
                   )}
                 </div>
               </div>
+            </section>
+
+            {/* NOTIFIKASI HP KASIR (WEB PUSH PWA) */}
+            <section aria-label="Notifikasi HP Kasir">
+              <EditorialSectionHeader
+                title="Notifikasi HP Kasir"
+                description="Pemberitahuan instan booking baru dan pengingat selesai istirahat."
+                className="mb-4"
+              />
+              <PushNotificationCard onNotify={showToast} />
+            </section>
+
+            {/* GENERATOR QR CODE STUDIO SIAP CETAK */}
+            <section aria-label="QR Code Studio">
+              <EditorialSectionHeader
+                title="QR Code Studio"
+                description="Poster QR siap cetak untuk ditempel di meja kasir atau cermin."
+                className="mb-4"
+              />
+              <StudioQrCodeCard storeName={settings.store_name} />
             </section>
 
             {/* EDITOR HARGA LAYANAN */}
@@ -3070,6 +3744,40 @@ export function AdminCashierDashboard({
                         </>
                       )
                     ) : null}
+
+                    {/* 1-Tap Kirim Info ke WA Pelanggan bila jadwal pernah digeser/dibatalkan & punya nomor WA */}
+                    {(() => {
+                      const sheetPhone = bookingPhones[selectedBooking.id];
+                      const waAction: "reschedule" | "cancel" | null =
+                        selectedBooking.status === "CANCELLED"
+                          ? "cancel"
+                          : selectedBooking.rescheduled_at
+                            ? "reschedule"
+                            : null;
+                      if (!sheetPhone || !waAction) return null;
+                      return (
+                        <a
+                          href={buildAdminWaNotifyUrl(
+                            sheetPhone,
+                            selectedBooking,
+                            waAction
+                          )}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 sm:text-sm"
+                        >
+                          <MessageCircle
+                            aria-hidden="true"
+                            className="h-4 w-4"
+                          />
+                          <span>Kirim Info ke WA Pelanggan</span>
+                          <ExternalLink
+                            aria-hidden="true"
+                            className="h-3.5 w-3.5"
+                          />
+                        </a>
+                      );
+                    })()}
 
                     {/* Tautan Smart Ticket (Selalu tersedia untuk semua status) */}
                     <Link

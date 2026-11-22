@@ -22,6 +22,13 @@ export type StoreSettings = {
   timezone: string;
   lead_time_minutes: number;
   is_force_closed: boolean;
+  break_enabled: boolean;
+  /** Format HH:MM:SS or HH:MM */
+  break_start: string;
+  /** Format HH:MM:SS or HH:MM */
+  break_end: string;
+  /** Format YYYY-MM-DD (idempotency tracker for break-reminder push) */
+  break_reminder_sent_date: string | null;
   logo_url: string | null;
   hero_image_url: string | null;
   updated_at: string;
@@ -42,6 +49,8 @@ export type ClosedDate = {
   /** Format YYYY-MM-DD */
   closed_date: string;
   reason: string | null;
+  /** NULL = tutup seharian, non-NULL = tutup mulai jam ini (HH:MM:SS) khusus tanggal ini */
+  close_from_time: string | null;
   created_at: string;
 };
 
@@ -93,6 +102,30 @@ export type Booking = {
   status: BookingStatus;
   source: BookingSource;
   notes: string | null;
+  /** Timestamp terakhir kali jadwal digeser admin */
+  rescheduled_at: string | null;
+  /** Tanggal sebelumnya sebelum geser jadwal (YYYY-MM-DD) */
+  previous_date: string | null;
+  /** Jam mulai sebelumnya (HH:MM:SS) */
+  previous_start_time: string | null;
+  /** Jam selesai sebelumnya (HH:MM:SS) */
+  previous_end_time: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BookingContact = {
+  booking_id: string;
+  phone: string;
+  updated_at: string;
+};
+
+export type PushSubscriptionRow = {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -114,6 +147,8 @@ export type CreateBookingSafeParams = {
   /** HH:MM or HH:MM:SS */
   p_start_time: string;
   p_source?: BookingSource;
+  /** Normalized 628xx WhatsApp number (required for ONLINE, optional for WALKIN) */
+  p_customer_phone?: string | null;
 };
 
 export type RescheduleBookingSafeParams = {
@@ -148,6 +183,7 @@ export type SlotStatus =
   | "BOOKED"
   | "EXPIRED"
   | "INSUFFICIENT_TIME"
+  | "BREAK"
   | "CLOSED";
 
 export type SlotItem = {
@@ -238,6 +274,7 @@ export type Database = {
           id?: string;
           closed_date: string;
           reason?: string | null;
+          close_from_time?: string | null;
           created_at?: string;
         };
         Update: Partial<Omit<ClosedDate, "id" | "created_at">>;
@@ -293,6 +330,10 @@ export type Database = {
           status?: BookingStatus;
           source?: BookingSource;
           notes?: string | null;
+          rescheduled_at?: string | null;
+          previous_date?: string | null;
+          previous_start_time?: string | null;
+          previous_end_time?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -306,6 +347,38 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      booking_contacts: {
+        Row: BookingContact;
+        Insert: {
+          booking_id: string;
+          phone: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<BookingContact, "booking_id">>;
+        Relationships: [
+          {
+            foreignKeyName: "booking_contacts_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: true;
+            referencedRelation: "bookings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      push_subscriptions: {
+        Row: PushSubscriptionRow;
+        Insert: {
+          id?: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          user_agent?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<PushSubscriptionRow, "id" | "created_at">>;
+        Relationships: [];
       };
     };
     Views: {
@@ -339,6 +412,10 @@ export type Database = {
       get_booking_by_ticket_code: {
         Args: GetBookingByTicketCodeParams;
         Returns: Booking[];
+      };
+      auto_complete_overdue_bookings: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
       };
     };
     Enums: {

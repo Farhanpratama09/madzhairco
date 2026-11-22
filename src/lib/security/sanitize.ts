@@ -199,3 +199,57 @@ export function validateServiceTimeFormat(time: string): boolean {
 
   return SERVICE_TIME_REGEX.test(time);
 }
+
+export interface NormalizePhoneResult {
+  valid: boolean;
+  value: string;
+  error?: string;
+}
+
+const WHATSAPP_PHONE_REGEX = /^62[1-9][0-9]{7,12}$/;
+
+/**
+ * Normalizes Indonesian WhatsApp numbers (+62, 62, 08, 6208, 8xx, spaces/dashes)
+ * to E.164 digits without leading '+' (e.g. "6281234567890") and validates
+ * against ^62[1-9][0-9]{7,12}$.
+ */
+export function normalizeWhatsappPhone(raw: unknown): NormalizePhoneResult {
+  if (typeof raw !== "string") {
+    return {
+      valid: false,
+      value: "",
+      error: "Nomor WhatsApp wajib berupa teks angka.",
+    };
+  }
+
+  let digits = raw.replace(/\D+/g, "");
+  if (!digits) {
+    return {
+      valid: false,
+      value: "",
+      error: "Nomor WhatsApp wajib diisi.",
+    };
+  }
+
+  if (digits.startsWith("620")) {
+    digits = `62${digits.slice(3)}`;
+  } else if (digits.startsWith("0")) {
+    digits = `62${digits.slice(1)}`;
+  } else if (digits.startsWith("8")) {
+    digits = `62${digits}`;
+  }
+
+  if (!WHATSAPP_PHONE_REGEX.test(digits)) {
+    return {
+      valid: false,
+      value: digits,
+      error: "Format nomor WhatsApp tidak valid. Gunakan nomor aktif (contoh: 081234567890).",
+    };
+  }
+
+  return {
+    valid: true,
+    value: digits,
+  };
+}
+

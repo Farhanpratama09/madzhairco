@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sendPushToAllAdmins } from "@/lib/push/web-push";
 import {
   checkBookingRateLimit,
   extractClientIp,
@@ -6,6 +7,7 @@ import {
 } from "@/lib/security/rate-limit";
 import {
   checkHoneypot,
+  normalizeWhatsappPhone,
   sanitizeCustomerName,
   validateServiceTimeFormat,
 } from "@/lib/security/sanitize";
@@ -27,6 +29,7 @@ const DEMO_BOOKINGS_KEY = "__madzhair_demo_bookings__";
 interface CreateBookingRequestBody {
   serviceId?: unknown;
   customerName?: unknown;
+  customerPhone?: unknown;
   bookingDate?: unknown;
   startTime?: unknown;
   website?: unknown;
@@ -84,6 +87,13 @@ function mapRpcError(message: string): { status: number; error: string } {
     };
   }
 
+  if (upper.includes("BREAK_TIME_CONFLICT")) {
+    return {
+      status: 409,
+      error: "Jam yang dipilih beririsan dengan waktu istirahat studio.",
+    };
+  }
+
   if (
     upper.includes("OUTSIDE_OPERATING_HOURS") ||
     upper.includes("OUTSIDE_HOURS")
@@ -133,6 +143,13 @@ function mapRpcError(message: string): { status: number; error: string } {
     return {
       status: 400,
       error: "Nama pelanggan wajib 2 hingga 40 karakter.",
+    };
+  }
+
+  if (upper.includes("INVALID_CUSTOMER_PHONE")) {
+    return {
+      status: 400,
+      error: "Nomor WhatsApp tidak valid. Gunakan nomor aktif (contoh: 081234567890).",
     };
   }
 
@@ -198,6 +215,10 @@ export async function POST(request: NextRequest) {
       status: "BOOKED",
       source: "ONLINE",
       notes: null,
+      rescheduled_at: null,
+      previous_date: null,
+      previous_start_time: null,
+      previous_end_time: null,
       created_at: nowIso,
       updated_at: nowIso,
     };
@@ -221,6 +242,14 @@ export async function POST(request: NextRequest) {
   if (!sanitizedName.valid) {
     return NextResponse.json(
       { error: sanitizedName.error ?? "Nama pelanggan tidak valid." },
+      { status: 400 }
+    );
+  }
+
+  const normalizedPhone = normalizeWhatsappPhone(body.customerPhone);
+  if (!normalizedPhone.valid) {
+    return NextResponse.json(
+      { error: normalizedPhone.error ?? "Nomor WhatsApp tidak valid." },
       { status: 400 }
     );
   }
@@ -268,6 +297,7 @@ export async function POST(request: NextRequest) {
       p_booking_date: bookingDate,
       p_start_time: startTimeSql,
       p_source: "ONLINE",
+      p_customer_phone: normalizedPhone.value,
     });
 
     if (error) {
@@ -291,9 +321,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const createdBooking = data as Booking;
     recordBookingQuotaUse(clientIp);
+
+    // Best-effort instant Web Push to admin cashier devices (never fails the booking)
+    try {
+      await sendPushToAllAdmins({
+        title: `Booking Baru · ${createdBooking.ticket_code}`,
+        body: `${createdBooking.customer_name} — ${createdBooking.service_name} (${createdBooking.booking_date} ${formatTimeHHMM(
+          createdBooking.start_time
+        )} WIB)`,
+        url: "/admin",
+        tag: `booking-${createdBooking.ticket_code}`,
+      });
+    } catch {
+      // Best-effort: ignore push dispatch errors
+    }
+
     return NextResponse.json(
-      { booking: data, mode: "supabase" },
+      { booking: createdBooking, mode: "supabase" },
       { status: 201 }
     );
   }
@@ -338,6 +384,7 @@ export async function POST(request: NextRequest) {
   if (!targetSlot.available) {
     const isConflict =
       targetSlot.status === "BOOKED" ||
+      targetSlot.status === "BREAK" ||
       targetSlot.status === "INSUFFICIENT_TIME";
     if (isConflict) {
       recordBookingQuotaUse(clientIp);
@@ -370,6 +417,10 @@ export async function POST(request: NextRequest) {
     status: "BOOKED",
     source: "ONLINE",
     notes: null,
+    rescheduled_at: null,
+    previous_date: null,
+    previous_start_time: null,
+    previous_end_time: null,
     created_at: nowIso,
     updated_at: nowIso,
   };

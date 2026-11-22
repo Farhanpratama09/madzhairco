@@ -182,7 +182,8 @@ export interface CalculateAvailableSlotsInput {
   settings: Pick<
     StoreSettings,
     "is_force_closed" | "lead_time_minutes" | "timezone"
-  >;
+  > &
+    Partial<Pick<StoreSettings, "break_enabled" | "break_start" | "break_end">>;
   nowParts?: StoreNowParts;
   /** Optional: bypass customer lead_time_minutes check (e.g. admin reschedule view) */
   ignoreLeadTime?: boolean;
@@ -191,10 +192,13 @@ export interface CalculateAvailableSlotsInput {
 }
 
 /**
- * Pure slot engine implementing PRD Section 3:
+ * Pure slot engine implementing PRD Section 3 + v1.9:
  * - Rounded 1-hour grid (e.g. 12:00, 13:00, ...)
  * - Overlap check: start < newEnd && end > newStart for BOOKED only (COMPLETED releases chair)
- * - 2-hour Hair Chemicals disables slots with < 120m before next booking or close_time
+ * - 2-hour Hair Chemicals disables slots with < 120m before next booking, break_start, or effective close_time
+ * - Daily break check (default 17:15-18:30 WIB): full service interval overlap
+ *   (e.g. 16:00 open for 1h Haircut, INSUFFICIENT_TIME for 2h Hair Chemicals; 17:00 & 18:00 BREAK)
+ * - Early close override (closed_dates.close_from_time): trims close_time ONLY for that date
  * - Enforces lead_time_minutes (default 30m) on today's slots
  */
 export function calculateAvailableSlots({
@@ -212,8 +216,8 @@ export function calculateAvailableSlots({
     return [];
   }
 
-  const isClosedDate = closedDates.some((item) => item.closed_date === date);
-  if (isClosedDate) {
+  const matchedClosedDate = closedDates.find((item) => item.closed_date === date);
+  if (matchedClosedDate && !matchedClosedDate.close_from_time) {
     return [];
   }
 
@@ -224,10 +228,29 @@ export function calculateAvailableSlots({
   }
 
   const openMinutes = parseTimeToMinutes(schedule.open_time);
-  const closeMinutes = parseTimeToMinutes(schedule.close_time);
-  if (closeMinutes <= openMinutes) {
+  const regularCloseMinutes = parseTimeToMinutes(schedule.close_time);
+  const effectiveCloseMinutes = matchedClosedDate?.close_from_time
+    ? Math.min(
+        regularCloseMinutes,
+        parseTimeToMinutes(matchedClosedDate.close_from_time)
+      )
+    : regularCloseMinutes;
+
+  if (effectiveCloseMinutes <= openMinutes) {
     return [];
   }
+
+  const breakEnabled = Boolean(settings.break_enabled);
+  const breakStartMinutes = breakEnabled
+    ? parseTimeToMinutes(settings.break_start ?? "17:15:00")
+    : -1;
+  const breakEndMinutes = breakEnabled
+    ? parseTimeToMinutes(settings.break_end ?? "18:30:00")
+    : -1;
+  const hasValidBreak =
+    breakEnabled &&
+    breakStartMinutes >= 0 &&
+    breakEndMinutes > breakStartMinutes;
 
   const durationMinutes = Math.max(60, service.slot_duration_minutes);
   const now = nowParts ?? getStoreNowParts(settings.timezone);
@@ -256,7 +279,7 @@ export function calculateAvailableSlots({
 
   for (
     let slotStart = firstGridMinutes;
-    slotStart + 60 <= closeMinutes;
+    slotStart + 60 <= effectiveCloseMinutes;
     slotStart += 60
   ) {
     const slotEnd = slotStart + durationMinutes;
@@ -278,7 +301,17 @@ export function calculateAvailableSlots({
       (b) => b.start < slotEnd && b.end > slotStart
     );
 
-    const exceedsClosing = slotEnd > closeMinutes;
+    const hasFirstHourBreakOverlap =
+      hasValidBreak &&
+      slotStart < breakEndMinutes &&
+      firstBlockEnd > breakStartMinutes;
+
+    const hasFullBreakOverlap =
+      hasValidBreak &&
+      slotStart < breakEndMinutes &&
+      slotEnd > breakStartMinutes;
+
+    const exceedsClosing = slotEnd > effectiveCloseMinutes;
 
     if (isLeadTimeExpired || isPastTodayForAdmin) {
       slots.push({
@@ -300,7 +333,19 @@ export function calculateAvailableSlots({
         status: "BOOKED",
         reason: "Slot sudah terisi",
       });
-    } else if (exceedsClosing || hasFullOverlap) {
+    } else if (hasFirstHourBreakOverlap) {
+      slots.push({
+        time: minutesToTime(slotStart),
+        endTime: minutesToTime(slotEnd),
+        startMinutes: slotStart,
+        endMinutes: slotEnd,
+        available: false,
+        status: "BREAK",
+        reason: `Jam istirahat studio (${formatTimeHHMM(
+          settings.break_start ?? "17:15:00"
+        )} – ${formatTimeHHMM(settings.break_end ?? "18:30:00")} WIB)`,
+      });
+    } else if (exceedsClosing || hasFullOverlap || hasFullBreakOverlap) {
       slots.push({
         time: minutesToTime(slotStart),
         endTime: minutesToTime(slotEnd),
@@ -310,7 +355,9 @@ export function calculateAvailableSlots({
         status: "INSUFFICIENT_TIME",
         reason: exceedsClosing
           ? "Sisa waktu sebelum tutup kurang dari durasi layanan"
-          : "Sisa waktu sebelum jadwal berikutnya tidak mencukupi",
+          : hasFullBreakOverlap
+            ? "Durasi layanan beririsan dengan jam istirahat studio"
+            : "Sisa waktu sebelum jadwal berikutnya tidak mencukupi",
       });
     } else {
       slots.push({
@@ -358,7 +405,7 @@ export function isStoreOpenLive({
   const matchedClosed = closedDates.find(
     (item) => item.closed_date === now.dateStr
   );
-  if (matchedClosed) {
+  if (matchedClosed && !matchedClosed.close_from_time) {
     return {
       isOpen: false,
       reason: "CLOSED_DATE",
@@ -382,9 +429,26 @@ export function isStoreOpenLive({
   }
 
   const openMinutes = parseTimeToMinutes(schedule.open_time);
-  const closeMinutes = parseTimeToMinutes(schedule.close_time);
+  const regularCloseMinutes = parseTimeToMinutes(schedule.close_time);
+  const effectiveCloseMinutes = matchedClosed?.close_from_time
+    ? Math.min(
+        regularCloseMinutes,
+        parseTimeToMinutes(matchedClosed.close_from_time)
+      )
+    : regularCloseMinutes;
+
   const openTime = formatTimeHHMM(schedule.open_time);
-  const closeTime = formatTimeHHMM(schedule.close_time);
+  const closeTime = minutesToTime(effectiveCloseMinutes);
+
+  if (effectiveCloseMinutes <= openMinutes) {
+    return {
+      isOpen: false,
+      reason: "CLOSED_DATE",
+      openTime: null,
+      closeTime: null,
+      closedReason: matchedClosed?.reason ?? "Tutup lebih awal hari ini",
+    };
+  }
 
   if (now.minutesFromMidnight < openMinutes) {
     return {
@@ -396,13 +460,15 @@ export function isStoreOpenLive({
     };
   }
 
-  if (now.minutesFromMidnight >= closeMinutes) {
+  if (now.minutesFromMidnight >= effectiveCloseMinutes) {
     return {
       isOpen: false,
       reason: "AFTER_CLOSE",
       openTime,
       closeTime,
-      closedReason: null,
+      closedReason: matchedClosed?.close_from_time
+        ? matchedClosed.reason ?? `Tutup mulai ${closeTime} WIB`
+        : null,
     };
   }
 
@@ -466,7 +532,11 @@ export function findWalkinTargetSlot(
   schedules: WeeklySchedule[],
   closedDates: ClosedDate[],
   bookings: PublicBookingSlot[] | Booking[],
-  settings: Pick<StoreSettings, "is_force_closed" | "lead_time_minutes" | "timezone">,
+  settings: Pick<
+    StoreSettings,
+    "is_force_closed" | "lead_time_minutes" | "timezone"
+  > &
+    Partial<Pick<StoreSettings, "break_enabled" | "break_start" | "break_end">>,
   nowParts?: StoreNowParts
 ): SlotItem | null {
   const now = nowParts ?? getStoreNowParts(settings.timezone);

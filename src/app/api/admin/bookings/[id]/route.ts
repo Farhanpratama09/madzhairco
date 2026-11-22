@@ -32,6 +32,12 @@ function mapRpcError(message: string): { status: number; error: string } {
       error: "Jam pengganti sudah terisi jadwal lain.",
     };
   }
+  if (message.includes("BREAK_TIME_CONFLICT")) {
+    return {
+      status: 409,
+      error: "Jam pengganti beririsan dengan waktu istirahat studio.",
+    };
+  }
   if (message.includes("OUTSIDE_OPERATING_HOURS")) {
     return {
       status: 409,
@@ -171,5 +177,20 @@ export async function PATCH(
     );
   }
 
-  return NextResponse.json({ booking }, { status: 200 });
+  // Fetch private customer WhatsApp exclusively for authenticated admin sessions
+  let customerPhone: string | null = null;
+  try {
+    const { data: contactRow } = await supabase
+      .from("booking_contacts")
+      .select("phone")
+      .eq("booking_id", booking.id)
+      .maybeSingle();
+    if (contactRow && typeof contactRow.phone === "string") {
+      customerPhone = contactRow.phone;
+    }
+  } catch {
+    customerPhone = null;
+  }
+
+  return NextResponse.json({ booking, customerPhone }, { status: 200 });
 }

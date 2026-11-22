@@ -76,6 +76,13 @@ async function loadLandingData(): Promise<{
     const supabase = await createClient();
 
     if (supabase) {
+      // Jalankan auto-complete secara berurutan SEBELUM membaca daftar booking hari ini
+      try {
+        await supabase.rpc("auto_complete_overdue_bookings");
+      } catch {
+        // Fallback aman bila migrasi belum diterapkan di lingkungan demo
+      }
+
       const defaultNow = getStoreNowParts(DEFAULT_STORE_SETTINGS.timezone);
 
       const [
@@ -207,12 +214,16 @@ export default async function HomePage() {
 
   const footerHoursLabel = settings.is_force_closed
     ? "Tutup sementara"
-    : todayClosedEntry
-      ? todayClosedEntry.reason?.trim() || "Libur khusus"
+    : todayClosedEntry && !todayClosedEntry.close_from_time
+      ? todayClosedEntry.reason?.trim() || "Tutup seharian ini"
       : todaySchedule && todaySchedule.is_open
-        ? `${formatTimeHHMM(todaySchedule.open_time)} – ${formatTimeHHMM(
-            todaySchedule.close_time
-          )} WIB`
+        ? todayClosedEntry?.close_from_time
+          ? `${formatTimeHHMM(todaySchedule.open_time)} – ${
+              liveStatus.closeTime ?? formatTimeHHMM(todayClosedEntry.close_from_time)
+            } WIB (Tutup lebih awal)`
+          : `${formatTimeHHMM(todaySchedule.open_time)} – ${formatTimeHHMM(
+              todaySchedule.close_time
+            )} WIB`
         : "Hari ini libur";
 
   const footerAddress = settings.short_address.replace(/^Jalan\b/i, "Jl.");
@@ -389,7 +400,7 @@ export default async function HomePage() {
                 Jam operasional
               </h2>
               <p className="font-sans text-sm text-[#F7F3EC]/75">
-                Sungai Kunyit, Kalimantan Barat
+                Sungai Kunyit, Kalimantan Barat (WIB)
               </p>
               <p className="pt-1 font-sans text-sm font-semibold text-[#F7F3EC] tabular-nums">
                 {footerHoursLabel}

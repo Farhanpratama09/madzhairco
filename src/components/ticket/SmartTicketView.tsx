@@ -13,6 +13,7 @@ import {
   Clock,
   Loader2,
   MapPin,
+  MessageCircle,
   ShieldCheck,
   XCircle,
 } from "lucide-react";
@@ -38,6 +39,8 @@ export interface SmartTicketViewProps {
   isSupabaseMode: boolean;
   isAdminAuthenticated: boolean;
   initialBooking: Booking | null;
+  /** Exclusively populated server-side when isAdminAuthenticated === true */
+  adminContactPhone?: string | null;
   settings: StoreSettings;
   schedules: WeeklySchedule[];
   closedDates: ClosedDate[];
@@ -86,29 +89,82 @@ function formatIndonesianDateFull(dateStr: string): string {
   return `${dayName}, ${day} ${monthName} ${year}`;
 }
 
-function getStatusDisplay(status: Booking["status"]) {
-  if (status === "BOOKED") {
+function getStatusDisplay(booking: Booking) {
+  if (booking.status === "BOOKED" && booking.rescheduled_at) {
     return {
-      label: "Terjadwal",
-      barClass: "bg-emerald-live",
-      textClass: "text-emerald-live",
-      borderClass: "border-emerald-live/40",
+      label: "Jadwal Diperbarui",
+      badgeClass:
+        "border-terracotta/45 bg-terracotta/12 text-terracotta",
     };
   }
-  if (status === "COMPLETED") {
+  if (booking.status === "BOOKED") {
     return {
-      label: "Selesai",
-      barClass: "bg-terracotta",
-      textClass: "text-terracotta",
-      borderClass: "border-terracotta/40",
+      label: "Terjadwal",
+      badgeClass: "border-ink/25 bg-surface-elevated text-ink",
+    };
+  }
+  if (booking.status === "COMPLETED") {
+    return {
+      label: "Sesi Selesai",
+      badgeClass: "border-ink/25 bg-ink text-surface",
     };
   }
   return {
-    label: "Dibatalkan",
-    barClass: "bg-crimson-alert",
-    textClass: "text-crimson-alert",
-    borderClass: "border-crimson-alert/40",
+    label: "Jadwal Dibatalkan",
+    badgeClass:
+      "border-crimson-alert/45 bg-crimson-alert/12 text-crimson-alert",
   };
+}
+
+function buildAdminWhatsAppUpdateUrl(
+  phone: string,
+  booking: Booking,
+  action: "reschedule" | "cancel"
+): string {
+  const cleanPhone = phone.replace(/\D/g, "");
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://madzhair.vercel.app";
+  const ticketUrl = `${origin}/tiket/${booking.ticket_code}`;
+  const formattedDate = formatIndonesianDateFull(booking.booking_date);
+  const newTimeRange = `${formatTimeHHMM(booking.start_time)} – ${formatTimeHHMM(
+    booking.end_time
+  )} WIB`;
+
+  if (action === "reschedule") {
+    const prevTimeRange =
+      booking.previous_start_time && booking.previous_end_time
+        ? `${formatTimeHHMM(booking.previous_start_time)} – ${formatTimeHHMM(
+            booking.previous_end_time
+          )} WIB`
+        : null;
+    const lines = [
+      `Halo Kak ${booking.customer_name}, info pembaruan jadwal Madzhair.co (Sungai Kunyit, Kalimantan Barat):`,
+      `• Kode Tiket: ${booking.ticket_code}`,
+      `• Layanan: ${booking.service_name}`,
+      ...(prevTimeRange ? [`• Jadwal Lama: ${prevTimeRange}`] : []),
+      `• Jadwal Baru: ${formattedDate}, ${newTimeRange}`,
+      "",
+      `Cek e-tiket terbaru: ${ticketUrl}`,
+    ];
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+      lines.join("\n")
+    )}`;
+  }
+
+  const lines = [
+    `Halo Kak ${booking.customer_name}, mohon maaf jadwal reservasi Anda di Madzhair.co telah dibatalkan:`,
+    `• Kode Tiket: ${booking.ticket_code}`,
+    `• Layanan: ${booking.service_name}`,
+    `• Jadwal: ${formattedDate}, ${newTimeRange}`,
+    "",
+    `Detail status e-tiket: ${ticketUrl}`,
+    `Silakan pilih jadwal baru di: ${origin}/#reservasi`,
+  ];
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+    lines.join("\n")
+  )}`;
 }
 
 export function SmartTicketView({
@@ -117,6 +173,7 @@ export function SmartTicketView({
   isSupabaseMode,
   isAdminAuthenticated,
   initialBooking,
+  adminContactPhone = null,
   settings,
   schedules,
   closedDates,
@@ -126,6 +183,12 @@ export function SmartTicketView({
   const router = useRouter();
   const [mutatedBooking, setMutatedBooking] = useState<Booking | null>(null);
   const [demoBooking, setDemoBooking] = useState<Booking | null>(null);
+  const [contactPhone, setContactPhone] = useState<string | null>(
+    isAdminAuthenticated ? adminContactPhone : null
+  );
+  const [lastAdminMutationAction, setLastAdminMutationAction] = useState<
+    "reschedule" | "cancel" | null
+  >(null);
   const [isCheckingDemoStorage, setIsCheckingDemoStorage] = useState<boolean>(
     !initialBooking && isValidCodeFormat
   );
@@ -271,6 +334,7 @@ export function SmartTicketView({
 
       const result = (await response.json()) as {
         booking?: Booking;
+        customerPhone?: string | null;
         error?: string;
       };
 
@@ -284,17 +348,23 @@ export function SmartTicketView({
       if (result.booking) {
         setMutatedBooking(result.booking);
       }
+      if (isAdminAuthenticated && typeof result.customerPhone === "string") {
+        setContactPhone(result.customerPhone);
+      }
 
       setSelectedNewStartTime("");
       setConfirmCancelArmed(false);
 
       if (payload.action === "reschedule") {
+        setLastAdminMutationAction("reschedule");
         setActionMessage(
           `Jadwal berhasil digeser ke pukul ${payload.newStartTime} WIB.`
         );
       } else if (payload.action === "cancel") {
+        setLastAdminMutationAction("cancel");
         setActionMessage("Booking dibatalkan dan slot telah dibebaskan.");
       } else {
+        setLastAdminMutationAction(null);
         setActionMessage("Booking ditandai selesai.");
       }
 
@@ -306,7 +376,22 @@ export function SmartTicketView({
     }
   };
 
-  const statusMeta = booking ? getStatusDisplay(booking.status) : null;
+  const statusMeta = booking ? getStatusDisplay(booking) : null;
+  const hasRescheduleHistory = Boolean(
+    booking &&
+      booking.rescheduled_at &&
+      booking.previous_start_time &&
+      booking.previous_end_time
+  );
+  const adminWaUpdateAction: "reschedule" | "cancel" | null =
+    isAdminAuthenticated && booking && contactPhone
+      ? lastAdminMutationAction ??
+        (booking.status === "CANCELLED"
+          ? "cancel"
+          : booking.rescheduled_at
+            ? "reschedule"
+            : null)
+      : null;
 
   return (
     <div className="min-h-[100dvh] bg-alabaster text-ink">
@@ -386,7 +471,7 @@ export function SmartTicketView({
         ) : (
           <div className="space-y-6">
             {/* =================================================================
-                KARTU BUKTI TIKET RESMI (MODE PUBLIK)
+                KARTU BUKTI TIKET RESMI (MODE PUBLIK — ZERO PHONE LEAK)
             ================================================================= */}
             <article className="overflow-hidden rounded-2xl border border-hairline bg-surface shadow-sm">
               {/* Header Kartu Tiket */}
@@ -396,19 +481,15 @@ export function SmartTicketView({
                     Smart Ticket · {settings.store_name}
                   </p>
                   <p className="mt-0.5 font-sans text-xs text-muted">
-                    {settings.brand_tagline}
+                    Sungai Kunyit, Kalimantan Barat (WIB)
                   </p>
                 </div>
 
                 {statusMeta ? (
                   <span
-                    className={`inline-flex items-center gap-2 font-sans text-xs font-semibold ${statusMeta.textClass}`}
+                    className={`inline-flex items-center rounded-lg border px-2.5 py-1 font-sans text-xs font-semibold ${statusMeta.badgeClass}`}
                   >
-                    <span
-                      aria-hidden="true"
-                      className={`h-2 w-2 rounded-full ${statusMeta.barClass}`}
-                    />
-                    <span>{statusMeta.label}</span>
+                    {statusMeta.label}
                   </span>
                 ) : null}
               </div>
@@ -427,6 +508,72 @@ export function SmartTicketView({
                   </p>
                 ) : null}
               </div>
+
+              {/* Deteksi Perubahan Jadwal Otomatis (Tanpa Login) */}
+              {booking.status === "BOOKED" && hasRescheduleHistory ? (
+                <div className="border-b border-hairline bg-terracotta/8 px-5 py-4 font-sans sm:px-7">
+                  <div className="flex items-center gap-2 text-terracotta">
+                    <CalendarClock aria-hidden="true" className="h-4 w-4 shrink-0" />
+                    <p className="text-xs font-semibold sm:text-sm">
+                      Jadwal Anda telah diperbarui oleh studio
+                    </p>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                    <div className="rounded-xl border border-hairline bg-surface/85 p-3">
+                      <p className="text-[11px] font-medium text-muted">
+                        Jadwal sebelumnya
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-muted line-through tabular-nums sm:text-sm">
+                        {formatIndonesianDateFull(
+                          booking.previous_date ?? booking.booking_date
+                        )}
+                      </p>
+                      <p className="text-xs font-semibold text-muted line-through tabular-nums sm:text-sm">
+                        {formatTimeHHMM(booking.previous_start_time!)} –{" "}
+                        {formatTimeHHMM(booking.previous_end_time!)} WIB
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-terracotta/45 bg-surface p-3">
+                      <p className="text-[11px] font-semibold text-terracotta">
+                        Jadwal baru aktif
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-ink tabular-nums sm:text-sm">
+                        {formatIndonesianDateFull(booking.booking_date)}
+                      </p>
+                      <p className="text-xs font-bold text-terracotta tabular-nums sm:text-sm">
+                        {formatTimeHHMM(booking.start_time)} –{" "}
+                        {formatTimeHHMM(booking.end_time)} WIB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : booking.status === "CANCELLED" ? (
+                <div className="border-b border-hairline bg-crimson-alert/10 px-5 py-4 font-sans sm:px-7">
+                  <div className="flex items-start gap-2.5 text-crimson-alert">
+                    <XCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="text-xs leading-relaxed sm:text-sm">
+                      <p className="font-semibold">Jadwal Dibatalkan</p>
+                      <p className="mt-0.5 text-ink/85">
+                        Reservasi ini telah dibatalkan dan slot kursi kembali
+                        dibuka. Silakan buat reservasi baru kapan saja.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : booking.status === "COMPLETED" ? (
+                <div className="border-b border-hairline bg-surface-elevated/75 px-5 py-4 font-sans sm:px-7">
+                  <div className="flex items-start gap-2.5 text-ink">
+                    <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
+                    <div className="text-xs leading-relaxed sm:text-sm">
+                      <p className="font-semibold">Sesi Selesai</p>
+                      <p className="mt-0.5 text-muted">
+                        Terima kasih telah berkunjung ke Madzhair Barber &amp; Co
+                        Sungai Kunyit, Kalimantan Barat.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Rincian Data Booking */}
               <dl className="divide-y divide-hairline px-5 font-sans sm:px-7">
@@ -549,11 +696,28 @@ export function SmartTicketView({
                 {actionMessage ? (
                   <div
                     role="status"
-                    className="mt-4 flex items-center gap-2.5 rounded-xl border border-emerald-live/45 bg-emerald-live/10 p-3.5 text-xs text-emerald-live"
+                    className="mt-4 flex items-center gap-2.5 rounded-xl border border-ink/25 bg-surface-elevated/80 p-3.5 text-xs font-medium text-ink"
                   >
-                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-terracotta" />
                     <span>{actionMessage}</span>
                   </div>
+                ) : null}
+
+                {adminWaUpdateAction && contactPhone ? (
+                  <a
+                    href={buildAdminWhatsAppUpdateUrl(
+                      contactPhone,
+                      booking,
+                      adminWaUpdateAction
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-terracotta px-4 py-3 font-sans text-xs font-semibold text-surface shadow-xs transition-opacity hover:opacity-90 sm:text-sm"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    <span>Kirim Info ke WA Pelanggan</span>
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </a>
                 ) : null}
 
                 {actionError ? (
@@ -622,7 +786,9 @@ export function SmartTicketView({
                                       : "Kosong"
                                     : slot.status === "BOOKED"
                                       ? "Terisi"
-                                      : "Lewat"}
+                                      : slot.status === "BREAK"
+                                        ? "Istirahat"
+                                        : "Lewat"}
                                 </span>
                               </button>
                             );
@@ -662,7 +828,7 @@ export function SmartTicketView({
                         onClick={() =>
                           void handleAdminAction({ action: "complete" })
                         }
-                        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-emerald-live/50 bg-emerald-live/10 px-4 py-3 text-xs font-semibold text-emerald-live transition-colors hover:bg-emerald-live hover:text-surface disabled:opacity-60 sm:text-sm"
+                        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3 text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-60 sm:text-sm"
                       >
                         <CheckCircle2 className="h-4 w-4" />
                         <span>Tandai Selesai</span>
@@ -706,7 +872,7 @@ export function SmartTicketView({
                   <p className="mt-4 rounded-xl border border-hairline bg-surface-elevated/60 p-4 text-xs text-muted">
                     Tiket ini berstatus{" "}
                     <strong className="font-semibold text-ink">
-                      {booking.status}
+                      {statusMeta?.label ?? booking.status}
                     </strong>
                     . Tidak ada aksi perubahan jadwal lebih lanjut.
                   </p>

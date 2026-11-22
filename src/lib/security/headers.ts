@@ -11,6 +11,7 @@ export function buildCspHeader(): string {
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https://*.tiktok.com https://*.cdninstagram.com https://*.supabase.co",
+    "worker-src 'self'",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://www.google.com https://maps.google.com https://maps.app.goo.gl",
     "frame-src 'self' https://*.supabase.co https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://www.google.com https://maps.google.com https://maps.app.goo.gl",
     "frame-ancestors 'self'",

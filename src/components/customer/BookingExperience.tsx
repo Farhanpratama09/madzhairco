@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { EditorialSectionHeader } from "@/components/ui/EditorialSectionHeader";
 import { LiveStatusTag } from "@/components/ui/LiveStatusTag";
+import { normalizeWhatsappPhone } from "@/lib/security/sanitize";
 import {
   calculateAvailableSlots,
   formatTimeHHMM,
@@ -182,30 +183,12 @@ export function BookingExperience({
   } | null>(null);
   const [isPricelistOpen, setIsPricelistOpen] = useState<boolean>(false);
 
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const defaultService = activeServices[0];
-    if (defaultService && !initialSettings.is_force_closed) {
-      const initialNow = getStoreNowParts(initialSettings.timezone);
-      const firstOpenDate = upcomingDates.find((item) => {
-        const daySlots = calculateAvailableSlots({
-          date: item.dateStr,
-          service: defaultService,
-          schedules: initialSchedules,
-          closedDates: initialClosedDates,
-          bookings: item.dateStr === initialDateStr ? initialBookings : [],
-          settings: initialSettings,
-          nowParts: initialNow,
-        });
-        return daySlots.some((s) => s.available);
-      });
-      if (firstOpenDate) {
-        return firstOpenDate.dateStr;
-      }
-    }
-    return initialDateStr || upcomingDates[0]?.dateStr || "";
-  });
+  const [selectedDate, setSelectedDate] = useState<string>(
+    () => initialDateStr || upcomingDates[0]?.dateStr || ""
+  );
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [customerName, setCustomerName] = useState<string>("");
+  const [customerPhone, setCustomerPhone] = useState<string>("");
   const [honeypotWebsite, setHoneypotWebsite] = useState<string>("");
 
   const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(false);
@@ -230,6 +213,7 @@ export function BookingExperience({
 
   const formSectionRef = useRef<HTMLElement | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const phoneInputRef = useRef<HTMLInputElement | null>(null);
   const pricelistMenuRef = useRef<HTMLDivElement | null>(null);
   const dateStripRef = useRef<HTMLDivElement | null>(null);
 
@@ -475,16 +459,26 @@ export function BookingExperience({
     if (settings.is_force_closed) {
       return "Tutup sementara";
     }
-    if (todayClosedEntry) {
-      return todayClosedEntry.reason?.trim() || "Libur khusus";
+    if (todayClosedEntry && !todayClosedEntry.close_from_time) {
+      return todayClosedEntry.reason?.trim() || "Tutup seharian ini";
     }
     if (!todaySchedule || !todaySchedule.is_open) {
       return "Hari ini libur";
     }
+    if (todayClosedEntry?.close_from_time) {
+      return `${formatTimeHHMM(todaySchedule.open_time)} – ${
+        liveStatus.closeTime ?? formatTimeHHMM(todayClosedEntry.close_from_time)
+      } WIB (Tutup lebih awal)`;
+    }
     return `${formatTimeHHMM(todaySchedule.open_time)} – ${formatTimeHHMM(
       todaySchedule.close_time
     )} WIB`;
-  }, [settings.is_force_closed, todayClosedEntry, todaySchedule]);
+  }, [
+    settings.is_force_closed,
+    todayClosedEntry,
+    todaySchedule,
+    liveStatus.closeTime,
+  ]);
 
   const slots: SlotItem[] = useMemo(() => {
     if (!selectedService || !selectedDate) {
@@ -521,7 +515,7 @@ export function BookingExperience({
         return { closed: true, label: "Tutup Darurat" };
       }
       const matchedHoliday = closedDates.find((c) => c.closed_date === dateStr);
-      if (matchedHoliday) {
+      if (matchedHoliday && !matchedHoliday.close_from_time) {
         return { closed: true, label: matchedHoliday.reason || "Libur" };
       }
       const dow = getDayOfWeekFromDateStr(dateStr);
@@ -533,6 +527,80 @@ export function BookingExperience({
     },
     [settings.is_force_closed, closedDates, schedules]
   );
+
+  // Cari tanggal buka terdekat setelah selectedDate untuk tombol pintas saat 0 slot tersedia
+  const nextAvailableOpenDate = useMemo(() => {
+    if (!selectedDate) return null;
+    const currentIdx = upcomingDates.findIndex(
+      (d) => d.dateStr === selectedDate
+    );
+    const startIdx = currentIdx >= 0 ? currentIdx + 1 : 0;
+
+    for (let i = startIdx; i < upcomingDates.length; i += 1) {
+      const candidate = upcomingDates[i];
+      if (!candidate) continue;
+      if (isDateClosed(candidate.dateStr).closed) continue;
+
+      if (selectedService) {
+        const candidateSlots = calculateAvailableSlots({
+          date: candidate.dateStr,
+          service: selectedService,
+          schedules,
+          closedDates,
+          bookings: [],
+          settings,
+          nowParts,
+        });
+        if (!candidateSlots.some((s) => s.available)) continue;
+      }
+
+      return candidate;
+    }
+    return null;
+  }, [
+    selectedDate,
+    upcomingDates,
+    isDateClosed,
+    selectedService,
+    schedules,
+    closedDates,
+    settings,
+    nowParts,
+  ]);
+
+  // Cek apakah layanan 1 jam (Haircut) masih punya slot ketika layanan 2 jam (Hair Chemicals) 0 slot
+  const haircutAlternativeSlotCount = useMemo(() => {
+    if (
+      !selectedDate ||
+      !selectedService ||
+      selectedService.slot_duration_minutes <= 60
+    ) {
+      return 0;
+    }
+    const oneHourService = activeServices.find(
+      (s) => s.slot_duration_minutes <= 60
+    );
+    if (!oneHourService) return 0;
+
+    return calculateAvailableSlots({
+      date: selectedDate,
+      service: oneHourService,
+      schedules,
+      closedDates,
+      bookings,
+      settings,
+      nowParts,
+    }).filter((s) => s.available).length;
+  }, [
+    selectedDate,
+    selectedService,
+    activeServices,
+    schedules,
+    closedDates,
+    bookings,
+    settings,
+    nowParts,
+  ]);
 
   const handleSelectService = (serviceId: string) => {
     if (serviceId !== selectedService?.id) {
@@ -598,6 +666,11 @@ export function BookingExperience({
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
   };
 
+  const phoneValidation = useMemo(
+    () => normalizeWhatsappPhone(customerPhone),
+    [customerPhone]
+  );
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage(null);
@@ -624,6 +697,16 @@ export function BookingExperience({
       return;
     }
 
+    const checkedPhone = normalizeWhatsappPhone(customerPhone);
+    if (!checkedPhone.valid) {
+      setErrorMessage(
+        checkedPhone.error ??
+          "Nomor WhatsApp wajib diisi dengan format valid (contoh: 081234567890)."
+      );
+      phoneInputRef.current?.focus();
+      return;
+    }
+
     setShowConfirmModal(true);
   };
 
@@ -641,6 +724,16 @@ export function BookingExperience({
       return;
     }
 
+    const checkedPhone = normalizeWhatsappPhone(customerPhone);
+    if (!checkedPhone.valid) {
+      setShowConfirmModal(false);
+      setErrorMessage(
+        checkedPhone.error ?? "Nomor WhatsApp tidak valid."
+      );
+      phoneInputRef.current?.focus();
+      return;
+    }
+
     setErrorMessage(null);
     setIsSubmitting(true);
 
@@ -653,6 +746,7 @@ export function BookingExperience({
         body: JSON.stringify({
           serviceId: selectedService.id,
           customerName: trimmedName,
+          customerPhone: checkedPhone.value,
           bookingDate: selectedDate,
           startTime: selectedSlotObj.time,
           website: honeypotWebsite,
@@ -704,6 +798,7 @@ export function BookingExperience({
     setConfirmedResult(null);
     setSelectedTime("");
     setCustomerName("");
+    setCustomerPhone("");
     setErrorMessage(null);
     void fetchBookingsForDate(selectedDate);
   };
@@ -712,6 +807,71 @@ export function BookingExperience({
   const trimmedCustomerName = customerName.trim();
   const isNameValid =
     trimmedCustomerName.length >= 2 && trimmedCustomerName.length <= 40;
+  const isPhoneValid = phoneValidation.valid;
+
+  const zeroSlotCardMeta = useMemo(() => {
+    const closedInfo = isDateClosed(selectedDate);
+    const isTodaySelected = selectedDate === nowParts.dateStr;
+    const matchedPartialClose = closedDates.find(
+      (c) => c.closed_date === selectedDate && Boolean(c.close_from_time)
+    );
+
+    if (closedInfo.closed) {
+      return {
+        title: isTodaySelected
+          ? "Studio tutup hari ini"
+          : "Studio tutup pada tanggal ini",
+        description:
+          closedInfo.label || "Silakan pilih jadwal pada hari buka berikutnya.",
+      };
+    }
+
+    if (
+      isTodaySelected &&
+      (matchedPartialClose ||
+        liveStatus.reason === "AFTER_CLOSE" ||
+        (slots.length > 0 && slots.every((s) => s.status === "EXPIRED")))
+    ) {
+      return {
+        title: "Jam operasional hari ini sudah selesai",
+        description: matchedPartialClose?.close_from_time
+          ? `Studio tutup lebih awal mulai ${formatTimeHHMM(
+              matchedPartialClose.close_from_time
+            )} WIB hari ini.`
+          : "Seluruh slot hari ini sudah melewati batas pemesanan. Pilih jadwal berikutnya.",
+      };
+    }
+
+    if (
+      selectedService &&
+      selectedService.slot_duration_minutes >= 120 &&
+      haircutAlternativeSlotCount > 0
+    ) {
+      return {
+        title: isTodaySelected
+          ? "Slot 2 jam hari ini tidak tersisa"
+          : "Slot 2 jam pada tanggal ini tidak tersisa",
+        description: `Durasi 2 jam untuk ${selectedService.name} tidak mencukupi di sisa jadwal (masih tersedia ${haircutAlternativeSlotCount} slot untuk Haircut 1 jam).`,
+      };
+    }
+
+    return {
+      title: isTodaySelected
+        ? "Jadwal hari ini sudah penuh"
+        : "Jadwal pada tanggal ini sudah penuh",
+      description:
+        "Seluruh kursi sudah terisi. Silakan pilih hari buka berikutnya.",
+    };
+  }, [
+    isDateClosed,
+    selectedDate,
+    nowParts.dateStr,
+    closedDates,
+    liveStatus.reason,
+    slots,
+    selectedService,
+    haircutAlternativeSlotCount,
+  ]);
 
   const formattedShortAddress = settings.short_address
     .replace(/^Jalan\b/i, "Jl.")
@@ -758,13 +918,14 @@ export function BookingExperience({
     },
     {
       stepNumber: 4,
-      label: "Nama pemesan",
-      done: isNameValid,
-      value: isNameValid
-        ? trimmedCustomerName
-        : trimmedCustomerName
-          ? `${trimmedCustomerName} (min. 2 huruf)`
-          : "Isi nama di bawah",
+      label: "Nama & WhatsApp",
+      done: isNameValid && isPhoneValid,
+      value:
+        isNameValid && isPhoneValid
+          ? `${trimmedCustomerName} · +${phoneValidation.value}`
+          : isNameValid
+            ? `${trimmedCustomerName} · isi nomor WA`
+            : "Isi nama & nomor WA di bawah",
     },
   ] as const;
 
@@ -1261,11 +1422,11 @@ export function BookingExperience({
                 {/* 3. Grid Slot Jam Minimalis + Legenda Ikon Kursi */}
                 <fieldset className="min-w-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
                   <legend className="sr-only">
-                    Pilih jam ({settings.timezone})
+                    Pilih jam · Sungai Kunyit, Kalimantan Barat (WIB)
                   </legend>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
-                      Pilih jam ({settings.timezone})
+                      Pilih jam · Sungai Kunyit, Kalimantan Barat (WIB)
                     </span>
                     <span className="font-sans text-xs text-muted tabular-nums">
                       {isLoadingSlots
@@ -1274,16 +1435,33 @@ export function BookingExperience({
                     </span>
                   </div>
 
-                  {slots.length === 0 ? (
-                    <div className="mt-3.5 rounded-xl border border-hairline bg-alabaster/60 p-5 text-center font-sans">
-                      <Calendar className="mx-auto h-5 w-5 text-muted" />
-                      <p className="mt-2 text-sm font-semibold text-ink">
-                        Tidak ada slot buka pada tanggal ini.
+                  {availableSlotCount === 0 ? (
+                    <div className="mt-3.5 rounded-2xl border border-hairline bg-alabaster/65 p-5 text-center font-sans sm:p-6">
+                      <Calendar className="mx-auto h-5 w-5 text-terracotta" />
+                      <p className="mt-2.5 text-sm font-semibold text-ink sm:text-base">
+                        {zeroSlotCardMeta.title}
                       </p>
-                      <p className="mt-1 text-xs text-muted">
-                        {isDateClosed(selectedDate).label ||
-                          "Silakan pilih tanggal lain di strip atas."}
+                      <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted sm:text-sm">
+                        {zeroSlotCardMeta.description}
                       </p>
+
+                      {nextAvailableOpenDate ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDate(nextAvailableOpenDate.dateStr);
+                            setSelectedTime("");
+                            setErrorMessage(null);
+                          }}
+                          className="mt-4 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-surface shadow-xs transition-colors hover:bg-terracotta/90 sm:text-sm"
+                        >
+                          <span>
+                            Pilih Jadwal Berikutnya (
+                            {nextAvailableOpenDate.labelShort})
+                          </span>
+                          <ArrowRight className="h-4 w-4" />
+                        </button>
+                      ) : null}
                     </div>
                   ) : (
                     <>
@@ -1295,6 +1473,7 @@ export function BookingExperience({
 
                           let subLabel = "Tersedia";
                           if (slot.status === "BOOKED") subLabel = "Terisi";
+                          else if (slot.status === "BREAK") subLabel = "Istirahat";
                           else if (slot.status === "EXPIRED") subLabel = "Lewat";
                           else if (slot.status === "INSUFFICIENT_TIME")
                             subLabel = "< 2 jam";
@@ -1370,7 +1549,7 @@ export function BookingExperience({
                         Live booking preview
                       </p>
                       <p className="mt-0.5 font-sans text-xs text-muted">
-                        Ringkasan jadwal &amp; nama Anda
+                        Ringkasan jadwal &amp; kontak Anda
                       </p>
                     </div>
                     <span className="rounded-full bg-surface-elevated px-2.5 py-1 font-sans text-xs font-semibold text-ink tabular-nums">
@@ -1438,34 +1617,62 @@ export function BookingExperience({
                     })}
                   </ol>
 
-                  {/* Input Nama Pelanggan (min 16px text-base anti-zoom iOS) */}
-                  <div className="mt-4">
-                    <label
-                      htmlFor="customer-name-input"
-                      className="block font-sans text-xs font-semibold text-ink"
-                    >
-                      Nama Anda
-                    </label>
-                    <input
-                      ref={nameInputRef}
-                      id="customer-name-input"
-                      name="customerName"
-                      type="text"
-                      required
-                      minLength={2}
-                      maxLength={40}
-                      autoComplete="name"
-                      value={customerName}
-                      onChange={(e) => {
-                        setCustomerName(e.target.value);
-                        if (errorMessage) setErrorMessage(null);
-                      }}
-                      placeholder="Contoh: Farhan Pratama"
-                      className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
-                    />
-                    <p className="mt-1.5 font-sans text-xs text-muted">
-                      2–40 karakter · Tanpa login / tanpa no. HP
-                    </p>
+                  {/* Input Nama & Nomor WhatsApp Pelanggan (min 16px text-base anti-zoom iOS) */}
+                  <div className="mt-4 space-y-3.5">
+                    <div>
+                      <label
+                        htmlFor="customer-name-input"
+                        className="block font-sans text-xs font-semibold text-ink"
+                      >
+                        Nama Anda
+                      </label>
+                      <input
+                        ref={nameInputRef}
+                        id="customer-name-input"
+                        name="customerName"
+                        type="text"
+                        required
+                        minLength={2}
+                        maxLength={40}
+                        autoComplete="name"
+                        value={customerName}
+                        onChange={(e) => {
+                          setCustomerName(e.target.value);
+                          if (errorMessage) setErrorMessage(null);
+                        }}
+                        placeholder="Contoh: Farhan Pratama"
+                        className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="customer-phone-input"
+                        className="block font-sans text-xs font-semibold text-ink"
+                      >
+                        Nomor WhatsApp
+                      </label>
+                      <input
+                        ref={phoneInputRef}
+                        id="customer-phone-input"
+                        name="customerPhone"
+                        type="tel"
+                        inputMode="tel"
+                        required
+                        autoComplete="tel"
+                        value={customerPhone}
+                        onChange={(e) => {
+                          setCustomerPhone(e.target.value);
+                          if (errorMessage) setErrorMessage(null);
+                        }}
+                        placeholder="Contoh: 081234567890"
+                        className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink tabular-nums placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+                      />
+                      <p className="mt-1.5 font-sans text-xs text-muted">
+                        Tanpa daftar akun · Khusus info perubahan jadwal &amp;
+                        dijaga privat.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Honeypot field tersembunyi anti-bot */}
@@ -1568,6 +1775,12 @@ export function BookingExperience({
                 <dt className="text-muted">Nama</dt>
                 <dd className="text-right font-semibold text-ink">
                   {customerName.trim()}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted">WhatsApp</dt>
+                <dd className="text-right font-medium text-ink tabular-nums">
+                  +{phoneValidation.value}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">

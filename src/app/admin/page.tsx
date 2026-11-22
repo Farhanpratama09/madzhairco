@@ -50,6 +50,13 @@ export default async function AdminPage() {
     redirect("/admin/login");
   }
 
+  // Jalankan auto-complete secara berurutan SEBELUM memuat daftar booking
+  try {
+    await supabase.rpc("auto_complete_overdue_bookings");
+  } catch {
+    // Fallback aman bila migrasi belum diterapkan
+  }
+
   const defaultUpcoming = getTodayAndUpcomingDates(
     DEFAULT_STORE_SETTINGS.timezone,
     8
@@ -143,6 +150,29 @@ export default async function AdminPage() {
     }
   }
 
+  // Muat nomor WA privat dari booking_contacts khusus sesi admin terautentikasi
+  const initialBookingPhones: Record<string, string> = {};
+  if (initialBookings.length > 0) {
+    try {
+      const { data: contactRows } = await supabase
+        .from("booking_contacts")
+        .select("booking_id, phone")
+        .in(
+          "booking_id",
+          initialBookings.map((b) => b.id)
+        );
+      if (Array.isArray(contactRows)) {
+        for (const row of contactRows) {
+          if (row && typeof row.booking_id === "string" && typeof row.phone === "string") {
+            initialBookingPhones[row.booking_id] = row.phone;
+          }
+        }
+      }
+    } catch {
+      // Fallback aman bila tabel booking_contacts belum dimigrasi
+    }
+  }
+
   return (
     <AdminCashierDashboard
       userEmail={user.email ?? "Admin"}
@@ -152,6 +182,7 @@ export default async function AdminPage() {
       initialServices={initialServices}
       initialGalleryItems={initialGalleryItems}
       initialBookings={initialBookings}
+      initialBookingPhones={initialBookingPhones}
     />
   );
 }

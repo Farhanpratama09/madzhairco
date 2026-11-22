@@ -58,6 +58,12 @@ function mapRpcError(message: string): { status: number; error: string } {
       error: "Slot waktu tersebut baru saja terisi. Silakan muat ulang antrean.",
     };
   }
+  if (message.includes("BREAK_TIME_CONFLICT")) {
+    return {
+      status: 409,
+      error: "Slot walk-in beririsan dengan jam istirahat studio.",
+    };
+  }
   if (message.includes("SERVICE_NOT_FOUND")) {
     return { status: 404, error: "Layanan tidak ditemukan atau tidak aktif." };
   }
@@ -145,6 +151,7 @@ export async function POST(request: NextRequest) {
       p_booking_date: bookingDate.trim(),
       p_start_time: normalizeTimeWithSeconds(startTime),
       p_source: "WALKIN",
+      p_customer_phone: null,
     }
   );
 
