@@ -547,4 +547,18 @@ REVOKE ALL ON FUNCTION public.auto_complete_overdue_bookings() FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.create_booking_safe(uuid, text, date, time, text, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reschedule_booking_safe(uuid, time) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.auto_complete_overdue_bookings() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.auto_complete_overdue_bookings() TO anon, authenticated, service_role;
+
+-- Explicit schema & table grants for server-only service_role (Web Push & Cron)
+GRANT USAGE ON SCHEMA public TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  public.store_settings,
+  public.weekly_schedules,
+  public.closed_dates,
+  public.services,
+  public.gallery_items,
+  public.bookings,
+  public.booking_contacts,
+  public.push_subscriptions
+TO service_role;
+
