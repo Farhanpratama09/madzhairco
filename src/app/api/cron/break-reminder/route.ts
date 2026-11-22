@@ -69,6 +69,29 @@ async function handleBreakReminder(request: NextRequest) {
     supabase.from("closed_dates").select("*"),
   ]);
 
+  if (settingsRes.error) {
+    return NextResponse.json(
+      {
+        error: "Gagal membaca store_settings dari Supabase.",
+        code: settingsRes.error.code ?? null,
+        detail: settingsRes.error.message,
+      },
+      { status: 500 }
+    );
+  }
+
+  if (schedulesRes.error || closedDatesRes.error) {
+    const dbErr = schedulesRes.error ?? closedDatesRes.error;
+    return NextResponse.json(
+      {
+        error: "Gagal membaca jadwal operasional dari Supabase.",
+        code: dbErr?.code ?? null,
+        detail: dbErr?.message ?? null,
+      },
+      { status: 500 }
+    );
+  }
+
   const settings = settingsRes.data as StoreSettings | null;
   if (!settings) {
     return NextResponse.json(
