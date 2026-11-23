@@ -154,6 +154,45 @@ function formatServiceDuration(displayMinutes: number): string {
   return `~${displayMinutes} menit`;
 }
 
+type TimePeriodKey = "pagi" | "siang" | "sore" | "malam";
+
+const TIME_GROUP_ORDER: ReadonlyArray<{ key: TimePeriodKey; label: string }> = [
+  { key: "pagi", label: "Pagi" },
+  { key: "siang", label: "Siang" },
+  { key: "sore", label: "Sore" },
+  { key: "malam", label: "Malam" },
+] as const;
+
+function getTimePeriodKey(timeHHMM: string): TimePeriodKey {
+  const hour = Number.parseInt(timeHHMM.split(":")[0] ?? "", 10);
+  if (Number.isNaN(hour)) return "siang";
+  if (hour < 12) return "pagi";
+  if (hour < 15) return "siang";
+  if (hour < 18) return "sore";
+  return "malam";
+}
+
+function groupSlotsByTimeOfDay(
+  slots: SlotItem[]
+): Array<{ key: TimePeriodKey; label: string; slots: SlotItem[] }> {
+  const buckets: Record<TimePeriodKey, SlotItem[]> = {
+    pagi: [],
+    siang: [],
+    sore: [],
+    malam: [],
+  };
+
+  for (const slot of slots) {
+    buckets[getTimePeriodKey(slot.time)].push(slot);
+  }
+
+  return TIME_GROUP_ORDER.map((group) => ({
+    key: group.key,
+    label: group.label,
+    slots: buckets[group.key],
+  })).filter((group) => group.slots.length > 0);
+}
+
 function readDemoSessionBookings(): Booking[] {
   if (typeof window === "undefined") return [];
   try {
@@ -772,6 +811,8 @@ export function BookingExperience({
     settings,
     nowParts,
   ]);
+
+  const groupedSlots = useMemo(() => groupSlotsByTimeOfDay(slots), [slots]);
 
   const selectedSlotObj = useMemo(
     () =>
@@ -1776,16 +1817,14 @@ export function BookingExperience({
                   </div>
                 </fieldset>
 
-                {/* 3. Grid Slot Jam Minimalis + Legenda Kursi Solid (Memanjang rata dengan kolom kanan di desktop) */}
+                {/* 3. Grid Slot Jam Terkelompok Dinamis (Pagi/Siang/Sore/Malam) + Legenda Kursi Solid */}
                 <fieldset className="flex min-w-0 flex-col rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5 lg:flex-1">
-                  <legend className="sr-only">
-                    Pilih jam · Sungai Kunyit, Kalimantan Barat (WIB)
-                  </legend>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <legend className="sr-only">Pilih jam</legend>
+                  <div className="flex items-center justify-between gap-2">
                     <span className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
-                      Pilih jam · Sungai Kunyit, Kalimantan Barat (WIB)
+                      Pilih jam
                     </span>
-                    <span className="font-sans text-xs text-muted tabular-nums">
+                    <span className="shrink-0 whitespace-nowrap rounded-full border border-hairline/70 bg-alabaster px-2.5 py-0.5 font-sans text-[11px] font-medium text-muted tabular-nums sm:text-xs">
                       {isLoadingSlots
                         ? "Menyinkronkan..."
                         : `${availableSlotCount} slot tersedia`}
@@ -1831,51 +1870,64 @@ export function BookingExperience({
                     </div>
                   ) : (
                     <div className="flex flex-1 flex-col justify-between gap-4">
-                      <div className="mt-3.5 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
-                        {slots.map((slot) => {
-                          const isSelected =
-                            selectedTime === slot.time && slot.available;
-                          const isDisabled = !slot.available;
+                      <div className="mt-3.5 space-y-3">
+                        {groupedSlots.map((group) => (
+                          <div key={group.key} className="space-y-1.5">
+                            <p className="font-sans text-xs font-medium text-[#52525B]">
+                              {group.label}
+                            </p>
 
-                          let subLabel = "Tersedia";
-                          if (slot.status === "BOOKED") subLabel = "Terisi";
-                          else if (slot.status === "BREAK") subLabel = "Istirahat";
-                          else if (slot.status === "EXPIRED") subLabel = "Lewat";
-                          else if (slot.status === "INSUFFICIENT_TIME")
-                            subLabel = "< 2 jam";
+                            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                              {group.slots.map((slot) => {
+                                const isSelected =
+                                  selectedTime === slot.time && slot.available;
+                                const isDisabled = !slot.available;
 
-                          return (
-                            <button
-                              key={slot.time}
-                              type="button"
-                              disabled={isDisabled}
-                              onClick={() => handleSelectSlot(slot.time)}
-                              title={slot.reason}
-                              className={`flex min-h-[54px] flex-col items-center justify-center rounded-xl border px-2 py-2 transition-colors ${
-                                isSelected
-                                  ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#F7F7F7] shadow-sm"
-                                  : isDisabled
-                                    ? "cursor-not-allowed border-hairline bg-surface-elevated/60 text-muted/60"
-                                    : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
-                              }`}
-                            >
-                              <span className="font-sans text-sm font-semibold tabular-nums">
-                                {slot.time}
-                              </span>
-                              <span
-                                className={`mt-0.5 font-sans text-[11px] font-medium ${
-                                  isSelected
-                                    ? "text-[#F7F7F7]/85"
-                                    : slot.status === "BOOKED"
-                                      ? "text-crimson-alert/80"
-                                      : "text-muted"
-                                }`}
-                              >
-                                {isSelected ? "Dipilih" : subLabel}
-                              </span>
-                            </button>
-                          );
-                        })}
+                                let subLabel = "Tersedia";
+                                if (slot.status === "BOOKED")
+                                  subLabel = "Terisi";
+                                else if (slot.status === "BREAK")
+                                  subLabel = "Istirahat";
+                                else if (slot.status === "EXPIRED")
+                                  subLabel = "Lewat";
+                                else if (slot.status === "INSUFFICIENT_TIME")
+                                  subLabel = "< 2 jam";
+
+                                return (
+                                  <button
+                                    key={slot.time}
+                                    type="button"
+                                    disabled={isDisabled}
+                                    onClick={() => handleSelectSlot(slot.time)}
+                                    title={slot.reason}
+                                    className={`flex min-h-[48px] flex-col items-center justify-center rounded-xl border px-2 py-1.5 transition-colors sm:min-h-[54px] sm:py-2 ${
+                                      isSelected
+                                        ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#F7F7F7] shadow-sm"
+                                        : isDisabled
+                                          ? "cursor-not-allowed border-hairline bg-surface-elevated/60 text-muted/60"
+                                          : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
+                                    }`}
+                                  >
+                                    <span className="font-sans text-sm font-semibold leading-tight tabular-nums">
+                                      {slot.time}
+                                    </span>
+                                    <span
+                                      className={`mt-0.5 font-sans text-[11px] font-medium leading-tight ${
+                                        isSelected
+                                          ? "text-[#F7F7F7]/85"
+                                          : slot.status === "BOOKED"
+                                            ? "text-crimson-alert/80"
+                                            : "text-muted"
+                                      }`}
+                                    >
+                                      {isSelected ? "Dipilih" : subLabel}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-hairline pt-3 font-sans text-xs font-medium text-muted">
