@@ -12,7 +12,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
-  Armchair,
   ArrowRight,
   ArrowUpRight,
   Calendar,
@@ -86,6 +85,51 @@ const MONTH_NAMES_FULL = [
   "November",
   "Desember",
 ] as const;
+
+function BarberChairIcon({
+  variant,
+}: {
+  variant: "available" | "booked" | "selected";
+}) {
+  const palette =
+    variant === "available"
+      ? {
+          fill: "#E4E4E7",
+          stroke: "#52525B",
+          strokeWidth: 1.4,
+        }
+      : variant === "booked"
+        ? {
+            fill: "#DC2626",
+            stroke: "#DC2626",
+            strokeWidth: 0.75,
+          }
+        : {
+            fill: "#1E1E1E",
+            stroke: "#1E1E1E",
+            strokeWidth: 0.75,
+          };
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[19px] w-[19px] shrink-0 sm:h-5 sm:w-5"
+      fill={palette.fill}
+      stroke={palette.stroke}
+      strokeWidth={palette.strokeWidth}
+      strokeLinejoin="round"
+      strokeLinecap="round"
+    >
+      {/* Sandaran kursi barber */}
+      <path d="M7 4.5C7 3.67 7.67 3 8.5 3h7C16.33 3 17 3.67 17 4.5V10H7V4.5Z" />
+      {/* Sandaran lengan kiri-kanan & bantalan duduk */}
+      <path d="M4.5 9.8C4.5 9.1 5 8.5 5.7 8.5h.6c.4 0 .7.3.7.7V11.2h10V9.2c0-.4.3-.7.7-.7h.6c.7 0 1.2.6 1.2 1.3v4.7c0 1.1-.9 2-2 2H6.5c-1.1 0-2-.9-2-2V9.8Z" />
+      {/* Kaki hidrolik & piringan dasar */}
+      <path d="M10.75 16.5h2.5v3h2.75a.85.85 0 1 1 0 1.7H8a.85.85 0 1 1 0-1.7h2.75v-3Z" />
+    </svg>
+  );
+}
 
 function formatIndonesianDateFull(dateStr: string): string {
   const [yStr, mStr, dStr] = dateStr.split("-");
@@ -1450,7 +1494,7 @@ export function BookingExperience({
         <div className="mx-auto max-w-6xl space-y-6 sm:space-y-8">
           <EditorialSectionHeader
             title="Pilih Jadwal"
-            description="Pilih tanggal, layanan, dan jam yang tersedia."
+            description="Pilih layanan, tanggal, dan jam yang tersedia."
             action={
               <LiveStatusTag
                 isOpen={liveStatus.isOpen}
@@ -1570,12 +1614,66 @@ export function BookingExperience({
             <form
               onSubmit={handleSubmit}
               noValidate
-              className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-8"
+              className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-8"
             >
-              {/* Kolom Kiri (min-w-0 cegah overflow scrubber tabrak kolom kanan) */}
-              <div className="min-w-0 space-y-4 sm:space-y-5">
-                {/* 1. Header Tanggal Lengkap + Strip Tanggal Horizontal dengan Tombol Panah < > */}
-                <fieldset className="min-w-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
+              {/* Kolom Kiri (Urutan selaras 1:1 dengan stepper kanan + tinggi sejajar di desktop) */}
+              <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
+                {/* 1. Pilihan Layanan (Langkah 1 — Charcoal Noir #2B2B2B saat aktif) */}
+                <fieldset className="min-w-0 shrink-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
+                  <legend className="sr-only">Pilih layanan</legend>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
+                      Pilih layanan
+                    </span>
+                  </div>
+
+                  <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {activeServices.map((service) => {
+                      const active = selectedService?.id === service.id;
+                      return (
+                        <button
+                          key={service.id}
+                          type="button"
+                          onClick={() => handleSelectService(service.id)}
+                          className={`flex min-h-[78px] w-full min-w-0 flex-col justify-between gap-2 rounded-2xl border p-4 text-left transition-colors sm:p-5 ${
+                            active
+                              ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#F7F7F7] shadow-sm"
+                              : "border-hairline bg-alabaster/55 text-ink hover:border-[#2B2B2B]/70 hover:bg-surface"
+                          }`}
+                        >
+                          <div className="flex w-full min-w-0 items-baseline justify-between gap-3">
+                            <span
+                              className={`font-sans text-sm font-semibold leading-snug sm:text-[15px] ${
+                                active ? "text-[#F7F7F7]" : "text-ink"
+                              }`}
+                            >
+                              {service.name}
+                            </span>
+                            <span
+                              className={`shrink-0 font-sans text-xs font-semibold whitespace-nowrap tabular-nums sm:text-sm ${
+                                active ? "text-[#F7F7F7]" : "text-ink/85"
+                              }`}
+                            >
+                              {service.price_display}
+                            </span>
+                          </div>
+                          <span
+                            className={`block w-full font-sans text-xs leading-relaxed tabular-nums ${
+                              active ? "text-[#E0E0E0]" : "text-muted"
+                            }`}
+                          >
+                            {formatServiceDuration(
+                              service.display_duration_minutes
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                {/* 2. Strip Tanggal Horizontal + Padding/Edge Fade Bersih */}
+                <fieldset className="min-w-0 shrink-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
                   <legend className="sr-only">Pilih tanggal</legend>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
@@ -1599,53 +1697,71 @@ export function BookingExperience({
                       <ChevronLeft className="h-4 w-4" />
                     </button>
 
-                    <div
-                      ref={dateStripRef}
-                      onScroll={updateDateScrollState}
-                      className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth py-0.5 no-scrollbar"
-                    >
-                      {upcomingDates.map((dateItem) => {
-                        const active = selectedDate === dateItem.dateStr;
-                        const dateClosedInfo = isDateClosed(dateItem.dateStr);
+                    <div className="relative min-w-0 flex-1 overflow-hidden rounded-xl">
+                      <div
+                        ref={dateStripRef}
+                        onScroll={updateDateScrollState}
+                        className="flex w-full snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth px-2 py-0.5 scroll-px-2 no-scrollbar"
+                      >
+                        {upcomingDates.map((dateItem) => {
+                          const active = selectedDate === dateItem.dateStr;
+                          const dateClosedInfo = isDateClosed(dateItem.dateStr);
 
-                        return (
-                          <button
-                            key={dateItem.dateStr}
-                            type="button"
-                            onClick={() => handleSelectDate(dateItem.dateStr)}
-                            className={`flex min-h-[62px] min-w-[78px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors ${
-                              active
-                                ? "border-terracotta bg-terracotta text-surface shadow-sm"
-                                : dateClosedInfo.closed
-                                  ? "border-hairline bg-surface-elevated/60 text-muted opacity-75 hover:border-muted"
-                                  : "border-hairline bg-alabaster/55 text-ink hover:border-terracotta"
-                            }`}
-                          >
-                            <span
-                              className={`font-sans text-xs font-medium ${
-                                active ? "text-surface/85" : "text-muted"
+                          return (
+                            <button
+                              key={dateItem.dateStr}
+                              type="button"
+                              onClick={() => handleSelectDate(dateItem.dateStr)}
+                              className={`flex min-h-[62px] min-w-[78px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors ${
+                                active
+                                  ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#F7F7F7] shadow-sm"
+                                  : dateClosedInfo.closed
+                                    ? "border-hairline bg-surface-elevated/60 text-muted opacity-75 hover:border-muted"
+                                    : "border-hairline bg-alabaster/55 text-ink hover:border-terracotta"
                               }`}
                             >
-                              {dateItem.isToday
-                                ? "Hari ini"
-                                : dateItem.dayNameShort}
-                            </span>
-                            <span className="mt-0.5 font-sans text-sm font-semibold tabular-nums">
-                              {dateItem.labelShort.split(", ")[1] ??
-                                dateItem.dateStr}
-                            </span>
-                            {dateClosedInfo.closed ? (
                               <span
-                                className={`mt-0.5 font-sans text-[11px] font-medium ${
-                                  active ? "text-surface" : "text-crimson-alert"
+                                className={`font-sans text-xs font-medium ${
+                                  active ? "text-[#F7F7F7]/85" : "text-muted"
                                 }`}
                               >
-                                Tutup
+                                {dateItem.isToday
+                                  ? "Hari ini"
+                                  : dateItem.dayNameShort}
                               </span>
-                            ) : null}
-                          </button>
-                        );
-                      })}
+                              <span className="mt-0.5 font-sans text-sm font-semibold tabular-nums">
+                                {dateItem.labelShort.split(", ")[1] ??
+                                  dateItem.dateStr}
+                              </span>
+                              {dateClosedInfo.closed ? (
+                                <span
+                                  className={`mt-0.5 font-sans text-[11px] font-medium ${
+                                    active
+                                      ? "text-[#F7F7F7]"
+                                      : "text-crimson-alert"
+                                  }`}
+                                >
+                                  Tutup
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {dateScrollState.canLeft ? (
+                        <div
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-y-0 left-0 w-7 bg-gradient-to-r from-[#FFFFFF] via-[#FFFFFF]/75 to-transparent"
+                        />
+                      ) : null}
+
+                      {dateScrollState.canRight ? (
+                        <div
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-y-0 right-0 w-7 bg-gradient-to-l from-[#FFFFFF] via-[#FFFFFF]/75 to-transparent"
+                        />
+                      ) : null}
                     </div>
 
                     <button
@@ -1660,54 +1776,8 @@ export function BookingExperience({
                   </div>
                 </fieldset>
 
-                {/* 2. Pilihan Layanan dengan Durasi Ringkas (~45 menit / ~2 jam) */}
-                <fieldset className="min-w-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
-                  <legend className="sr-only">Pilih layanan</legend>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
-                      Pilih layanan
-                    </span>
-                  </div>
-
-                  <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {activeServices.map((service) => {
-                      const active = selectedService?.id === service.id;
-                      return (
-                        <button
-                          key={service.id}
-                          type="button"
-                          onClick={() => handleSelectService(service.id)}
-                          className={`flex min-h-[78px] w-full min-w-0 flex-col justify-between gap-2 rounded-2xl border p-4 text-left transition-colors sm:p-5 ${
-                            active
-                              ? "border-terracotta bg-surface-elevated shadow-xs"
-                              : "border-hairline bg-alabaster/55 hover:border-terracotta/70"
-                          }`}
-                        >
-                          <div className="flex w-full min-w-0 items-baseline justify-between gap-3">
-                            <span className="font-sans text-sm font-semibold leading-snug text-ink sm:text-[15px]">
-                              {service.name}
-                            </span>
-                            <span
-                              className={`shrink-0 font-sans text-xs font-semibold whitespace-nowrap tabular-nums sm:text-sm ${
-                                active ? "text-terracotta" : "text-ink/80"
-                              }`}
-                            >
-                              {service.price_display}
-                            </span>
-                          </div>
-                          <span className="block w-full font-sans text-xs leading-relaxed text-muted tabular-nums">
-                            {formatServiceDuration(
-                              service.display_duration_minutes
-                            )}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-
-                {/* 3. Grid Slot Jam Minimalis + Legenda Ikon Kursi */}
-                <fieldset className="min-w-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
+                {/* 3. Grid Slot Jam Minimalis + Legenda Kursi Solid (Memanjang rata dengan kolom kanan di desktop) */}
+                <fieldset className="flex min-w-0 flex-col rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5 lg:flex-1">
                   <legend className="sr-only">
                     Pilih jam · Sungai Kunyit, Kalimantan Barat (WIB)
                   </legend>
@@ -1734,7 +1804,7 @@ export function BookingExperience({
                   ) : null}
 
                   {availableSlotCount === 0 ? (
-                    <div className="mt-3.5 rounded-2xl border border-hairline bg-alabaster/65 p-5 text-center font-sans sm:p-6">
+                    <div className="mt-3.5 flex flex-1 flex-col items-center justify-center rounded-2xl border border-hairline bg-alabaster/65 p-5 text-center font-sans sm:p-6">
                       <Calendar className="mx-auto h-5 w-5 text-terracotta" />
                       <p className="mt-2.5 text-sm font-semibold text-ink sm:text-base">
                         {zeroSlotCardMeta.title}
@@ -1760,7 +1830,7 @@ export function BookingExperience({
                       ) : null}
                     </div>
                   ) : (
-                    <>
+                    <div className="flex flex-1 flex-col justify-between gap-4">
                       <div className="mt-3.5 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
                         {slots.map((slot) => {
                           const isSelected =
@@ -1783,7 +1853,7 @@ export function BookingExperience({
                               title={slot.reason}
                               className={`flex min-h-[54px] flex-col items-center justify-center rounded-xl border px-2 py-2 transition-colors ${
                                 isSelected
-                                  ? "border-terracotta bg-terracotta text-surface shadow-sm"
+                                  ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#F7F7F7] shadow-sm"
                                   : isDisabled
                                     ? "cursor-not-allowed border-hairline bg-surface-elevated/60 text-muted/60"
                                     : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
@@ -1795,7 +1865,7 @@ export function BookingExperience({
                               <span
                                 className={`mt-0.5 font-sans text-[11px] font-medium ${
                                   isSelected
-                                    ? "text-surface/90"
+                                    ? "text-[#F7F7F7]/85"
                                     : slot.status === "BOOKED"
                                       ? "text-crimson-alert/80"
                                       : "text-muted"
@@ -1808,227 +1878,222 @@ export function BookingExperience({
                         })}
                       </div>
 
-                      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-hairline pt-3 font-sans text-xs text-muted">
-                        <span className="inline-flex items-center gap-1.5">
-                          <Armchair
-                            aria-hidden="true"
-                            className="h-4 w-4 text-ink/70"
-                          />
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-hairline pt-3 font-sans text-xs font-medium text-muted">
+                        <span className="inline-flex items-center gap-2 text-[#565656]">
+                          <BarberChairIcon variant="available" />
                           <span>Tersedia</span>
                         </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <Armchair
-                            aria-hidden="true"
-                            className="h-4 w-4 text-crimson-alert"
-                          />
+                        <span className="inline-flex items-center gap-2 text-[#DC2626]">
+                          <BarberChairIcon variant="booked" />
                           <span>Terisi</span>
                         </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <Armchair
-                            aria-hidden="true"
-                            className="h-4 w-4 text-terracotta"
-                          />
+                        <span className="inline-flex items-center gap-2 text-[#1E1E1E]">
+                          <BarberChairIcon variant="selected" />
                           <span>Dipilih</span>
                         </span>
                       </div>
-                    </>
+                    </div>
                   )}
                 </fieldset>
               </div>
 
-              {/* Kolom Kanan (360px Sticky Live Booking Preview — Vertical Stepper Tanpa Tombol Lokasi) */}
-              <div className="min-w-0">
-                <div className="rounded-2xl border border-hairline bg-surface p-4 shadow-sm sm:p-6 lg:sticky lg:top-24">
-                  <div className="flex items-center justify-between gap-2 pb-3.5">
-                    <div>
-                      <p className="font-sans text-sm font-semibold text-terracotta">
-                        Live booking preview
-                      </p>
-                      <p className="mt-0.5 font-sans text-xs text-muted">
-                        Ringkasan jadwal &amp; kontak Anda
-                      </p>
+              {/* Kolom Kanan (360px Live Booking Preview — Tinggi Sejajar Kolom Kiri di Desktop) */}
+              <div className="min-w-0 lg:flex lg:flex-col">
+                <div className="rounded-2xl border border-hairline bg-surface p-4 shadow-sm sm:p-6 lg:flex lg:flex-1 lg:flex-col lg:justify-between">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 pb-3.5">
+                      <div>
+                        <p className="font-sans text-sm font-semibold text-terracotta">
+                          Live booking preview
+                        </p>
+                        <p className="mt-0.5 font-sans text-xs text-muted">
+                          Ringkasan jadwal &amp; kontak Anda
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-surface-elevated px-2.5 py-1 font-sans text-xs font-semibold text-ink tabular-nums">
+                        {completedStepsCount}/4
+                      </span>
                     </div>
-                    <span className="rounded-full bg-surface-elevated px-2.5 py-1 font-sans text-xs font-semibold text-ink tabular-nums">
-                      {completedStepsCount}/4
-                    </span>
-                  </div>
 
-                  {/* Vertical Stepper: Titik Bulat Bercentang Terhubung Garis Vertikal */}
-                  <ol
-                    aria-label="Langkah reservasi Anda"
-                    className="border-y border-hairline py-4"
-                  >
-                    {previewSteps.map((step, index) => {
-                      const isLast = index === previewSteps.length - 1;
-                      return (
-                        <li
-                          key={step.stepNumber}
-                          className={`relative flex items-start gap-3.5 ${
-                            isLast ? "" : "pb-4"
-                          }`}
-                        >
-                          {/* Garis Vertikal Penghubung Antar-Titik */}
-                          {!isLast ? (
-                            <span
-                              aria-hidden="true"
-                              className={`absolute top-6 bottom-0 left-[11px] w-px transition-colors ${
-                                step.done ? "bg-terracotta/55" : "bg-hairline"
-                              }`}
-                            />
-                          ) : null}
-
-                          {/* Titik Bulat Bercentang (✓) atau Nomor Langkah */}
-                          <span
-                            aria-hidden="true"
-                            className={`relative z-10 mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-sans text-xs font-semibold tabular-nums transition-colors ${
-                              step.done
-                                ? "bg-terracotta text-surface shadow-xs"
-                                : "border border-hairline bg-alabaster text-muted"
+                    {/* Vertical Stepper: Titik Bulat Bercentang Terhubung Garis Vertikal */}
+                    <ol
+                      aria-label="Langkah reservasi Anda"
+                      className="border-y border-hairline py-4"
+                    >
+                      {previewSteps.map((step, index) => {
+                        const isLast = index === previewSteps.length - 1;
+                        return (
+                          <li
+                            key={step.stepNumber}
+                            className={`relative flex items-start gap-3.5 ${
+                              isLast ? "" : "pb-4"
                             }`}
                           >
-                            {step.done ? (
-                              <Check className="h-3.5 w-3.5 stroke-[2.5]" />
-                            ) : (
-                              step.stepNumber
-                            )}
-                          </span>
+                            {/* Garis Vertikal Penghubung Antar-Titik */}
+                            {!isLast ? (
+                              <span
+                                aria-hidden="true"
+                                className={`absolute top-6 bottom-0 left-[11px] w-px transition-colors ${
+                                  step.done ? "bg-terracotta/55" : "bg-hairline"
+                                }`}
+                              />
+                            ) : null}
 
-                          {/* Detail Langkah */}
-                          <div className="min-w-0 flex-1">
-                            <p className="font-sans text-xs font-medium text-muted">
-                              {step.label}
-                            </p>
-                            <p
-                              className={`mt-0.5 truncate font-sans text-sm tabular-nums ${
+                            {/* Titik Bulat Bercentang (✓) atau Nomor Langkah */}
+                            <span
+                              aria-hidden="true"
+                              className={`relative z-10 mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-sans text-xs font-semibold tabular-nums transition-colors ${
                                 step.done
-                                  ? "font-semibold text-ink"
-                                  : "font-normal text-muted"
+                                  ? "bg-terracotta text-surface shadow-xs"
+                                  : "border border-hairline bg-alabaster text-muted"
                               }`}
                             >
-                              {step.value}
-                            </p>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ol>
+                              {step.done ? (
+                                <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                              ) : (
+                                step.stepNumber
+                              )}
+                            </span>
 
-                  {/* Input Nama & Nomor WhatsApp Pelanggan (min 16px text-base anti-zoom iOS) */}
-                  <div className="mt-4 space-y-3.5">
-                    <div>
-                      <label
-                        htmlFor="customer-name-input"
-                        className="block font-sans text-xs font-semibold text-ink"
-                      >
-                        Nama Anda
-                      </label>
+                            {/* Detail Langkah */}
+                            <div className="min-w-0 flex-1">
+                              <p className="font-sans text-xs font-medium text-muted">
+                                {step.label}
+                              </p>
+                              <p
+                                className={`mt-0.5 truncate font-sans text-sm tabular-nums ${
+                                  step.done
+                                    ? "font-semibold text-ink"
+                                    : "font-normal text-muted"
+                                }`}
+                              >
+                                {step.value}
+                              </p>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+
+                    {/* Input Nama & Nomor WhatsApp Pelanggan (min 16px text-base anti-zoom iOS) */}
+                    <div className="mt-4 space-y-3.5">
+                      <div>
+                        <label
+                          htmlFor="customer-name-input"
+                          className="block font-sans text-xs font-semibold text-ink"
+                        >
+                          Nama Anda
+                        </label>
+                        <input
+                          ref={nameInputRef}
+                          id="customer-name-input"
+                          name="customerName"
+                          type="text"
+                          required
+                          minLength={2}
+                          maxLength={80}
+                          autoComplete="name"
+                          value={customerName}
+                          onChange={(e) => {
+                            setCustomerName(e.target.value);
+                            if (errorMessage) setErrorMessage(null);
+                          }}
+                          placeholder="Contoh: Farhan Pratama"
+                          className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="customer-phone-input"
+                          className="block font-sans text-xs font-semibold text-ink"
+                        >
+                          Nomor WhatsApp
+                        </label>
+                        <input
+                          ref={phoneInputRef}
+                          id="customer-phone-input"
+                          name="customerPhone"
+                          type="tel"
+                          inputMode="tel"
+                          required
+                          autoComplete="tel"
+                          value={customerPhone}
+                          onChange={(e) => {
+                            setCustomerPhone(e.target.value);
+                            if (errorMessage) setErrorMessage(null);
+                          }}
+                          placeholder="Contoh: 081234567890"
+                          className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink tabular-nums placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+                        />
+                        <p className="mt-1.5 font-sans text-xs text-muted">
+                          Tanpa daftar akun · Khusus info perubahan jadwal &amp;
+                          dijaga privat.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Honeypot field tersembunyi anti-bot */}
+                    <div className="sr-only" aria-hidden="true">
+                      <label htmlFor="booking-website-field">Website</label>
                       <input
-                        ref={nameInputRef}
-                        id="customer-name-input"
-                        name="customerName"
+                        id="booking-website-field"
+                        name="website"
                         type="text"
-                        required
-                        minLength={2}
-                        maxLength={80}
-                        autoComplete="name"
-                        value={customerName}
-                        onChange={(e) => {
-                          setCustomerName(e.target.value);
-                          if (errorMessage) setErrorMessage(null);
-                        }}
-                        placeholder="Contoh: Farhan Pratama"
-                        className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+                        value={honeypotWebsite}
+                        onChange={(e) => setHoneypotWebsite(e.target.value)}
+                        tabIndex={-1}
+                        autoComplete="off"
                       />
                     </div>
 
-                    <div>
-                      <label
-                        htmlFor="customer-phone-input"
-                        className="block font-sans text-xs font-semibold text-ink"
+                    {/* Pesan Error Validasi / Konflik / Notifikasi Slot Live */}
+                    {errorMessage || activeSlotNotice ? (
+                      <div
+                        role="alert"
+                        className="mt-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 font-sans text-xs leading-relaxed text-crimson-alert"
                       >
-                        Nomor WhatsApp
-                      </label>
-                      <input
-                        ref={phoneInputRef}
-                        id="customer-phone-input"
-                        name="customerPhone"
-                        type="tel"
-                        inputMode="tel"
-                        required
-                        autoComplete="tel"
-                        value={customerPhone}
-                        onChange={(e) => {
-                          setCustomerPhone(e.target.value);
-                          if (errorMessage) setErrorMessage(null);
-                        }}
-                        placeholder="Contoh: 081234567890"
-                        className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink tabular-nums placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
-                      />
-                      <p className="mt-1.5 font-sans text-xs text-muted">
-                        Tanpa daftar akun · Khusus info perubahan jadwal &amp;
-                        dijaga privat.
-                      </p>
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{errorMessage ?? activeSlotNotice}</span>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 lg:mt-auto lg:pt-4">
+                    {/* Catatan Aturan Keterlambatan */}
+                    <div className="flex items-start gap-2.5 rounded-xl border-l-2 border-terracotta bg-surface-elevated/70 p-3 font-sans text-xs leading-relaxed text-muted">
+                      <Clock className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
+                      <span>
+                        Toleransi keterlambatan maksimal{" "}
+                        <strong className="text-ink">15 menit</strong>. Konfirmasi
+                        dikirim langsung ke WhatsApp.
+                      </span>
                     </div>
-                  </div>
 
-                  {/* Honeypot field tersembunyi anti-bot */}
-                  <div className="sr-only" aria-hidden="true">
-                    <label htmlFor="booking-website-field">Website</label>
-                    <input
-                      id="booking-website-field"
-                      name="website"
-                      type="text"
-                      value={honeypotWebsite}
-                      onChange={(e) => setHoneypotWebsite(e.target.value)}
-                      tabIndex={-1}
-                      autoComplete="off"
-                    />
-                  </div>
-
-                  {/* Pesan Error Validasi / Konflik / Notifikasi Slot Live */}
-                  {errorMessage || activeSlotNotice ? (
-                    <div
-                      role="alert"
-                      className="mt-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 font-sans text-xs leading-relaxed text-crimson-alert"
+                    {/* Tombol Submit */}
+                    <button
+                      type="submit"
+                      disabled={
+                        isSubmitting ||
+                        settings.is_force_closed ||
+                        !selectedService ||
+                        !selectedSlotObj
+                      }
+                      className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-3 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted"
                     >
-                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span>{errorMessage ?? activeSlotNotice}</span>
-                    </div>
-                  ) : null}
-
-                  {/* Catatan Aturan Keterlambatan */}
-                  <div className="mt-4 flex items-start gap-2.5 rounded-xl border-l-2 border-terracotta bg-surface-elevated/70 p-3 font-sans text-xs leading-relaxed text-muted">
-                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
-                    <span>
-                      Toleransi keterlambatan maksimal{" "}
-                      <strong className="text-ink">15 menit</strong>. Konfirmasi
-                      dikirim langsung ke WhatsApp.
-                    </span>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Mengamankan slot jadwal...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Review &amp; Konfirmasi Booking</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </>
+                      )}
+                    </button>
                   </div>
-
-                  {/* Tombol Submit */}
-                  <button
-                    type="submit"
-                    disabled={
-                      isSubmitting ||
-                      settings.is_force_closed ||
-                      !selectedService ||
-                      !selectedSlotObj
-                    }
-                    className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-3 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Mengamankan slot jadwal...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Review &amp; Konfirmasi Booking</span>
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </button>
                 </div>
               </div>
             </form>
