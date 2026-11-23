@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import QRCode from "qrcode";
 import { Check, Copy, Download, ExternalLink, QrCode, X } from "lucide-react";
+import { BrandMark } from "@/components/ui/BrandMark";
 
 const DEFAULT_RESERVATION_URL = "https://madzhairco.vercel.app/?to=reservasi";
 const POSTER_BRAND_NAME = "Madzhair Barber & Co";
@@ -136,6 +137,14 @@ export function StudioQrCodeCard({
     }
   };
 
+  const loadLogoImage = (src: string): Promise<HTMLImageElement | null> =>
+    new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+
   const handleDownloadPrintablePng = async () => {
     setDownloading(true);
     try {
@@ -145,15 +154,18 @@ export function StudioQrCodeCard({
           : bookingUrl;
 
       const qrCanvas = document.createElement("canvas");
-      await QRCode.toCanvas(qrCanvas, targetUrl, {
-        width: 720,
-        margin: 2,
-        errorCorrectionLevel: "H",
-        color: {
-          dark: "#2B2B2B",
-          light: "#FFFFFF",
-        },
-      });
+      const [logoImg] = await Promise.all([
+        loadLogoImage("/images/brand/madzhair-logo-dark.png"),
+        QRCode.toCanvas(qrCanvas, targetUrl, {
+          width: 720,
+          margin: 2,
+          errorCorrectionLevel: "H",
+          color: {
+            dark: "#2B2B2B",
+            light: "#FFFFFF",
+          },
+        }),
+      ]);
 
       const poster = document.createElement("canvas");
       poster.width = 1200;
@@ -174,49 +186,57 @@ export function StudioQrCodeCard({
       ctx.stroke();
 
       // Top Charcoal Noir Accent Bar (#2B2B2B)
-      drawRoundedRect(ctx, 480, 140, 240, 10, 5);
+      drawRoundedRect(ctx, 480, 128, 240, 10, 5);
       ctx.fillStyle = "#2B2B2B";
       ctx.fill();
 
-      // Brand Heading (Charcoal Noir #2B2B2B)
-      ctx.fillStyle = "#2B2B2B";
+      // Logo Resmi MADZ HAIR.CO (atau teks fallback jika gagal muat)
       ctx.textAlign = "center";
-      ctx.font = "700 60px Poppins, system-ui, sans-serif";
-      ctx.fillText(displayBrandName, 600, 245);
+      if (logoImg && logoImg.naturalWidth > 0 && logoImg.naturalHeight > 0) {
+        const logoH = 148;
+        const logoW = Math.round(
+          logoH * (logoImg.naturalWidth / logoImg.naturalHeight)
+        );
+        ctx.drawImage(logoImg, 600 - logoW / 2, 168, logoW, logoH);
+      } else {
+        ctx.fillStyle = "#1E1E1E";
+        ctx.font = "700 60px Poppins, system-ui, sans-serif";
+        ctx.fillText(displayBrandName, 600, 260);
+      }
 
       // Location Subtitle (Ironclad Grey #565656)
       ctx.fillStyle = "#565656";
-      ctx.font = "500 30px Poppins, system-ui, sans-serif";
-      ctx.fillText("Sungai Kunyit, Kalimantan Barat", 600, 300);
+      ctx.font = "500 28px Poppins, system-ui, sans-serif";
+      ctx.fillText("Sungai Kunyit, Kalimantan Barat", 600, 358);
 
       // QR Frame (#FFFFFF + border #B3B3B3)
-      drawRoundedRect(ctx, 210, 370, 780, 780, 40);
+      drawRoundedRect(ctx, 210, 400, 780, 780, 40);
       ctx.fillStyle = "#FFFFFF";
       ctx.fill();
       ctx.lineWidth = 4;
       ctx.strokeStyle = "#B3B3B3";
       ctx.stroke();
 
-      ctx.drawImage(qrCanvas, 240, 400, 720, 720);
+      ctx.drawImage(qrCanvas, 240, 430, 720, 720);
 
       // Instructions (Charcoal Noir #2B2B2B + Ironclad Grey #565656)
       ctx.fillStyle = "#2B2B2B";
       ctx.font = "700 40px Poppins, system-ui, sans-serif";
-      ctx.fillText("SCAN UNTUK BOOKING KURSI", 600, 1245);
+      ctx.fillText("SCAN UNTUK BOOKING KURSI", 600, 1255);
 
       ctx.fillStyle = "#565656";
       ctx.font = "500 30px Poppins, system-ui, sans-serif";
       ctx.fillText(
         "Arahkan kamera HP untuk pilih layanan & jam",
         600,
-        1305
+        1314
       );
-      ctx.fillText("tanpa perlu antre dan tanpa buat akun.", 600, 1348);
+      ctx.fillText("tanpa perlu antre dan tanpa buat akun.", 600, 1356);
 
       // URL Footer (Urban Fog #848484)
       ctx.fillStyle = "#848484";
       ctx.font = "600 24px Poppins, system-ui, sans-serif";
-      ctx.fillText(targetUrl.replace(/^https?:\/\//, ""), 600, 1445);
+      ctx.fillText(targetUrl.replace(/^https?:\/\//, ""), 600, 1450);
 
       const dataUrl = poster.toDataURL("image/png");
       const link = document.createElement("a");
@@ -303,6 +323,7 @@ export function StudioQrCodeCard({
             </div>
 
             <div className="mt-4 flex flex-col items-center rounded-2xl border border-[#B3B3B3] bg-[#F7F7F7] p-4 text-center">
+              <BrandMark variant="compact" size="sm" shortWordmark className="mb-3" />
               <canvas
                 ref={previewCanvasRef}
                 width={220}
@@ -311,7 +332,7 @@ export function StudioQrCodeCard({
                 className="h-[196px] w-[196px] rounded-xl border border-[#E0E0E0] bg-[#FFFFFF]"
               />
               <p className="mt-2.5 text-xs font-semibold text-[#2B2B2B]">
-                {displayBrandName} · Sungai Kunyit, Kalimantan Barat
+                Sungai Kunyit, Kalimantan Barat
               </p>
               <p className="mt-0.5 break-all text-[11px] text-[#565656]">
                 {displayHost}

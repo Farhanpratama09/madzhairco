@@ -509,13 +509,16 @@ export function SmartTicketView({
             <article className="overflow-hidden rounded-2xl border border-hairline bg-surface shadow-sm">
               {/* Header Kartu Tiket */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-5 py-4 sm:px-7">
-                <div>
-                  <p className="font-sans text-xs font-semibold text-ink">
-                    Smart Ticket · {settings.store_name}
-                  </p>
-                  <p className="mt-0.5 font-sans text-xs text-muted">
-                    Sungai Kunyit, Kalimantan Barat (WIB)
-                  </p>
+                <div className="flex items-center gap-3">
+                  <BrandMark variant="compact" size="sm" shortWordmark />
+                  <div className="border-l border-hairline pl-3">
+                    <p className="font-sans text-xs font-semibold text-ink">
+                      Smart Ticket · E-Tiket Resmi
+                    </p>
+                    <p className="mt-0.5 font-sans text-xs text-muted">
+                      Sungai Kunyit, Kalimantan Barat (WIB)
+                    </p>
+                  </div>
                 </div>
 
                 {statusMeta ? (
