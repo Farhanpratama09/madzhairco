@@ -1719,7 +1719,7 @@ export function BookingExperience({
                           key={service.id}
                           type="button"
                           onClick={() => handleSelectService(service.id)}
-                          className={`flex min-h-[78px] w-full min-w-0 flex-col justify-between gap-2 rounded-2xl border p-4 text-left transition-colors sm:p-5 ${
+                          className={`flex min-h-[78px] w-full min-w-0 flex-col justify-between gap-2 rounded-2xl border p-4 text-left transition-all duration-200 ease-out active:scale-[0.98] sm:p-5 ${
                             active
                               ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#F7F7F7] shadow-sm"
                               : "border-hairline bg-alabaster/55 text-ink hover:border-[#2B2B2B]/70 hover:bg-surface"
@@ -1727,14 +1727,14 @@ export function BookingExperience({
                         >
                           <div className="flex w-full min-w-0 items-baseline justify-between gap-3">
                             <span
-                              className={`font-sans text-sm font-semibold leading-snug sm:text-[15px] ${
+                              className={`font-sans text-sm font-semibold leading-snug transition-colors duration-200 sm:text-[15px] ${
                                 active ? "text-[#F7F7F7]" : "text-ink"
                               }`}
                             >
                               {service.name}
                             </span>
                             <span
-                              className={`shrink-0 font-sans text-xs font-semibold whitespace-nowrap tabular-nums sm:text-sm ${
+                              className={`shrink-0 font-sans text-xs font-semibold whitespace-nowrap tabular-nums transition-colors duration-200 sm:text-sm ${
                                 active ? "text-[#F7F7F7]" : "text-ink/85"
                               }`}
                             >
@@ -1742,7 +1742,7 @@ export function BookingExperience({
                             </span>
                           </div>
                           <span
-                            className={`block w-full font-sans text-xs leading-relaxed tabular-nums ${
+                            className={`block w-full font-sans text-xs leading-relaxed tabular-nums transition-colors duration-200 ${
                               active ? "text-[#E0E0E0]" : "text-muted"
                             }`}
                           >
@@ -1776,7 +1776,7 @@ export function BookingExperience({
                       onClick={() => handleSlideDates(-1)}
                       disabled={!dateScrollState.canLeft}
                       aria-label="Geser tanggal sebelumnya"
-                      className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-xl border border-hairline bg-alabaster/70 text-ink transition-colors hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-35 sm:w-11"
+                      className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-xl border border-hairline bg-alabaster/70 text-ink transition-all duration-200 ease-out hover:border-terracotta hover:text-terracotta active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100 sm:w-11"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
@@ -1796,7 +1796,7 @@ export function BookingExperience({
                               key={dateItem.dateStr}
                               type="button"
                               onClick={() => handleSelectDate(dateItem.dateStr)}
-                              className={`flex min-h-[62px] min-w-[78px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-colors ${
+                              className={`flex min-h-[62px] min-w-[78px] shrink-0 snap-start flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition-all duration-200 ease-out active:scale-[0.98] ${
                                 active
                                   ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#F7F7F7] shadow-sm"
                                   : dateClosedInfo.closed
@@ -1805,7 +1805,7 @@ export function BookingExperience({
                               }`}
                             >
                               <span
-                                className={`font-sans text-xs font-medium ${
+                                className={`font-sans text-xs font-medium transition-colors duration-200 ${
                                   active ? "text-[#F7F7F7]/85" : "text-muted"
                                 }`}
                               >
@@ -1819,7 +1819,7 @@ export function BookingExperience({
                               </span>
                               {dateClosedInfo.closed ? (
                                 <span
-                                  className={`mt-0.5 font-sans text-[11px] font-medium ${
+                                  className={`mt-0.5 font-sans text-[11px] font-medium transition-colors duration-200 ${
                                     active
                                       ? "text-[#F7F7F7]"
                                       : "text-crimson-alert"
@@ -1853,7 +1853,7 @@ export function BookingExperience({
                       onClick={() => handleSlideDates(1)}
                       disabled={!dateScrollState.canRight}
                       aria-label="Geser tanggal berikutnya"
-                      className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-xl border border-hairline bg-alabaster/70 text-ink transition-colors hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-35 sm:w-11"
+                      className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-xl border border-hairline bg-alabaster/70 text-ink transition-all duration-200 ease-out hover:border-terracotta hover:text-terracotta active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100 sm:w-11"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
@@ -1861,13 +1861,13 @@ export function BookingExperience({
                 </fieldset>
 
                 {/* 3. Grid Slot Jam Terkelompok Dinamis (Pagi/Siang/Sore/Malam) + Legenda Kursi Solid */}
-                <fieldset className="flex min-w-0 flex-col rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
+                <fieldset className="flex min-w-0 flex-col rounded-2xl border border-hairline bg-surface p-4 shadow-xs transition-all duration-200 ease-out sm:p-5">
                   <legend className="sr-only">Pilih jam</legend>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
                       Pilih jam
                     </span>
-                    <span className="shrink-0 whitespace-nowrap rounded-full border border-hairline/70 bg-alabaster px-2.5 py-0.5 font-sans text-[11px] font-medium text-muted tabular-nums sm:text-xs">
+                    <span className="shrink-0 whitespace-nowrap rounded-full border border-hairline/70 bg-alabaster px-2.5 py-0.5 font-sans text-[11px] font-medium text-muted tabular-nums transition-opacity duration-200 sm:text-xs">
                       {isLoadingSlots
                         ? "Menyinkronkan..."
                         : `${availableSlotCount} slot tersedia`}
@@ -1878,7 +1878,7 @@ export function BookingExperience({
                     <div
                       role="status"
                       aria-live="polite"
-                      className="mt-3.5 flex items-start gap-2.5 rounded-xl border border-crimson-alert/45 bg-crimson-alert/10 p-3.5 font-sans text-xs leading-relaxed text-crimson-alert"
+                      className="mt-3.5 flex items-start gap-2.5 rounded-xl border border-crimson-alert/45 bg-crimson-alert/10 p-3.5 font-sans text-xs leading-relaxed text-crimson-alert animate-gentle-fade"
                     >
                       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                       <span>{activeSlotNotice}</span>
@@ -1886,7 +1886,10 @@ export function BookingExperience({
                   ) : null}
 
                   {availableSlotCount === 0 ? (
-                    <div className="mt-3.5 flex flex-col items-center justify-center rounded-2xl border border-hairline bg-alabaster/65 p-5 text-center font-sans sm:p-6">
+                    <div
+                      key={`empty-${selectedService?.id ?? "none"}-${selectedDate}`}
+                      className="mt-3.5 flex flex-col items-center justify-center rounded-2xl border border-hairline bg-alabaster/65 p-5 text-center font-sans transition-all duration-200 ease-out animate-gentle-fade sm:p-6"
+                    >
                       <Calendar className="mx-auto h-5 w-5 text-terracotta" />
                       <p className="mt-2.5 text-sm font-semibold text-ink sm:text-base">
                         {zeroSlotCardMeta.title}
@@ -1901,7 +1904,7 @@ export function BookingExperience({
                           onClick={() =>
                             handleSelectDate(nextAvailableOpenDate.dateStr)
                           }
-                          className="mt-4 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-surface shadow-xs transition-colors hover:bg-terracotta/90 sm:text-sm"
+                          className="mt-4 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-surface shadow-xs transition-all duration-200 ease-out hover:bg-terracotta/90 active:scale-[0.98] sm:text-sm"
                         >
                           <span>
                             Pilih Jadwal Berikutnya (
@@ -1912,8 +1915,11 @@ export function BookingExperience({
                       ) : null}
                     </div>
                   ) : (
-                    <div className="mt-3.5 flex flex-col gap-4">
-                      <div className="space-y-3.5">
+                    <div className="mt-3.5 flex flex-col gap-4 transition-all duration-200 ease-out">
+                      <div
+                        key={`slots-${selectedService?.id ?? "none"}-${selectedDate}`}
+                        className="space-y-3.5 transition-all duration-200 ease-out animate-gentle-fade"
+                      >
                         {groupedSlots.map((group) => (
                           <div key={group.key} className="space-y-1.5">
                             <p className="font-sans text-xs font-medium text-[#52525B]">
@@ -1931,7 +1937,7 @@ export function BookingExperience({
                                     aria-pressed={isSelected}
                                     onClick={() => handleSelectSlot(slot.time)}
                                     title={`${slot.time} – ${slot.endTime} WIB`}
-                                    className={`inline-flex min-h-[44px] items-center justify-center rounded-xl border px-2 py-2.5 font-sans text-sm font-semibold leading-none tabular-nums transition-colors ${
+                                    className={`inline-flex min-h-[44px] items-center justify-center rounded-xl border px-2 py-2.5 font-sans text-sm font-semibold leading-none tabular-nums transition-all duration-200 ease-out active:scale-[0.98] ${
                                       isSelected
                                         ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#F7F7F7] shadow-sm"
                                         : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
@@ -1962,8 +1968,8 @@ export function BookingExperience({
               </div>
 
               {/* Kolom Kanan (360px Live Booking Preview — Sticky & Padat di Desktop) */}
-              <div className="min-w-0 lg:sticky lg:top-24">
-                <div className="rounded-2xl border border-hairline bg-surface p-4 shadow-sm sm:p-6">
+              <div className="min-w-0 lg:sticky lg:top-28 transition-all duration-300 ease-out">
+                <div className="rounded-2xl border border-hairline bg-surface p-4 shadow-sm transition-shadow duration-300 ease-out sm:p-6">
                   <div>
                     <div className="flex items-center justify-between gap-2 pb-3.5">
                       <div>
@@ -1974,7 +1980,7 @@ export function BookingExperience({
                           Ringkasan jadwal &amp; kontak Anda
                         </p>
                       </div>
-                      <span className="rounded-full bg-surface-elevated px-2.5 py-1 font-sans text-xs font-semibold text-ink tabular-nums">
+                      <span className="rounded-full bg-surface-elevated px-2.5 py-1 font-sans text-xs font-semibold text-ink tabular-nums transition-colors duration-200">
                         {completedStepsCount}/4
                       </span>
                     </div>
@@ -1986,6 +1992,7 @@ export function BookingExperience({
                     >
                       {previewSteps.map((step, index) => {
                         const isLast = index === previewSteps.length - 1;
+                        const animateStepValue = step.stepNumber <= 3;
                         return (
                           <li
                             key={step.stepNumber}
@@ -1997,7 +2004,7 @@ export function BookingExperience({
                             {!isLast ? (
                               <span
                                 aria-hidden="true"
-                                className={`absolute top-6 bottom-0 left-[11px] w-px transition-colors ${
+                                className={`absolute top-6 bottom-0 left-[11px] w-px transition-colors duration-200 ease-out ${
                                   step.done ? "bg-terracotta/55" : "bg-hairline"
                                 }`}
                               />
@@ -2006,7 +2013,7 @@ export function BookingExperience({
                             {/* Titik Bulat Bercentang (✓) atau Nomor Langkah */}
                             <span
                               aria-hidden="true"
-                              className={`relative z-10 mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-sans text-xs font-semibold tabular-nums transition-colors ${
+                              className={`relative z-10 mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-sans text-xs font-semibold tabular-nums transition-all duration-200 ease-out ${
                                 step.done
                                   ? "bg-terracotta text-surface shadow-xs"
                                   : "border border-hairline bg-alabaster text-muted"
@@ -2025,7 +2032,14 @@ export function BookingExperience({
                                 {step.label}
                               </p>
                               <p
-                                className={`mt-0.5 truncate font-sans text-sm tabular-nums ${
+                                key={
+                                  animateStepValue
+                                    ? `${step.stepNumber}-${step.value}`
+                                    : undefined
+                                }
+                                className={`mt-0.5 truncate font-sans text-sm tabular-nums transition-opacity duration-200 ${
+                                  animateStepValue ? "animate-gentle-fade" : ""
+                                } ${
                                   step.done
                                     ? "font-semibold text-ink"
                                     : "font-normal text-muted"
@@ -2063,7 +2077,7 @@ export function BookingExperience({
                             if (errorMessage) setErrorMessage(null);
                           }}
                           placeholder="Contoh: Farhan Pratama"
-                          className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+                          className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink placeholder:text-muted/60 transition-colors duration-200 focus:border-terracotta focus:bg-surface focus:outline-none"
                         />
                       </div>
 
@@ -2088,7 +2102,7 @@ export function BookingExperience({
                             if (errorMessage) setErrorMessage(null);
                           }}
                           placeholder="Contoh: 081234567890"
-                          className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink tabular-nums placeholder:text-muted/60 transition-colors focus:border-terracotta focus:bg-surface focus:outline-none"
+                          className="mt-1.5 min-h-[48px] w-full rounded-xl border border-hairline bg-alabaster/60 px-4 py-2.5 font-sans text-base text-ink tabular-nums placeholder:text-muted/60 transition-colors duration-200 focus:border-terracotta focus:bg-surface focus:outline-none"
                         />
                         <p className="mt-1.5 font-sans text-xs text-muted">
                           Tanpa daftar akun · Khusus info perubahan jadwal &amp;
@@ -2115,7 +2129,7 @@ export function BookingExperience({
                     {errorMessage || activeSlotNotice ? (
                       <div
                         role="alert"
-                        className="mt-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 font-sans text-xs leading-relaxed text-crimson-alert"
+                        className="mt-4 flex items-start gap-2.5 rounded-xl border border-crimson-alert/50 bg-crimson-alert/10 p-3.5 font-sans text-xs leading-relaxed text-crimson-alert animate-gentle-fade"
                       >
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                         <span>{errorMessage ?? activeSlotNotice}</span>
@@ -2143,7 +2157,7 @@ export function BookingExperience({
                         !selectedService ||
                         !selectedSlotObj
                       }
-                      className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-3 font-sans text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-terracotta/90 disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted"
+                      className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-terracotta px-5 py-3 font-sans text-sm font-semibold text-surface shadow-sm transition-all duration-200 ease-out hover:bg-terracotta/90 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-surface-elevated disabled:text-muted disabled:shadow-none disabled:active:scale-100"
                     >
                       {isSubmitting ? (
                         <>
