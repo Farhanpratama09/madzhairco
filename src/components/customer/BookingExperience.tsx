@@ -1698,9 +1698,9 @@ export function BookingExperience({
             <form
               onSubmit={handleSubmit}
               noValidate
-              className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-8"
+              className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-8"
             >
-              {/* Kolom Kiri (Urutan selaras 1:1 dengan stepper kanan + tinggi sejajar di desktop) */}
+              {/* Kolom Kiri (Urutan selaras 1:1 dengan stepper kanan) */}
               <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
                 {/* 1. Pilihan Layanan (Langkah 1 — Charcoal Noir #2B2B2B saat aktif) */}
                 <fieldset className="min-w-0 shrink-0 rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
@@ -1861,7 +1861,7 @@ export function BookingExperience({
                 </fieldset>
 
                 {/* 3. Grid Slot Jam Terkelompok Dinamis (Pagi/Siang/Sore/Malam) + Legenda Kursi Solid */}
-                <fieldset className="flex min-w-0 flex-col rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5 lg:flex-1">
+                <fieldset className="flex min-w-0 flex-col rounded-2xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
                   <legend className="sr-only">Pilih jam</legend>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-sans text-xs font-semibold text-terracotta sm:text-sm">
@@ -1886,7 +1886,7 @@ export function BookingExperience({
                   ) : null}
 
                   {availableSlotCount === 0 ? (
-                    <div className="mt-3.5 flex flex-1 flex-col items-center justify-center rounded-2xl border border-hairline bg-alabaster/65 p-5 text-center font-sans sm:p-6">
+                    <div className="mt-3.5 flex flex-col items-center justify-center rounded-2xl border border-hairline bg-alabaster/65 p-5 text-center font-sans sm:p-6">
                       <Calendar className="mx-auto h-5 w-5 text-terracotta" />
                       <p className="mt-2.5 text-sm font-semibold text-ink sm:text-base">
                         {zeroSlotCardMeta.title}
@@ -1912,15 +1912,15 @@ export function BookingExperience({
                       ) : null}
                     </div>
                   ) : (
-                    <div className="flex flex-1 flex-col justify-between gap-4">
-                      <div className="mt-3.5 space-y-3.5">
+                    <div className="mt-3.5 flex flex-col gap-4">
+                      <div className="space-y-3.5">
                         {groupedSlots.map((group) => (
                           <div key={group.key} className="space-y-1.5">
                             <p className="font-sans text-xs font-medium text-[#52525B]">
                               {group.label}
                             </p>
 
-                            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
                               {group.slots.map((slot) => {
                                 const isSelected = selectedTime === slot.time;
 
@@ -1931,24 +1931,13 @@ export function BookingExperience({
                                     aria-pressed={isSelected}
                                     onClick={() => handleSelectSlot(slot.time)}
                                     title={`${slot.time} – ${slot.endTime} WIB`}
-                                    className={`flex min-h-[48px] flex-col items-center justify-center rounded-xl border px-2 py-1.5 transition-colors sm:min-h-[54px] sm:py-2 ${
+                                    className={`inline-flex min-h-[44px] items-center justify-center rounded-xl border px-2 py-2.5 font-sans text-sm font-semibold leading-none tabular-nums transition-colors ${
                                       isSelected
                                         ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#F7F7F7] shadow-sm"
                                         : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
                                     }`}
                                   >
-                                    <span className="font-sans text-sm font-semibold leading-tight tabular-nums">
-                                      {slot.time}
-                                    </span>
-                                    <span
-                                      className={`mt-0.5 font-sans text-[11px] font-medium leading-tight ${
-                                        isSelected
-                                          ? "text-[#F7F7F7]/85"
-                                          : "text-muted"
-                                      }`}
-                                    >
-                                      {isSelected ? "Dipilih" : "Tersedia"}
-                                    </span>
+                                    {slot.time}
                                   </button>
                                 );
                               })}
@@ -1972,9 +1961,9 @@ export function BookingExperience({
                 </fieldset>
               </div>
 
-              {/* Kolom Kanan (360px Live Booking Preview — Tinggi Sejajar Kolom Kiri di Desktop) */}
-              <div className="min-w-0 lg:flex lg:flex-col">
-                <div className="rounded-2xl border border-hairline bg-surface p-4 shadow-sm sm:p-6 lg:flex lg:flex-1 lg:flex-col lg:justify-between">
+              {/* Kolom Kanan (360px Live Booking Preview — Sticky & Padat di Desktop) */}
+              <div className="min-w-0 lg:sticky lg:top-24">
+                <div className="rounded-2xl border border-hairline bg-surface p-4 shadow-sm sm:p-6">
                   <div>
                     <div className="flex items-center justify-between gap-2 pb-3.5">
                       <div>
@@ -2134,7 +2123,7 @@ export function BookingExperience({
                     ) : null}
                   </div>
 
-                  <div className="mt-4 lg:mt-auto lg:pt-4">
+                  <div className="mt-4">
                     {/* Catatan Aturan Keterlambatan */}
                     <div className="flex items-start gap-2.5 rounded-xl border-l-2 border-terracotta bg-surface-elevated/70 p-3 font-sans text-xs leading-relaxed text-muted">
                       <Clock className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
