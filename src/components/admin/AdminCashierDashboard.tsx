@@ -45,12 +45,13 @@ import { BrandMark } from "@/components/ui/BrandMark";
 import { validateSocialEmbedUrl } from "@/lib/security/sanitize";
 import {
   calculateAvailableSlots,
-  findWalkinTargetSlot,
+  computeTimelineFreeGaps,
   formatTimeHHMM,
   getAdminTodayOperationalState,
   getDayOfWeekFromDateStr,
   getStoreNowParts,
   getTodayAndUpcomingDates,
+  getWalkinAvailableSlots,
   minutesToTime,
   parseTimeToMinutes,
 } from "@/lib/slots";
@@ -98,8 +99,8 @@ const DAY_LABELS = [
 
 const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1200;
-/** Tinggi track 60 menit (76px/jam: 1x Haircut ~68px, 2x Hair Chemicals ~144px ringkas & proporsional) */
-const HOUR_ROW_HEIGHT_PX = 76;
+/** Tinggi track 60 menit (96px/jam = 24px per 15 menit: Haircut 45m = 72px, Hair Chemicals 120m = 192px) */
+const HOUR_ROW_HEIGHT_PX = 96;
 
 const MONTH_NAMES_SHORT = [
   "Jan",
@@ -887,10 +888,10 @@ export function AdminCashierDashboard({
     [services]
   );
 
-  const haircutWalkinSlot = useMemo(
+  const haircutWalkinSlots = useMemo(
     () =>
       haircutService
-        ? findWalkinTargetSlot(
+        ? getWalkinAvailableSlots(
             haircutService,
             schedules,
             closedDates,
@@ -898,14 +899,14 @@ export function AdminCashierDashboard({
             settings,
             nowParts
           )
-        : null,
+        : [],
     [haircutService, schedules, closedDates, bookings, settings, nowParts]
   );
 
-  const chemicalsWalkinSlot = useMemo(
+  const chemicalsWalkinSlots = useMemo(
     () =>
       chemicalsService
-        ? findWalkinTargetSlot(
+        ? getWalkinAvailableSlots(
             chemicalsService,
             schedules,
             closedDates,
@@ -913,9 +914,41 @@ export function AdminCashierDashboard({
             settings,
             nowParts
           )
-        : null,
+        : [],
     [chemicalsService, schedules, closedDates, bookings, settings, nowParts]
   );
+
+  const haircutWalkinSlot = haircutWalkinSlots[0] ?? null;
+  const chemicalsWalkinSlot = chemicalsWalkinSlots[0] ?? null;
+
+  const pendingWalkinSlots = useMemo(() => {
+    if (!pendingWalkin) return [];
+    if (haircutService && pendingWalkin.service.id === haircutService.id) {
+      return haircutWalkinSlots;
+    }
+    if (chemicalsService && pendingWalkin.service.id === chemicalsService.id) {
+      return chemicalsWalkinSlots;
+    }
+    return getWalkinAvailableSlots(
+      pendingWalkin.service,
+      schedules,
+      closedDates,
+      bookings,
+      settings,
+      nowParts
+    );
+  }, [
+    pendingWalkin,
+    haircutService,
+    chemicalsService,
+    haircutWalkinSlots,
+    chemicalsWalkinSlots,
+    schedules,
+    closedDates,
+    bookings,
+    settings,
+    nowParts,
+  ]);
 
   // Filtered bookings for selectedDate
   const dayBookings = useMemo(
@@ -1043,13 +1076,46 @@ export function AdminCashierDashboard({
     const heightPx = ((clampedEnd - clampedStart) / 60) * HOUR_ROW_HEIGHT_PX;
 
     return {
+      startMinutes: clampedStart,
+      endMinutes: clampedEnd,
       topPx,
-      heightPx: Math.max(44, heightPx),
+      heightPx: Math.max(28, heightPx),
       label: `${formatTimeHHMM(settings.break_start || "17:15:00")} – ${formatTimeHHMM(
         settings.break_end || "18:30:00"
       )} WIB`,
     };
   }, [timelineRange, settings.break_enabled, settings.break_start, settings.break_end]);
+
+  const timelineFreeGaps = useMemo(() => {
+    if (!timelineRange) return [];
+
+    const busyIntervals: Array<{ startMinutes: number; endMinutes: number }> =
+      timelineBookings.map((b) => ({
+        startMinutes: parseTimeToMinutes(b.start_time),
+        endMinutes: parseTimeToMinutes(b.end_time),
+      }));
+
+    if (timelineBreakBand) {
+      busyIntervals.push({
+        startMinutes: timelineBreakBand.startMinutes,
+        endMinutes: timelineBreakBand.endMinutes,
+      });
+    }
+
+    const splitAtMinutes: number[] = [];
+    if (selectedDateMeta.closedDate?.close_from_time) {
+      splitAtMinutes.push(
+        parseTimeToMinutes(selectedDateMeta.closedDate.close_from_time)
+      );
+    }
+
+    return computeTimelineFreeGaps({
+      startMinutes: timelineRange.startMinutes,
+      endMinutes: timelineRange.endMinutes,
+      busyIntervals,
+      splitAtMinutes,
+    });
+  }, [timelineRange, timelineBookings, timelineBreakBand, selectedDateMeta.closedDate]);
 
   const showCurrentTimeLine = Boolean(
     timelineRange &&
@@ -1076,7 +1142,7 @@ export function AdminCashierDashboard({
     if (!selectedBooking || selectedBooking.status !== "BOOKED") return [];
 
     const fallbackDuration = Math.max(
-      60,
+      15,
       parseTimeToMinutes(selectedBooking.end_time) -
         parseTimeToMinutes(selectedBooking.start_time)
     );
@@ -2418,76 +2484,19 @@ export function AdminCashierDashboard({
                     style={{ height: `${timelineRange.totalHeightPx}px` }}
                     className="relative min-w-0 flex-1"
                   >
-                    {/* Layer 1: Track Grid 60 Menit & Slot Kosong */}
-                    {timelineRange.hours.map((hourStart) => {
-                      const isHourOccupied = timelineBookings.some((b) => {
-                        const bStart = parseTimeToMinutes(b.start_time);
-                        const bEnd = parseTimeToMinutes(b.end_time);
-                        return bStart < hourStart + 60 && bEnd > hourStart;
-                      });
-
-                      const breakStartMin = parseTimeToMinutes(
-                        settings.break_start || "17:15:00"
-                      );
-                      const breakEndMin = parseTimeToMinutes(
-                        settings.break_end || "18:30:00"
-                      );
-                      const isHourCoveredByBreak = Boolean(
-                        timelineBreakBand &&
-                          settings.break_enabled &&
-                          breakEndMin > breakStartMin &&
-                          hourStart < breakEndMin &&
-                          hourStart + 60 > breakStartMin
-                      );
-
-                      const isPastHour =
-                        selectedDate < nowParts.dateStr ||
-                        (selectedDate === nowParts.dateStr &&
-                          hourStart + 60 <= nowParts.minutesFromMidnight);
-
-                      const isAfterEarlyClose = Boolean(
-                        selectedDateMeta.closedDate?.close_from_time &&
-                          hourStart >=
-                            parseTimeToMinutes(
-                              selectedDateMeta.closedDate.close_from_time
-                            )
-                      );
-
-                      return (
+                    {/* Layer 1a: Garis Grid Jam (:00 solid, :30 halus) */}
+                    {timelineRange.hours.map((hourStart) => (
+                      <div
+                        key={hourStart}
+                        style={{ height: `${HOUR_ROW_HEIGHT_PX}px` }}
+                        className="relative border-t border-hairline"
+                      >
                         <div
-                          key={hourStart}
-                          style={{ height: `${HOUR_ROW_HEIGHT_PX}px` }}
-                          className="border-t border-hairline py-1"
-                        >
-                          {!isHourOccupied && !isHourCoveredByBreak ? (
-                            <div className="flex h-full items-center justify-between gap-2 rounded-xl border border-dashed border-[#B3B3B3] bg-[#F7F7F7] px-3 py-1.5">
-                              <span
-                                className={`font-sans text-xs font-medium tabular-nums ${
-                                  isPastHour
-                                    ? "text-[#848484]"
-                                    : "text-[#565656]"
-                                }`}
-                              >
-                                {minutesToTime(hourStart)} –{" "}
-                                {minutesToTime(hourStart + 60)}
-                              </span>
-                              <span className="font-sans text-xs text-[#848484]">
-                                {settings.is_force_closed || isAfterEarlyClose
-                                  ? "Tutup"
-                                  : (selectedDateMeta.closedDate &&
-                                        !selectedDateMeta.closedDate
-                                          .close_from_time) ||
-                                      !selectedDateMeta.schedule?.is_open
-                                    ? "Libur"
-                                    : isPastHour
-                                      ? "Berlalu"
-                                      : "Kursi kosong"}
-                              </span>
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-hairline/45"
+                        />
+                      </div>
+                    ))}
 
                     {/* Garis Penutup Bawah Grid */}
                     <div
@@ -2495,15 +2504,81 @@ export function AdminCashierDashboard({
                       className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-hairline"
                     />
 
+                    {/* Layer 1b: Rentang Kursi Kosong Akurat (mengikuti kelipatan 15 menit & celah antar booking) */}
+                    {timelineFreeGaps.map((gap) => {
+                      const gapDurationMin = gap.endMinutes - gap.startMinutes;
+                      const topPx =
+                        ((gap.startMinutes - timelineRange.startMinutes) / 60) *
+                        HOUR_ROW_HEIGHT_PX;
+                      const heightPx =
+                        (gapDurationMin / 60) * HOUR_ROW_HEIGHT_PX;
+                      const isCompactGap = gapDurationMin <= 20;
+
+                      const isPastGap =
+                        selectedDate < nowParts.dateStr ||
+                        (selectedDate === nowParts.dateStr &&
+                          gap.endMinutes <= nowParts.minutesFromMidnight);
+
+                      const isAfterEarlyClose = Boolean(
+                        selectedDateMeta.closedDate?.close_from_time &&
+                          gap.startMinutes >=
+                            parseTimeToMinutes(
+                              selectedDateMeta.closedDate.close_from_time
+                            )
+                      );
+
+                      const gapStatusLabel =
+                        settings.is_force_closed || isAfterEarlyClose
+                          ? "Tutup"
+                          : (selectedDateMeta.closedDate &&
+                                !selectedDateMeta.closedDate.close_from_time) ||
+                              !selectedDateMeta.schedule?.is_open
+                            ? "Libur"
+                            : isPastGap
+                              ? "Berlalu"
+                              : "Kursi kosong";
+
+                      return (
+                        <div
+                          key={`gap-${gap.startMinutes}-${gap.endMinutes}`}
+                          style={{
+                            top: `${topPx + 2}px`,
+                            height: `${Math.max(20, heightPx - 4)}px`,
+                          }}
+                          className={`pointer-events-none absolute inset-x-0 z-[2] flex items-center justify-between gap-2 border border-dashed border-[#B3B3B3] bg-[#F7F7F7] ${
+                            isCompactGap
+                              ? "rounded-lg px-2.5 py-0"
+                              : "rounded-xl px-3 py-1"
+                          }`}
+                        >
+                          <span
+                            className={`font-sans font-medium tabular-nums ${
+                              isCompactGap ? "text-[11px]" : "text-xs"
+                            } ${isPastGap ? "text-[#848484]" : "text-[#565656]"}`}
+                          >
+                            {minutesToTime(gap.startMinutes)}–
+                            {minutesToTime(gap.endMinutes)}
+                          </span>
+                          <span
+                            className={`font-sans text-[#848484] ${
+                              isCompactGap ? "text-[11px]" : "text-xs"
+                            }`}
+                          >
+                            {gapStatusLabel}
+                          </span>
+                        </div>
+                      );
+                    })}
+
                     {/* Layer 1.5: Blok Jam Istirahat Solid Cloud Veil (#E0E0E0) tanpa teks tembus di belakangnya */}
                     {timelineBreakBand ? (
                       <div
                         aria-label={`Jam istirahat ${timelineBreakBand.label}`}
                         style={{
-                          top: `${timelineBreakBand.topPx + 3}px`,
-                          height: `${Math.max(44, timelineBreakBand.heightPx - 6)}px`,
+                          top: `${timelineBreakBand.topPx + 2}px`,
+                          height: `${Math.max(28, timelineBreakBand.heightPx - 4)}px`,
                         }}
-                        className="pointer-events-none absolute inset-x-0 z-[5] flex items-center justify-between gap-2 rounded-xl border border-[#B3B3B3] bg-[#E0E0E0] px-3 py-2"
+                        className="pointer-events-none absolute inset-x-0 z-[5] flex items-center justify-between gap-2 rounded-xl border border-[#B3B3B3] bg-[#E0E0E0] px-3 py-1.5"
                       >
                         <div className="flex items-center gap-1.5 font-sans text-xs font-semibold text-[#2B2B2B]">
                           <Coffee
@@ -2518,20 +2593,20 @@ export function AdminCashierDashboard({
                       </div>
                     ) : null}
 
-                    {/* Layer 2: Blok Booking Aktif Bersih (z-10, Tap -> Bottom Sheet Detail) */}
+                    {/* Layer 2: Blok Booking Aktif Proporsional (:00/:15/:30/:45, 45m vs 120m) */}
                     {timelineBookings.map((booking) => {
                       const startMin = parseTimeToMinutes(booking.start_time);
                       const endMin = parseTimeToMinutes(booking.end_time);
-                      const durationMin = Math.max(60, endMin - startMin);
-                      const blockCount = Math.max(
-                        1,
-                        Math.round(durationMin / 60)
-                      );
+                      const durationMin = Math.max(15, endMin - startMin);
                       const topPx =
                         ((startMin - timelineRange.startMinutes) / 60) *
                         HOUR_ROW_HEIGHT_PX;
                       const heightPx = (durationMin / 60) * HOUR_ROW_HEIGHT_PX;
-                      const isMultiBlock = durationMin >= 120;
+                      const isLongService = durationMin >= 90;
+                      const durationHoursLabel =
+                        durationMin % 60 === 0
+                          ? `${durationMin / 60} jam`
+                          : `${durationMin} mnt`;
 
                       const isWalkin = booking.source === "WALKIN";
                       const isSelected = selectedBookingId === booking.id;
@@ -2545,8 +2620,8 @@ export function AdminCashierDashboard({
                             booking.start_time
                           )} sampai ${formatTimeHHMM(booking.end_time)}`}
                           style={{
-                            top: `${topPx + 3}px`,
-                            height: `${Math.max(68, heightPx - 6)}px`,
+                            top: `${topPx + 2}px`,
+                            height: `${Math.max(44, heightPx - 4)}px`,
                           }}
                           className={`group absolute inset-x-0 z-10 overflow-hidden rounded-xl border text-left transition-all ${
                             isSelected
@@ -2561,11 +2636,18 @@ export function AdminCashierDashboard({
                             }`}
                           />
 
-                          <div className="flex h-full flex-col justify-between px-3 py-1.5 pl-3.5 sm:px-3.5 sm:py-2 sm:pl-4">
+                          <div
+                            className={`flex h-full flex-col justify-between pl-3.5 pr-3 sm:pl-4 sm:pr-3.5 ${
+                              isLongService ? "py-2" : "py-1.5"
+                            }`}
+                          >
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-sans text-xs font-semibold text-[#2B2B2B] tabular-nums">
                                 {formatTimeHHMM(booking.start_time)}–
                                 {formatTimeHHMM(booking.end_time)}
+                                <span className="ml-1.5 font-normal text-[#848484]">
+                                  ({durationMin} mnt)
+                                </span>
                               </span>
 
                               <div className="flex shrink-0 items-center gap-1.5">
@@ -2595,7 +2677,7 @@ export function AdminCashierDashboard({
                               </p>
                             </div>
 
-                            {isMultiBlock ? (
+                            {isLongService ? (
                               <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-[#E0E0E0] bg-[#F7F7F7] px-2.5 py-1">
                                 <span className="inline-flex items-center gap-1 font-sans text-[11px] font-medium text-[#2B2B2B] tabular-nums">
                                   <Sparkles
@@ -2605,7 +2687,7 @@ export function AdminCashierDashboard({
                                   <span>{durationMin} menit</span>
                                 </span>
                                 <span className="font-sans text-[11px] text-[#565656] tabular-nums">
-                                  {blockCount} jam
+                                  {durationHoursLabel}
                                 </span>
                               </div>
                             ) : null}
@@ -2995,8 +3077,8 @@ export function AdminCashierDashboard({
                     <div className="border-t border-hairline p-3.5 sm:p-4">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-sans text-xs text-muted">
-                          Kunci otomatis slot 1 jam &amp; 2 jam yang beririsan
-                          dengan jam istirahat.
+                          Kunci otomatis slot layanan yang beririsan dengan jam
+                          istirahat.
                         </p>
                         <button
                           type="button"
@@ -4129,42 +4211,83 @@ export function AdminCashierDashboard({
       {isQueueTab ? (
         <div className="fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t border-hairline bg-surface/95 px-4 pt-3 pb-safe font-sans backdrop-blur-md">
           <div className="mx-auto w-full max-w-4xl space-y-2.5">
-            {/* Sub-Drawer: Konfirmasi Tap ke-2 Walk-in (Tanpa titik bulat) */}
+            {/* Sub-Drawer: Konfirmasi & Pilihan Jam Walk-in Kelipatan 15 Menit */}
             {pendingWalkin ? (
-              <div className="flex flex-col gap-2 rounded-2xl border border-terracotta bg-alabaster/90 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="font-sans text-sm font-medium text-ink">
-                  Kunci{" "}
-                  <span className="font-semibold text-terracotta">
-                    Walk-in {pendingWalkin.service.name}
-                  </span>{" "}
-                  jam{" "}
-                  <span className="font-sans font-bold tabular-nums">
-                    {pendingWalkin.slot.time} – {pendingWalkin.slot.endTime}
-                  </span>
-                  ?
-                </p>
+              <div className="space-y-2.5 rounded-2xl border border-terracotta bg-alabaster/95 p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-sans text-sm font-medium text-ink">
+                      Kunci{" "}
+                      <span className="font-semibold text-terracotta">
+                        Walk-in {pendingWalkin.service.name}
+                      </span>{" "}
+                      jam{" "}
+                      <span className="font-sans font-bold tabular-nums">
+                        {pendingWalkin.slot.time} – {pendingWalkin.slot.endTime}
+                      </span>{" "}
+                      <span className="text-xs text-muted tabular-nums">
+                        ({pendingWalkin.service.slot_duration_minutes} mnt)
+                      </span>
+                      ?
+                    </p>
+                  </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:flex">
-                  <button
-                    type="button"
-                    disabled={submittingWalkin}
-                    onClick={() => void handleConfirmWalkin()}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
-                  >
-                    <Check aria-hidden="true" className="h-4 w-4" />
-                    <span>
-                      {submittingWalkin ? "Mengunci..." : "Konfirmasi"}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={submittingWalkin}
-                    onClick={() => setPendingWalkin(null)}
-                    className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-hairline bg-surface px-4 font-sans text-xs font-medium text-muted hover:text-ink sm:text-sm"
-                  >
-                    Batal
-                  </button>
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                    <button
+                      type="button"
+                      disabled={submittingWalkin}
+                      onClick={() => void handleConfirmWalkin()}
+                      className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-terracotta px-4 font-sans text-xs font-semibold text-surface transition-opacity hover:opacity-90 disabled:opacity-50 sm:text-sm"
+                    >
+                      <Check aria-hidden="true" className="h-4 w-4" />
+                      <span>
+                        {submittingWalkin ? "Mengunci..." : "Konfirmasi"}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={submittingWalkin}
+                      onClick={() => setPendingWalkin(null)}
+                      className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-hairline bg-surface px-4 font-sans text-xs font-medium text-muted hover:text-ink sm:text-sm"
+                    >
+                      Batal
+                    </button>
+                  </div>
                 </div>
+
+                {pendingWalkinSlots.length > 1 ? (
+                  <div className="space-y-1 border-t border-hairline/80 pt-2">
+                    <p className="font-sans text-[11px] font-medium text-muted">
+                      Pilih jam mulai (kelipatan 15 menit):
+                    </p>
+                    <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                      {pendingWalkinSlots.map((slot) => {
+                        const isPicked = pendingWalkin.slot.time === slot.time;
+                        return (
+                          <button
+                            key={`walkin-opt-${slot.time}`}
+                            type="button"
+                            disabled={submittingWalkin}
+                            onClick={() =>
+                              setPendingWalkin({
+                                service: pendingWalkin.service,
+                                slot,
+                              })
+                            }
+                            title={`${slot.time} – ${slot.endTime} WIB`}
+                            className={`inline-flex min-h-[36px] shrink-0 items-center justify-center rounded-lg border px-2.5 font-sans text-xs font-semibold tabular-nums transition-colors ${
+                              isPicked
+                                ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#FFFFFF]"
+                                : "border-hairline bg-surface text-ink hover:border-terracotta hover:text-terracotta"
+                            }`}
+                          >
+                            {slot.time}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -4243,7 +4366,7 @@ export function AdminCashierDashboard({
         ? (() => {
             const startMin = parseTimeToMinutes(selectedBooking.start_time);
             const endMin = parseTimeToMinutes(selectedBooking.end_time);
-            const durationMin = Math.max(60, endMin - startMin);
+            const durationMin = Math.max(15, endMin - startMin);
             const isBooked = selectedBooking.status === "BOOKED";
             const isCompleted = selectedBooking.status === "COMPLETED";
             const isWalkin = selectedBooking.source === "WALKIN";
@@ -4374,7 +4497,7 @@ export function AdminCashierDashboard({
                                 Pilih jam pengganti
                               </p>
                               <p className="text-xs text-muted">
-                                Tap slot kosong di bawah untuk menggeser langsung.
+                                Tap slot kelipatan 15 menit di bawah untuk menggeser langsung.
                               </p>
                             </div>
                             <button
@@ -4392,12 +4515,13 @@ export function AdminCashierDashboard({
                               Tidak ada slot kosong lain pada tanggal ini.
                             </p>
                           ) : (
-                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                            <div className="grid max-h-56 grid-cols-3 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-4">
                               {selectedBookingRescheduleSlots.map((slot) => (
                                 <button
                                   key={slot.time}
                                   type="button"
                                   disabled={isBusy}
+                                  title={`${slot.time} – ${slot.endTime} WIB`}
                                   onClick={() =>
                                     void handleBookingMutation(
                                       selectedBooking.id,
@@ -4407,9 +4531,14 @@ export function AdminCashierDashboard({
                                       }
                                     )
                                   }
-                                  className="flex min-h-[48px] items-center justify-center rounded-xl border border-hairline bg-surface font-sans text-sm font-semibold text-ink tabular-nums transition-colors hover:border-terracotta hover:bg-terracotta hover:text-surface disabled:opacity-50"
+                                  className="flex min-h-[44px] flex-col items-center justify-center rounded-xl border border-hairline bg-surface px-2 py-1.5 font-sans text-ink tabular-nums transition-colors hover:border-terracotta hover:bg-terracotta hover:text-surface disabled:opacity-50"
                                 >
-                                  {slot.time}
+                                  <span className="text-sm font-semibold leading-tight">
+                                    {slot.time}
+                                  </span>
+                                  <span className="text-[10px] leading-tight opacity-70">
+                                    s/d {slot.endTime}
+                                  </span>
                                 </button>
                               ))}
                             </div>

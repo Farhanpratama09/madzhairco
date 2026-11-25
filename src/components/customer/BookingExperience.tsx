@@ -366,7 +366,7 @@ export function BookingExperience({
   );
 
   const handleSelectDate = useCallback((targetDateStr: string) => {
-    if (!targetDateStr) return;
+    if (!targetDateStr || targetDateStr === selectedDateRef.current) return;
     hasInitialAutoSelectedRef.current = true;
     selectedDateRef.current = targetDateStr;
     setSelectedDate(targetDateStr);
@@ -469,9 +469,9 @@ export function BookingExperience({
               : [];
             const mergedMap = new Map<string, PublicBookingSlot>();
             for (const item of [...localDemo, ...serverBookings]) {
-              const key = `${item.booking_date}_${formatTimeHHMM(
-                item.start_time
-              )}`;
+              const key =
+                item.id ||
+                `${item.booking_date}_${formatTimeHHMM(item.start_time)}`;
               mergedMap.set(key, item);
             }
             updateBookingsForDate(dateStr, Array.from(mergedMap.values()));
@@ -619,9 +619,9 @@ export function BookingExperience({
               : [];
             const mergedMap = new Map<string, PublicBookingSlot>();
             for (const item of [...localDemo, ...serverBookings]) {
-              const key = `${item.booking_date}_${formatTimeHHMM(
-                item.start_time
-              )}`;
+              const key =
+                item.id ||
+                `${item.booking_date}_${formatTimeHHMM(item.start_time)}`;
               mergedMap.set(key, item);
             }
             updateBookingsForDate(
@@ -812,13 +812,20 @@ export function BookingExperience({
     nowParts,
   ]);
 
-  const groupedSlots = useMemo(() => groupSlotsByTimeOfDay(slots), [slots]);
+  const availableSlots = useMemo(
+    () => slots.filter((slot) => slot.available),
+    [slots]
+  );
+
+  const groupedSlots = useMemo(
+    () => groupSlotsByTimeOfDay(availableSlots),
+    [availableSlots]
+  );
 
   const selectedSlotObj = useMemo(
     () =>
-      slots.find((slot) => slot.time === selectedTime && slot.available) ??
-      null,
-    [slots, selectedTime]
+      availableSlots.find((slot) => slot.time === selectedTime) ?? null,
+    [availableSlots, selectedTime]
   );
 
   // Deteksi reaktif jika slot yang sedang dipilih pelanggan tiba-tiba terisi oleh orang lain saat form diisi
@@ -907,29 +914,37 @@ export function BookingExperience({
     nowParts,
   ]);
 
-  // Cek apakah layanan 1 jam (Haircut) masih punya slot ketika layanan 2 jam (Hair Chemicals) 0 slot
-  const haircutAlternativeSlotCount = useMemo(() => {
+  // Cek apakah layanan berdurasi lebih singkat (mis. Haircut 45 menit) masih punya slot ketika layanan panjang (120 menit) 0 slot
+  const shorterServiceAlternative = useMemo(() => {
     if (
       !selectedDate ||
       !selectedService ||
       selectedService.slot_duration_minutes <= 60
     ) {
-      return 0;
+      return null;
     }
-    const oneHourService = activeServices.find(
-      (s) => s.slot_duration_minutes <= 60
+    const shorterService = activeServices.find(
+      (s) => s.slot_duration_minutes < selectedService.slot_duration_minutes
     );
-    if (!oneHourService) return 0;
+    if (!shorterService) return null;
 
-    return calculateAvailableSlots({
+    const count = calculateAvailableSlots({
       date: selectedDate,
-      service: oneHourService,
+      service: shorterService,
       schedules,
       closedDates,
       bookings,
       settings,
       nowParts,
     }).filter((s) => s.available).length;
+
+    if (count === 0) return null;
+
+    return {
+      name: shorterService.name,
+      durationMinutes: shorterService.slot_duration_minutes,
+      count,
+    };
   }, [
     selectedDate,
     selectedService,
@@ -941,10 +956,38 @@ export function BookingExperience({
     nowParts,
   ]);
 
+  const validateAndSyncSelectedTimeForService = useCallback(
+    (nextService: Service | null) => {
+      if (!selectedTime) return;
+      if (!nextService || !selectedDate) {
+        setSelectedTime("");
+        return;
+      }
+      const nextSlots = calculateAvailableSlots({
+        date: selectedDate,
+        service: nextService,
+        schedules,
+        closedDates,
+        bookings,
+        settings,
+        nowParts,
+      });
+      const stillValid = nextSlots.some(
+        (slot) => slot.time === selectedTime && slot.available
+      );
+      if (!stillValid) {
+        setSelectedTime("");
+      }
+    },
+    [selectedTime, selectedDate, schedules, closedDates, bookings, settings, nowParts]
+  );
+
   const handleSelectService = (serviceId: string) => {
     if (serviceId !== selectedService?.id) {
+      const nextService =
+        activeServices.find((item) => item.id === serviceId) ?? null;
       setSelectedServiceId(serviceId);
-      setSelectedTime("");
+      validateAndSyncSelectedTimeForService(nextService);
     }
     if (selectedVariantNote && selectedVariantNote.serviceId !== serviceId) {
       setSelectedVariantNote(null);
@@ -960,7 +1003,7 @@ export function BookingExperience({
   ) => {
     if (service.id !== selectedService?.id) {
       setSelectedServiceId(service.id);
-      setSelectedTime("");
+      validateAndSyncSelectedTimeForService(service);
     }
     if (variant) {
       setSelectedVariantNote({
@@ -1179,7 +1222,7 @@ export function BookingExperience({
     void fetchBookingsForDate(selectedDate);
   };
 
-  const availableSlotCount = slots.filter((s) => s.available).length;
+  const availableSlotCount = availableSlots.length;
   const trimmedCustomerName = customerName.trim();
   const isNameValid =
     trimmedCustomerName.length >= 2 && trimmedCustomerName.length <= 80;
@@ -1221,13 +1264,13 @@ export function BookingExperience({
     if (
       selectedService &&
       selectedService.slot_duration_minutes >= 120 &&
-      haircutAlternativeSlotCount > 0
+      shorterServiceAlternative
     ) {
       return {
         title: isTodaySelected
           ? "Slot 2 jam hari ini tidak tersisa"
           : "Slot 2 jam pada tanggal ini tidak tersisa",
-        description: `Durasi 2 jam untuk ${selectedService.name} tidak mencukupi di sisa jadwal (masih tersedia ${haircutAlternativeSlotCount} slot untuk Haircut 1 jam).`,
+        description: `Durasi ${selectedService.slot_duration_minutes} menit untuk ${selectedService.name} tidak mencukupi di sisa jadwal (masih tersedia ${shorterServiceAlternative.count} slot untuk ${shorterServiceAlternative.name} ${shorterServiceAlternative.durationMinutes} menit).`,
       };
     }
 
@@ -1246,7 +1289,7 @@ export function BookingExperience({
     liveStatus.reason,
     slots,
     selectedService,
-    haircutAlternativeSlotCount,
+    shorterServiceAlternative,
   ]);
 
   const formattedShortAddress = settings.short_address
@@ -1870,7 +1913,7 @@ export function BookingExperience({
                     </div>
                   ) : (
                     <div className="flex flex-1 flex-col justify-between gap-4">
-                      <div className="mt-3.5 space-y-3">
+                      <div className="mt-3.5 space-y-3.5">
                         {groupedSlots.map((group) => (
                           <div key={group.key} className="space-y-1.5">
                             <p className="font-sans text-xs font-medium text-[#52525B]">
@@ -1879,33 +1922,19 @@ export function BookingExperience({
 
                             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                               {group.slots.map((slot) => {
-                                const isSelected =
-                                  selectedTime === slot.time && slot.available;
-                                const isDisabled = !slot.available;
-
-                                let subLabel = "Tersedia";
-                                if (slot.status === "BOOKED")
-                                  subLabel = "Terisi";
-                                else if (slot.status === "BREAK")
-                                  subLabel = "Istirahat";
-                                else if (slot.status === "EXPIRED")
-                                  subLabel = "Lewat";
-                                else if (slot.status === "INSUFFICIENT_TIME")
-                                  subLabel = "< 2 jam";
+                                const isSelected = selectedTime === slot.time;
 
                                 return (
                                   <button
                                     key={slot.time}
                                     type="button"
-                                    disabled={isDisabled}
+                                    aria-pressed={isSelected}
                                     onClick={() => handleSelectSlot(slot.time)}
-                                    title={slot.reason}
+                                    title={`${slot.time} – ${slot.endTime} WIB`}
                                     className={`flex min-h-[48px] flex-col items-center justify-center rounded-xl border px-2 py-1.5 transition-colors sm:min-h-[54px] sm:py-2 ${
                                       isSelected
                                         ? "border-[#2B2B2B] bg-[#2B2B2B] text-[#F7F7F7] shadow-sm"
-                                        : isDisabled
-                                          ? "cursor-not-allowed border-hairline bg-surface-elevated/60 text-muted/60"
-                                          : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
+                                        : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
                                     }`}
                                   >
                                     <span className="font-sans text-sm font-semibold leading-tight tabular-nums">
@@ -1915,12 +1944,10 @@ export function BookingExperience({
                                       className={`mt-0.5 font-sans text-[11px] font-medium leading-tight ${
                                         isSelected
                                           ? "text-[#F7F7F7]/85"
-                                          : slot.status === "BOOKED"
-                                            ? "text-crimson-alert/80"
-                                            : "text-muted"
+                                          : "text-muted"
                                       }`}
                                     >
-                                      {isSelected ? "Dipilih" : subLabel}
+                                      {isSelected ? "Dipilih" : "Tersedia"}
                                     </span>
                                   </button>
                                 );
@@ -1934,10 +1961,6 @@ export function BookingExperience({
                         <span className="inline-flex items-center gap-2 text-[#565656]">
                           <BarberChairIcon variant="available" />
                           <span>Tersedia</span>
-                        </span>
-                        <span className="inline-flex items-center gap-2 text-[#DC2626]">
-                          <BarberChairIcon variant="booked" />
-                          <span>Terisi</span>
                         </span>
                         <span className="inline-flex items-center gap-2 text-[#1E1E1E]">
                           <BarberChairIcon variant="selected" />

@@ -313,7 +313,7 @@ export function SmartTicketView({
     // Infer slot duration from booking start & end time
     const [sh, sm] = formatTimeHHMM(booking.start_time).split(":").map(Number);
     const [eh, em] = formatTimeHHMM(booking.end_time).split(":").map(Number);
-    const diff = Math.max(60, (eh * 60 + em) - (sh * 60 + sm));
+    const diff = Math.max(15, (eh * 60 + em) - (sh * 60 + sm));
     return { slot_duration_minutes: diff };
   }, [booking, services]);
 
@@ -333,7 +333,7 @@ export function SmartTicketView({
       settings,
       ignoreLeadTime: true,
       excludeBookingId: booking.id,
-    }).filter((slot) => slot.time !== currentStart);
+    }).filter((slot) => slot.available && slot.time !== currentStart);
   }, [
     booking,
     isAdminAuthenticated,
@@ -806,7 +806,7 @@ export function SmartTicketView({
                           Tidak ada jam lain yang tersedia di tanggal ini.
                         </p>
                       ) : (
-                        <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-5">
+                        <div className="mt-3 grid max-h-56 grid-cols-3 gap-2.5 overflow-y-auto pr-0.5 sm:grid-cols-5">
                           {rescheduleSlots.map((slot) => {
                             const isPicked = selectedNewStartTime === slot.time;
                             return (
@@ -819,13 +819,11 @@ export function SmartTicketView({
                                     prev === slot.time ? "" : slot.time
                                   )
                                 }
-                                title={slot.reason}
+                                title={`${slot.time} – ${slot.endTime} WIB`}
                                 className={`flex min-h-[48px] flex-col items-center justify-center rounded-xl border px-2 py-2 transition-colors ${
                                   isPicked
                                     ? "border-terracotta bg-terracotta text-surface shadow-sm"
-                                    : !slot.available
-                                      ? "cursor-not-allowed border-hairline bg-surface-elevated/55 text-muted/50"
-                                      : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
+                                    : "border-hairline bg-alabaster/60 text-ink hover:border-terracotta hover:text-terracotta"
                                 }`}
                               >
                                 <span className="font-sans text-xs font-semibold tabular-nums">
@@ -833,18 +831,10 @@ export function SmartTicketView({
                                 </span>
                                 <span
                                   className={`font-sans text-[11px] font-medium ${
-                                    isPicked ? "text-surface/90" : ""
+                                    isPicked ? "text-surface/90" : "text-muted"
                                   }`}
                                 >
-                                  {slot.available
-                                    ? isPicked
-                                      ? "Tap 2"
-                                      : "Kosong"
-                                    : slot.status === "BOOKED"
-                                      ? "Terisi"
-                                      : slot.status === "BREAK"
-                                        ? "Istirahat"
-                                        : "Lewat"}
+                                  {isPicked ? "Tap 2" : `s/d ${slot.endTime}`}
                                 </span>
                               </button>
                             );

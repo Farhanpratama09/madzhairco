@@ -20,7 +20,12 @@ import {
   DEFAULT_WEEKLY_SCHEDULES,
   generateDemoTicketCode,
 } from "@/lib/seed";
-import { calculateAvailableSlots, formatTimeHHMM } from "@/lib/slots";
+import {
+  calculateAvailableSlots,
+  formatTimeHHMM,
+  isAlignedTo15MinGrid,
+  parseTimeToMinutes,
+} from "@/lib/slots";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import type { Booking } from "@/types/database";
@@ -152,7 +157,8 @@ function mapRpcError(
     return {
       status: 400,
       conflict: false,
-      error: "Booking online hanya tersedia pada grid jam bulat per 1 jam.",
+      error:
+        "Jam mulai reservasi harus kelipatan 15 menit (:00, :15, :30, atau :45).",
     };
   }
 
@@ -328,7 +334,7 @@ export async function POST(request: NextRequest) {
           ? body.bookingDate
           : nowIso.slice(0, 10),
       start_time: "14:00:00",
-      end_time: "15:00:00",
+      end_time: "14:45:00",
       status: "BOOKED",
       source: "ONLINE",
       notes: null,
@@ -418,9 +424,12 @@ export async function POST(request: NextRequest) {
   }
 
   const normalizedHHMM = formatTimeHHMM(rawStartTime);
-  if (!normalizedHHMM.endsWith(":00")) {
+  if (!isAlignedTo15MinGrid(normalizedHHMM)) {
     return NextResponse.json(
-      { error: "Booking online hanya tersedia pada jam bulat per 1 jam." },
+      {
+        error:
+          "Jam mulai reservasi harus kelipatan 15 menit (:00, :15, :30, atau :45).",
+      },
       { status: 400 }
     );
   }
@@ -438,7 +447,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await supabase.rpc("create_booking_safe", {
       p_service_id: serviceId,
-      p_customer_name: sanitizedName.value.slice(0, 40),
+      p_customer_name: sanitizedName.value.slice(0, 80),
       p_booking_date: bookingDate,
       p_start_time: startTimeSql,
       p_source: "ONLINE",
@@ -549,6 +558,31 @@ export async function POST(request: NextRequest) {
         conflict: isConflict,
       },
       { status: isConflict ? 409 : 400 }
+    );
+  }
+
+  // Belt-and-suspenders interval overlap check: new_start < existing_end && new_end > existing_start
+  const hasOverlapInDemo = demoStore.some((existing) => {
+    if (existing.booking_date !== bookingDate || existing.status !== "BOOKED") {
+      return false;
+    }
+    const existingStart = parseTimeToMinutes(existing.start_time);
+    const existingEnd = parseTimeToMinutes(existing.end_time);
+    return (
+      targetSlot.startMinutes < existingEnd &&
+      targetSlot.endMinutes > existingStart
+    );
+  });
+
+  if (hasOverlapInDemo) {
+    recordBookingQuotaUse(clientIp, normalizedPhone.value);
+    return NextResponse.json(
+      {
+        error:
+          "Maaf, slot jam tersebut baru saja terisi oleh pelanggan lain. Silakan pilih jam lain yang tersedia.",
+        conflict: true,
+      },
+      { status: 409 }
     );
   }
 

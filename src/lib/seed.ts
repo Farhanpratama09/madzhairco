@@ -66,7 +66,7 @@ export const DEFAULT_SERVICES: Service[] = [
       { label: "Fade & Taper", price: 40000, display: "40k" },
     ],
     display_duration_minutes: 45,
-    slot_duration_minutes: 60,
+    slot_duration_minutes: 45,
     sort_order: 1,
     is_active: true,
     updated_at: SEED_TIMESTAMP,

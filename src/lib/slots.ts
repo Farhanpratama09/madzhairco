@@ -168,10 +168,58 @@ export function getStoreNowParts(
   };
 }
 
+export const SLOT_INTERVAL_MINUTES = 15;
+
+/**
+ * Validates that a time string ("HH:MM" or "HH:MM:SS") lies on a 15-minute boundary
+ * (:00, :15, :30, :45) with zero seconds.
+ */
+export function isAlignedTo15MinGrid(time: string): boolean {
+  const parts = time.trim().split(":");
+  if (parts.length < 2 || parts.length > 3) {
+    return false;
+  }
+
+  const hour = Number.parseInt(parts[0] ?? "", 10);
+  const minute = Number.parseInt(parts[1] ?? "", 10);
+  const second = parts.length === 3 ? Number.parseInt(parts[2] ?? "", 10) : 0;
+
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute) ||
+    Number.isNaN(second) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second !== 0
+  ) {
+    return false;
+  }
+
+  return minute % SLOT_INTERVAL_MINUTES === 0;
+}
+
+/**
+ * Resolves the active service duration in minutes (minimum 15 minutes).
+ */
+export function getServiceDurationMinutes(
+  service: Pick<Service, "slot_duration_minutes"> &
+    Partial<Pick<Service, "display_duration_minutes">>
+): number {
+  const raw =
+    Number.isFinite(service.slot_duration_minutes) &&
+    service.slot_duration_minutes > 0
+      ? service.slot_duration_minutes
+      : service.display_duration_minutes ?? 45;
+  return Math.max(SLOT_INTERVAL_MINUTES, Math.floor(raw));
+}
+
 export interface CalculateAvailableSlotsInput {
   /** Target date YYYY-MM-DD */
   date: string;
-  service: Pick<Service, "slot_duration_minutes">;
+  service: Pick<Service, "slot_duration_minutes"> &
+    Partial<Pick<Service, "display_duration_minutes">>;
   schedules: WeeklySchedule[];
   closedDates: ClosedDate[];
   bookings: Array<
@@ -185,21 +233,20 @@ export interface CalculateAvailableSlotsInput {
   > &
     Partial<Pick<StoreSettings, "break_enabled" | "break_start" | "break_end">>;
   nowParts?: StoreNowParts;
-  /** Optional: bypass customer lead_time_minutes check (e.g. admin reschedule view) */
+  /** Optional: bypass customer lead_time_minutes check (e.g. admin walk-in/reschedule view) */
   ignoreLeadTime?: boolean;
   /** Optional: exclude a booking ID when computing reschedule slots */
   excludeBookingId?: string;
 }
 
 /**
- * Pure slot engine implementing PRD Section 3 + v1.9:
- * - Rounded 1-hour grid (e.g. 12:00, 13:00, ...)
- * - Overlap check: start < newEnd && end > newStart for BOOKED only (COMPLETED releases chair)
- * - 2-hour Hair Chemicals disables slots with < 120m before next booking, break_start, or effective close_time
- * - Daily break check (default 17:15-18:30 WIB): full service interval overlap
- *   (e.g. 16:00 open for 1h Haircut, INSUFFICIENT_TIME for 2h Hair Chemicals; 17:00 & 18:00 BREAK)
- * - Early close override (closed_dates.close_from_time): trims close_time ONLY for that date
- * - Enforces lead_time_minutes (default 30m) on today's slots
+ * Pure Dynamic Interval Scheduling engine (15-minute granularity):
+ * - Generates candidate start times every 15 minutes from open_time up to effectiveCloseMinutes.
+ * - Start time S with service duration D (e.g. Haircut 45m, Hair Chemicals 120m) is valid iff:
+ *   (a) S + D <= effectiveCloseMinutes (respects weekly schedule & closed_dates.close_from_time)
+ *   (b) No overlap with active BOOKED bookings (S < existing_end && S + D > existing_start)
+ *       nor with enabled daily break window (S < break_end && S + D > break_start)
+ *   (c) Respects lead_time_minutes on today's slots (or current 15m window when ignoreLeadTime=true)
  */
 export function calculateAvailableSlots({
   date,
@@ -252,7 +299,7 @@ export function calculateAvailableSlots({
     breakStartMinutes >= 0 &&
     breakEndMinutes > breakStartMinutes;
 
-  const durationMinutes = Math.max(60, service.slot_duration_minutes);
+  const durationMinutes = getServiceDurationMinutes(service);
   const now = nowParts ?? getStoreNowParts(settings.timezone);
   const isPastDate = date < now.dateStr;
   const isToday = date === now.dateStr;
@@ -273,17 +320,17 @@ export function calculateAvailableSlots({
       end: parseTimeToMinutes(b.end_time),
     }));
 
-  // Snap start to rounded 1-hour grid
-  const firstGridMinutes = Math.ceil(openMinutes / 60) * 60;
+  // Snap first candidate to 15-minute boundary >= openMinutes
+  const firstGridMinutes =
+    Math.ceil(openMinutes / SLOT_INTERVAL_MINUTES) * SLOT_INTERVAL_MINUTES;
   const slots: SlotItem[] = [];
 
   for (
     let slotStart = firstGridMinutes;
-    slotStart + 60 <= effectiveCloseMinutes;
-    slotStart += 60
+    slotStart < effectiveCloseMinutes;
+    slotStart += SLOT_INTERVAL_MINUTES
   ) {
     const slotEnd = slotStart + durationMinutes;
-    const firstBlockEnd = slotStart + 60;
 
     const isLeadTimeExpired =
       !ignoreLeadTime &&
@@ -291,27 +338,29 @@ export function calculateAvailableSlots({
       slotStart <= now.minutesFromMidnight + settings.lead_time_minutes;
 
     const isPastTodayForAdmin =
-      ignoreLeadTime && isToday && slotStart + 60 <= now.minutesFromMidnight;
+      ignoreLeadTime &&
+      isToday &&
+      slotStart + SLOT_INTERVAL_MINUTES <= now.minutesFromMidnight;
 
-    const hasFirstHourOverlap = activeBookings.some(
-      (b) => b.start < firstBlockEnd && b.end > slotStart
+    const exceedsClosing = slotEnd > effectiveCloseMinutes;
+
+    const hasBookingOverlap = activeBookings.some(
+      (b) => slotStart < b.end && slotEnd > b.start
     );
 
-    const hasFullOverlap = activeBookings.some(
-      (b) => b.start < slotEnd && b.end > slotStart
+    const startsDuringBooking = activeBookings.some(
+      (b) => slotStart >= b.start && slotStart < b.end
     );
 
-    const hasFirstHourBreakOverlap =
-      hasValidBreak &&
-      slotStart < breakEndMinutes &&
-      firstBlockEnd > breakStartMinutes;
-
-    const hasFullBreakOverlap =
+    const hasBreakOverlap =
       hasValidBreak &&
       slotStart < breakEndMinutes &&
       slotEnd > breakStartMinutes;
 
-    const exceedsClosing = slotEnd > effectiveCloseMinutes;
+    const startsDuringBreak =
+      hasValidBreak &&
+      slotStart >= breakStartMinutes &&
+      slotStart < breakEndMinutes;
 
     if (isLeadTimeExpired || isPastTodayForAdmin) {
       slots.push({
@@ -323,7 +372,7 @@ export function calculateAvailableSlots({
         status: "EXPIRED",
         reason: "Batas waktu pemesanan telah lewat",
       });
-    } else if (hasFirstHourOverlap) {
+    } else if (startsDuringBooking) {
       slots.push({
         time: minutesToTime(slotStart),
         endTime: minutesToTime(slotEnd),
@@ -333,7 +382,7 @@ export function calculateAvailableSlots({
         status: "BOOKED",
         reason: "Slot sudah terisi",
       });
-    } else if (hasFirstHourBreakOverlap) {
+    } else if (startsDuringBreak) {
       slots.push({
         time: minutesToTime(slotStart),
         endTime: minutesToTime(slotEnd),
@@ -345,7 +394,7 @@ export function calculateAvailableSlots({
           settings.break_start ?? "17:15:00"
         )} – ${formatTimeHHMM(settings.break_end ?? "18:30:00")} WIB)`,
       });
-    } else if (exceedsClosing || hasFullOverlap || hasFullBreakOverlap) {
+    } else if (exceedsClosing || hasBookingOverlap || hasBreakOverlap) {
       slots.push({
         time: minutesToTime(slotStart),
         endTime: minutesToTime(slotEnd),
@@ -355,7 +404,7 @@ export function calculateAvailableSlots({
         status: "INSUFFICIENT_TIME",
         reason: exceedsClosing
           ? "Sisa waktu sebelum tutup kurang dari durasi layanan"
-          : hasFullBreakOverlap
+          : hasBreakOverlap
             ? "Durasi layanan beririsan dengan jam istirahat studio"
             : "Sisa waktu sebelum jadwal berikutnya tidak mencukupi",
       });
@@ -665,11 +714,12 @@ export function getTodayAndUpcomingDates(
 }
 
 /**
- * Helper to find the first active slot block for 1-Tap Walk-in in /admin.
- * Checks the current rounded hour first (if not already past its end), then next slots today.
+ * Returns all valid 15-minute walk-in slots for today starting from the current
+ * 15-minute window (bypassing customer lead_time_minutes).
  */
-export function findWalkinTargetSlot(
-  service: Pick<Service, "slot_duration_minutes">,
+export function getWalkinAvailableSlots(
+  service: Pick<Service, "slot_duration_minutes"> &
+    Partial<Pick<Service, "display_duration_minutes">>,
   schedules: WeeklySchedule[],
   closedDates: ClosedDate[],
   bookings: PublicBookingSlot[] | Booking[],
@@ -679,9 +729,11 @@ export function findWalkinTargetSlot(
   > &
     Partial<Pick<StoreSettings, "break_enabled" | "break_start" | "break_end">>,
   nowParts?: StoreNowParts
-): SlotItem | null {
+): SlotItem[] {
   const now = nowParts ?? getStoreNowParts(settings.timezone);
-  const currentHourStart = Math.floor(now.minutesFromMidnight / 60) * 60;
+  const currentQuarterStart =
+    Math.floor(now.minutesFromMidnight / SLOT_INTERVAL_MINUTES) *
+    SLOT_INTERVAL_MINUTES;
 
   const slots = calculateAvailableSlots({
     date: now.dateStr,
@@ -694,9 +746,133 @@ export function findWalkinTargetSlot(
     ignoreLeadTime: true,
   });
 
-  return (
-    slots.find(
-      (slot) => slot.available && slot.startMinutes >= currentHourStart
-    ) ?? null
+  return slots.filter(
+    (slot) => slot.available && slot.startMinutes >= currentQuarterStart
   );
 }
+
+/**
+ * Helper to find the first active 15-minute slot block for 1-Tap Walk-in in /admin.
+ */
+export function findWalkinTargetSlot(
+  service: Pick<Service, "slot_duration_minutes"> &
+    Partial<Pick<Service, "display_duration_minutes">>,
+  schedules: WeeklySchedule[],
+  closedDates: ClosedDate[],
+  bookings: PublicBookingSlot[] | Booking[],
+  settings: Pick<
+    StoreSettings,
+    "is_force_closed" | "lead_time_minutes" | "timezone"
+  > &
+    Partial<Pick<StoreSettings, "break_enabled" | "break_start" | "break_end">>,
+  nowParts?: StoreNowParts
+): SlotItem | null {
+  return (
+    getWalkinAvailableSlots(
+      service,
+      schedules,
+      closedDates,
+      bookings,
+      settings,
+      nowParts
+    )[0] ?? null
+  );
+}
+
+export interface TimelineGap {
+  startMinutes: number;
+  endMinutes: number;
+}
+
+export interface ComputeTimelineFreeGapsInput {
+  startMinutes: number;
+  endMinutes: number;
+  busyIntervals: Array<{ startMinutes: number; endMinutes: number }>;
+  /** Optional boundaries (e.g. early close cutoff) that split free segments */
+  splitAtMinutes?: number[];
+}
+
+/**
+ * Computes exact unoccupied chair intervals for the admin timeline.
+ * Subtracts active bookings & break windows from [startMinutes, endMinutes],
+ * splits on optional explicit boundaries, and neatly divides long spans at whole
+ * hours only when both sides are >= 30 minutes (preventing noisy 15m slivers).
+ */
+export function computeTimelineFreeGaps({
+  startMinutes,
+  endMinutes,
+  busyIntervals,
+  splitAtMinutes = [],
+}: ComputeTimelineFreeGapsInput): TimelineGap[] {
+  if (endMinutes <= startMinutes) {
+    return [];
+  }
+
+  const clampedBusy = busyIntervals
+    .map((interval) => ({
+      startMinutes: Math.max(startMinutes, interval.startMinutes),
+      endMinutes: Math.min(endMinutes, interval.endMinutes),
+    }))
+    .filter((interval) => interval.endMinutes > interval.startMinutes)
+    .sort((a, b) => a.startMinutes - b.startMinutes);
+
+  const mergedBusy: TimelineGap[] = [];
+  for (const interval of clampedBusy) {
+    const last = mergedBusy[mergedBusy.length - 1];
+    if (last && interval.startMinutes <= last.endMinutes) {
+      last.endMinutes = Math.max(last.endMinutes, interval.endMinutes);
+    } else {
+      mergedBusy.push({ ...interval });
+    }
+  }
+
+  const rawFree: TimelineGap[] = [];
+  let cursor = startMinutes;
+  for (const busy of mergedBusy) {
+    if (busy.startMinutes > cursor) {
+      rawFree.push({ startMinutes: cursor, endMinutes: busy.startMinutes });
+    }
+    cursor = Math.max(cursor, busy.endMinutes);
+  }
+  if (cursor < endMinutes) {
+    rawFree.push({ startMinutes: cursor, endMinutes });
+  }
+
+  const sortedSplits = Array.from(
+    new Set(
+      splitAtMinutes.filter((m) => m > startMinutes && m < endMinutes)
+    )
+  ).sort((a, b) => a - b);
+
+  const boundedFree: TimelineGap[] = [];
+  for (const gap of rawFree) {
+    let segStart = gap.startMinutes;
+    for (const splitPoint of sortedSplits) {
+      if (splitPoint > segStart && splitPoint < gap.endMinutes) {
+        boundedFree.push({ startMinutes: segStart, endMinutes: splitPoint });
+        segStart = splitPoint;
+      }
+    }
+    if (segStart < gap.endMinutes) {
+      boundedFree.push({ startMinutes: segStart, endMinutes: gap.endMinutes });
+    }
+  }
+
+  const result: TimelineGap[] = [];
+  for (const seg of boundedFree) {
+    let segCursor = seg.startMinutes;
+    const firstHourAfter = (Math.floor(seg.startMinutes / 60) + 1) * 60;
+    for (let hourMark = firstHourAfter; hourMark < seg.endMinutes; hourMark += 60) {
+      if (hourMark - segCursor >= 30 && seg.endMinutes - hourMark >= 30) {
+        result.push({ startMinutes: segCursor, endMinutes: hourMark });
+        segCursor = hourMark;
+      }
+    }
+    if (segCursor < seg.endMinutes) {
+      result.push({ startMinutes: segCursor, endMinutes: seg.endMinutes });
+    }
+  }
+
+  return result;
+}
+

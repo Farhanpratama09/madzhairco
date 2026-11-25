@@ -5,6 +5,7 @@ import {
   validateOptionalTextNote,
   validateServiceTimeFormat,
 } from "@/lib/security/sanitize";
+import { formatTimeHHMM, isAlignedTo15MinGrid } from "@/lib/slots";
 import { createClient } from "@/lib/supabase/server";
 import type { Booking } from "@/types/database";
 
@@ -67,6 +68,13 @@ function mapRpcError(message: string): { status: number; error: string } {
     return {
       status: 409,
       error: "Slot walk-in beririsan dengan jam istirahat studio.",
+    };
+  }
+  if (message.includes("INVALID_SLOT_GRID")) {
+    return {
+      status: 400,
+      error:
+        "Jam mulai walk-in harus kelipatan 15 menit (:00, :15, :30, atau :45).",
     };
   }
   if (message.includes("SERVICE_NOT_FOUND")) {
@@ -182,6 +190,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const normalizedStartHHMM = formatTimeHHMM(startTime);
+  if (!isAlignedTo15MinGrid(normalizedStartHHMM)) {
+    return NextResponse.json(
+      {
+        error:
+          "Jam mulai walk-in harus kelipatan 15 menit (:00, :15, :30, atau :45).",
+      },
+      { status: 400 }
+    );
+  }
+
   type RpcCaller = {
     rpc: (
       fn: string,
@@ -195,7 +214,7 @@ export async function POST(request: NextRequest) {
       p_service_id: serviceId.trim(),
       p_customer_name: resolvedWalkinName,
       p_booking_date: bookingDate.trim(),
-      p_start_time: normalizeTimeWithSeconds(startTime),
+      p_start_time: normalizeTimeWithSeconds(normalizedStartHHMM),
       p_source: "WALKIN",
       p_customer_phone: null,
     }

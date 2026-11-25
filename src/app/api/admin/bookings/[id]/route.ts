@@ -4,6 +4,7 @@ import {
   validateOptionalTextNote,
   validateServiceTimeFormat,
 } from "@/lib/security/sanitize";
+import { formatTimeHHMM, isAlignedTo15MinGrid } from "@/lib/slots";
 import { createClient } from "@/lib/supabase/server";
 import type { Booking } from "@/types/database";
 
@@ -45,7 +46,14 @@ function mapRpcError(message: string): { status: number; error: string } {
   if (message.includes("OUTSIDE_OPERATING_HOURS")) {
     return {
       status: 409,
-      error: "Jam pengganti berada di luar jam operasional toko.",
+      error: "Jam pengganti berada di luar jam operasional atau melewati jam tutup.",
+    };
+  }
+  if (message.includes("INVALID_SLOT_GRID")) {
+    return {
+      status: 400,
+      error:
+        "Jam pengganti harus kelipatan 15 menit (:00, :15, :30, atau :45).",
     };
   }
   if (message.includes("DATE_CLOSED")) {
@@ -170,9 +178,20 @@ export async function PATCH(
       );
     }
 
+    const normalizedNewStartHHMM = formatTimeHHMM(newStartTime);
+    if (!isAlignedTo15MinGrid(normalizedNewStartHHMM)) {
+      return NextResponse.json(
+        {
+          error:
+            "Jam pengganti harus kelipatan 15 menit (:00, :15, :30, atau :45).",
+        },
+        { status: 400 }
+      );
+    }
+
     const { data, error } = await rpcClient.rpc("reschedule_booking_safe", {
       p_booking_id: id,
-      p_new_start_time: normalizeTimeWithSeconds(newStartTime),
+      p_new_start_time: normalizeTimeWithSeconds(normalizedNewStartHHMM),
     });
 
     rpcData = data;
