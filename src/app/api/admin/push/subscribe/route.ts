@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { verifySameOriginMutation } from "@/lib/security/origin";
+import {
+  isValidWebPushEndpoint,
+  MAX_PAYLOAD_CHARS,
+} from "@/lib/security/sanitize";
+import { requireAdminSession } from "@/lib/supabase/admin-auth";
 
 interface SubscribePayload {
   endpoint?: unknown;
@@ -9,36 +14,41 @@ interface SubscribePayload {
   };
 }
 
-function isValidPushEndpoint(raw: unknown): raw is string {
-  if (typeof raw !== "string") return false;
-  const trimmed = raw.trim();
-  if (!trimmed || trimmed.length > 2048) return false;
-  try {
-    const parsed = new URL(trimmed);
-    return parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  if (!supabase) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const originError = verifySameOriginMutation(request);
+  if (originError) {
+    return originError;
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const adminSession = await requireAdminSession();
+  if (!adminSession.ok) {
+    return NextResponse.json(
+      { error: adminSession.error },
+      { status: adminSession.status }
+    );
+  }
+  const { supabase } = adminSession;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let rawText: string;
+  try {
+    rawText = await request.text();
+  } catch {
+    return NextResponse.json(
+      { error: "Payload subscription tidak dapat dibaca." },
+      { status: 400 }
+    );
+  }
+
+  if (rawText.length > MAX_PAYLOAD_CHARS) {
+    return NextResponse.json(
+      { error: "Ukuran payload melebihi batas maksimum." },
+      { status: 400 }
+    );
   }
 
   let body: SubscribePayload;
   try {
-    body = (await request.json()) as SubscribePayload;
+    body = JSON.parse(rawText) as SubscribePayload;
   } catch {
     return NextResponse.json(
       { error: "Payload subscription tidak valid." },
@@ -51,14 +61,19 @@ export async function POST(request: NextRequest) {
   const auth = body?.keys?.auth;
 
   if (
-    !isValidPushEndpoint(endpoint) ||
+    !isValidWebPushEndpoint(endpoint) ||
     typeof p256dh !== "string" ||
     p256dh.trim().length < 16 ||
+    p256dh.trim().length > 256 ||
     typeof auth !== "string" ||
-    auth.trim().length < 8
+    auth.trim().length < 8 ||
+    auth.trim().length > 128
   ) {
     return NextResponse.json(
-      { error: "Data Web Push subscription tidak lengkap atau tidak valid." },
+      {
+        error:
+          "Data Web Push subscription tidak valid atau berasal dari penyedia tidak resmi.",
+      },
       { status: 400 }
     );
   }
@@ -86,23 +101,40 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const supabase = await createClient();
-  if (!supabase) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const originError = verifySameOriginMutation(request);
+  if (originError) {
+    return originError;
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const adminSession = await requireAdminSession();
+  if (!adminSession.ok) {
+    return NextResponse.json(
+      { error: adminSession.error },
+      { status: adminSession.status }
+    );
+  }
+  const { supabase } = adminSession;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let rawText: string;
+  try {
+    rawText = await request.text();
+  } catch {
+    return NextResponse.json(
+      { error: "Payload tidak dapat dibaca." },
+      { status: 400 }
+    );
+  }
+
+  if (rawText.length > MAX_PAYLOAD_CHARS) {
+    return NextResponse.json(
+      { error: "Ukuran payload melebihi batas maksimum." },
+      { status: 400 }
+    );
   }
 
   let body: { endpoint?: unknown };
   try {
-    body = (await request.json()) as { endpoint?: unknown };
+    body = JSON.parse(rawText) as { endpoint?: unknown };
   } catch {
     return NextResponse.json(
       { error: "Payload tidak valid." },
@@ -110,7 +142,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  if (!isValidPushEndpoint(body?.endpoint)) {
+  if (!isValidWebPushEndpoint(body?.endpoint)) {
     return NextResponse.json(
       { error: "Endpoint push tidak valid." },
       { status: 400 }

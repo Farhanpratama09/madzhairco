@@ -1,11 +1,16 @@
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { verifySameOriginMutation } from "@/lib/security/origin";
+import {
+  consumeAdminAccountQuota,
+  extractClientIp,
+} from "@/lib/security/rate-limit";
 import {
   MAX_IDENTIFIER_CHARS,
   MAX_PAYLOAD_CHARS,
 } from "@/lib/security/sanitize";
+import { requireAdminSession } from "@/lib/supabase/admin-auth";
 import { getSupabaseConfig, isSupabaseConfigured } from "@/lib/supabase/config";
-import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -21,18 +26,39 @@ interface UpdateAdminAccountBody {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  if (!supabase) {
+  const originError = verifySameOriginMutation(request);
+  if (originError) {
+    return originError;
+  }
+
+  const adminSession = await requireAdminSession();
+  if (!adminSession.ok) {
+    return NextResponse.json(
+      { error: adminSession.error },
+      { status: adminSession.status }
+    );
+  }
+  const { supabase, user } = adminSession;
+
+  if (!user.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user || !user.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const clientIp = extractClientIp(request.headers);
+  const accountRateLimit = consumeAdminAccountQuota(clientIp, user.id);
+  if (!accountRateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: `Terlalu banyak percobaan perubahan kredensial. Coba lagi dalam ${accountRateLimit.retryAfterSeconds} detik.`,
+        retryAfterSeconds: accountRateLimit.retryAfterSeconds,
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(accountRateLimit.retryAfterSeconds),
+        },
+      }
+    );
   }
 
   let rawText: string;
@@ -98,6 +124,7 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
   const newPassword =
     typeof body.newPassword === "string" ? body.newPassword : "";
   const confirmPassword =
@@ -186,7 +213,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi di server untuk pembaruan akun.",
+          "Layanan keamanan pembaruan akun belum dikonfigurasi di server.",
       },
       { status: 503 }
     );

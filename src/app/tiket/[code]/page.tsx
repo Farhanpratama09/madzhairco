@@ -1,6 +1,12 @@
 import { cache } from "react";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { SmartTicketView } from "@/components/ticket/SmartTicketView";
+import {
+  consumeTicketLookupQuota,
+  extractClientIp,
+  type RateLimitResult,
+} from "@/lib/security/rate-limit";
 import { validateTicketCode } from "@/lib/security/sanitize";
 import {
   DEFAULT_CLOSED_DATES,
@@ -9,6 +15,7 @@ import {
   DEFAULT_WEEKLY_SCHEDULES,
 } from "@/lib/seed";
 import { formatTimeHHMM } from "@/lib/slots";
+import { verifyAdminUser } from "@/lib/supabase/admin-auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import type {
@@ -34,8 +41,19 @@ function normalizeTicketCode(raw: string): string {
   }
 }
 
+const evaluateTicketRateLimit = cache(async (): Promise<RateLimitResult> => {
+  const reqHeaders = await headers();
+  const clientIp = extractClientIp(reqHeaders);
+  return consumeTicketLookupQuota(clientIp);
+});
+
 const loadTicketBooking = cache(
   async (normalizedCode: string): Promise<Booking | null> => {
+    const rateLimit = await evaluateTicketRateLimit();
+    if (!rateLimit.allowed) {
+      return null;
+    }
+
     if (!validateTicketCode(normalizedCode) || !isSupabaseConfigured()) {
       return null;
     }
@@ -43,13 +61,6 @@ const loadTicketBooking = cache(
     const supabase = await createClient();
     if (!supabase) {
       return null;
-    }
-
-    // Jalankan auto-complete sebelum membaca detail tiket agar status Selesai real-time
-    try {
-      await supabase.rpc("auto_complete_overdue_bookings");
-    } catch {
-      // Fallback aman
     }
 
     const { data } = await supabase.rpc("get_booking_by_ticket_code", {
@@ -107,6 +118,7 @@ export async function generateMetadata({
 export default async function TicketPage({ params }: TicketPageProps) {
   const { code } = await params;
   const normalizedCode = normalizeTicketCode(code);
+  const rateLimit = await evaluateTicketRateLimit();
   const isValidCodeFormat = validateTicketCode(normalizedCode);
   const supabaseConfigured = isSupabaseConfigured();
 
@@ -119,7 +131,7 @@ export default async function TicketPage({ params }: TicketPageProps) {
   let services: Service[] = DEFAULT_SERVICES;
   let dateBookings: PublicBookingSlot[] = [];
 
-  if (supabaseConfigured) {
+  if (supabaseConfigured && rateLimit.allowed) {
     const supabase = await createClient();
     if (supabase) {
       const [{ data: authData }, settingsRes, resolvedBooking] =
@@ -134,13 +146,25 @@ export default async function TicketPage({ params }: TicketPageProps) {
           loadTicketBooking(normalizedCode),
         ]);
 
-      isAdminAuthenticated = Boolean(authData.user);
+      if (authData.user) {
+        isAdminAuthenticated = await verifyAdminUser(
+          supabase,
+          authData.user.id
+        );
+      }
+
       if (settingsRes.data) {
         settings = settingsRes.data;
       }
       booking = resolvedBooking;
 
       if (booking && isAdminAuthenticated) {
+        try {
+          await supabase.rpc("auto_complete_overdue_bookings");
+        } catch {
+          // Best-effort sync for verified admin session
+        }
+
         const [
           schedulesRes,
           closedRes,
@@ -194,6 +218,8 @@ export default async function TicketPage({ params }: TicketPageProps) {
     <SmartTicketView
       ticketCode={normalizedCode}
       isValidCodeFormat={isValidCodeFormat}
+      isRateLimited={!rateLimit.allowed}
+      retryAfterSeconds={rateLimit.retryAfterSeconds}
       isSupabaseMode={supabaseConfigured}
       isAdminAuthenticated={isAdminAuthenticated}
       initialBooking={booking}

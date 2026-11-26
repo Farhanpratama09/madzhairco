@@ -153,7 +153,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
 ];
 
 /**
- * Generates a random non-ambiguous ticket code (MDZ-XXXX) for demo/fallback mode.
+ * Generates a random non-ambiguous 8-char ticket code (MDZ-XXXXXXXX) for demo/fallback mode.
  */
 export function generateDemoTicketCode(
   existingCodes?: Set<string> | string[]
@@ -164,6 +164,7 @@ export function generateDemoTicketCode(
       : new Set(existingCodes ?? []);
 
   const charsetLen = TICKET_CODE_CHARSET.length;
+  const suffixLen = 8;
 
   for (let attempt = 0; attempt < 50; attempt += 1) {
     let suffix = "";
@@ -172,13 +173,13 @@ export function generateDemoTicketCode(
       typeof globalThis.crypto !== "undefined" &&
       typeof globalThis.crypto.getRandomValues === "function"
     ) {
-      const bytes = new Uint8Array(4);
+      const bytes = new Uint8Array(suffixLen);
       globalThis.crypto.getRandomValues(bytes);
-      for (let i = 0; i < 4; i += 1) {
+      for (let i = 0; i < suffixLen; i += 1) {
         suffix += TICKET_CODE_CHARSET[bytes[i] % charsetLen];
       }
     } else {
-      for (let i = 0; i < 4; i += 1) {
+      for (let i = 0; i < suffixLen; i += 1) {
         const idx = Math.floor(Math.random() * charsetLen);
         suffix += TICKET_CODE_CHARSET[idx];
       }
@@ -190,7 +191,7 @@ export function generateDemoTicketCode(
     }
   }
 
-  // Fallback with guaranteed uniqueness if 50 random attempts somehow collided
+  // Fallback with guaranteed 8-char format if 50 random attempts somehow collided
   const fallbackIdx = Math.floor(Math.random() * charsetLen);
-  return `MDZ-${TICKET_CODE_CHARSET[fallbackIdx]}9Z7`;
+  return `MDZ-${TICKET_CODE_CHARSET[fallbackIdx]}9Z7K4M2`;
 }

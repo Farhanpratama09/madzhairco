@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifySameOriginMutation } from "@/lib/security/origin";
 import {
   MAX_PAYLOAD_CHARS,
   validateOptionalTextNote,
   validateServiceTimeFormat,
 } from "@/lib/security/sanitize";
 import { formatTimeHHMM, isAlignedTo15MinGrid } from "@/lib/slots";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdminSession } from "@/lib/supabase/admin-auth";
 import type { Booking } from "@/types/database";
 
 const UUID_REGEX =
@@ -20,7 +21,7 @@ function normalizeTimeWithSeconds(time: string): string {
 
 function mapRpcError(message: string): { status: number; error: string } {
   if (message.includes("UNAUTHORIZED")) {
-    return { status: 401, error: "Unauthorized" };
+    return { status: 403, error: "Akses ditolak." };
   }
   if (message.includes("BOOKING_NOT_FOUND")) {
     return { status: 404, error: "Data booking tidak ditemukan." };
@@ -73,19 +74,19 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
-  if (!supabase) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const originError = verifySameOriginMutation(request);
+  if (originError) {
+    return originError;
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const adminSession = await requireAdminSession();
+  if (!adminSession.ok) {
+    return NextResponse.json(
+      { error: adminSession.error },
+      { status: adminSession.status }
+    );
   }
+  const { supabase } = adminSession;
 
   const { id } = await context.params;
   if (!id || !UUID_REGEX.test(id)) {
@@ -156,14 +157,6 @@ export async function PATCH(
     );
   }
 
-  type RpcCaller = {
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>
-    ) => Promise<{ data: unknown; error: { message?: string } | null }>;
-  };
-
-  const rpcClient = supabase as unknown as RpcCaller;
   let rpcData: unknown = null;
   let rpcErrorMessage: string | null = null;
 
@@ -189,7 +182,7 @@ export async function PATCH(
       );
     }
 
-    const { data, error } = await rpcClient.rpc("reschedule_booking_safe", {
+    const { data, error } = await supabase.rpc("reschedule_booking_safe", {
       p_booking_id: id,
       p_new_start_time: normalizeTimeWithSeconds(normalizedNewStartHHMM),
     });
@@ -197,14 +190,14 @@ export async function PATCH(
     rpcData = data;
     rpcErrorMessage = error?.message ?? null;
   } else if (action === ("complete" satisfies BookingAction)) {
-    const { data, error } = await rpcClient.rpc("complete_booking_safe", {
+    const { data, error } = await supabase.rpc("complete_booking_safe", {
       p_booking_id: id,
     });
 
     rpcData = data;
     rpcErrorMessage = error?.message ?? null;
   } else {
-    const { data, error } = await rpcClient.rpc("cancel_booking_safe", {
+    const { data, error } = await supabase.rpc("cancel_booking_safe", {
       p_booking_id: id,
     });
 
@@ -228,7 +221,7 @@ export async function PATCH(
     );
   }
 
-  // Fetch private customer WhatsApp exclusively for authenticated admin sessions
+  // Fetch private customer WhatsApp exclusively for verified admin sessions
   let customerPhone: string | null = null;
   try {
     const { data: contactRow } = await supabase

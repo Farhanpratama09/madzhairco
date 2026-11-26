@@ -13,6 +13,25 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+function resolveSafeSameOriginPath(rawUrl) {
+  if (typeof rawUrl !== "string" || !rawUrl.trim()) {
+    return "/admin";
+  }
+
+  try {
+    const parsed = new URL(rawUrl.trim(), self.location.origin);
+    if (
+      parsed.origin !== self.location.origin ||
+      (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+    ) {
+      return "/admin";
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || "/admin";
+  } catch {
+    return "/admin";
+  }
+}
+
 self.addEventListener("push", (event) => {
   let data = {
     title: "Madzhair Barber & Co",
@@ -40,15 +59,17 @@ self.addEventListener("push", (event) => {
     }
   }
 
+  const safeUrl = resolveSafeSameOriginPath(data.url);
+
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: data.icon || "/icons/icon-192.png",
-      badge: data.badge || "/icons/icon-192.png",
-      tag: data.tag || "madzhair-admin",
+    self.registration.showNotification(String(data.title || "Madzhair Barber & Co"), {
+      body: String(data.body || ""),
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: String(data.tag || "madzhair-admin"),
       renotify: true,
       data: {
-        url: data.url || "/admin",
+        url: safeUrl,
       },
     })
   );
@@ -56,12 +77,11 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetPath =
-    (event.notification &&
-      event.notification.data &&
-      typeof event.notification.data.url === "string" &&
-      event.notification.data.url) ||
-    "/admin";
+  const targetPath = resolveSafeSameOriginPath(
+    event.notification && event.notification.data
+      ? event.notification.data.url
+      : "/admin"
+  );
 
   event.waitUntil(
     self.clients

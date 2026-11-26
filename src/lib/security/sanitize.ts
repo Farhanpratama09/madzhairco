@@ -24,8 +24,9 @@ const TIKTOK_ALLOWED_HOSTS = new Set([
 
 const INSTAGRAM_ALLOWED_HOSTS = new Set(["www.instagram.com"]);
 
-const TICKET_CODE_STRICT_REGEX = /^MDZ-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}$/;
-const TICKET_CODE_DEMO_COMPAT_REGEX = /^MDZ-[A-Z0-9]{4}$/;
+const TICKET_CODE_STRICT_REGEX =
+  /^MDZ-(?:[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}|[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8})$/;
+const TICKET_CODE_DEMO_COMPAT_REGEX = /^MDZ-(?:[A-Z0-9]{4}|[A-Z0-9]{8})$/;
 const SERVICE_TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d(:00)?$/;
 
 /**
@@ -87,8 +88,8 @@ export function sanitizeCustomerName(raw: unknown): SanitizeNameResult {
     .replace(/[<>]/g, " ")
     // Remove ASCII & Unicode control characters
     .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
-    // Remove zero-width & bidirectional override characters
-    .replace(/[\u200B-\u200D\u202A-\u202E\uFEFF]/g, "")
+    // Remove zero-width & bidirectional override/isolate characters
+    .replace(/[\u200B-\u200D\u202A-\u202E\u2066-\u2069\uFEFF]/g, "")
     // Collapse consecutive whitespace into single spaces
     .replace(/\s+/g, " ")
     .trim();
@@ -132,6 +133,7 @@ export function validateOptionalTextNote(
   const cleaned = raw
     .replace(/[<>]/g, " ")
     .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
+    .replace(/[\u200B-\u200D\u202A-\u202E\u2066-\u2069\uFEFF]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -185,6 +187,94 @@ export function validateHttpsMediaUrl(
   }
 
   return { valid: true, url: parsed.toString() };
+}
+
+function isAllowedGalleryImageHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    host.endsWith(".supabase.co") ||
+    host.endsWith(".cdninstagram.com") ||
+    host.endsWith(".fbcdn.net") ||
+    host === "instagram.com" ||
+    host.endsWith(".instagram.com")
+  );
+}
+
+/**
+ * Validates gallery photo / thumbnail URLs against `next.config.ts` `images.remotePatterns`
+ * (`*.supabase.co`, `*.cdninstagram.com`, `*.fbcdn.net`, `*.instagram.com`) or safe local `/images/...`.
+ */
+export function validateAllowedGalleryImageUrl(
+  raw: unknown
+): { valid: boolean; url?: string; error?: string } {
+  if (typeof raw !== "string") {
+    return { valid: false, error: "URL gambar galeri wajib berupa teks." };
+  }
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > 1024) {
+    return {
+      valid: false,
+      error: "URL gambar tidak boleh kosong atau melebihi 1.024 karakter.",
+    };
+  }
+
+  if (trimmed.startsWith("/images/")) {
+    if (
+      trimmed.includes("..") ||
+      trimmed.startsWith("//") ||
+      !/^\/images\/[A-Za-z0-9._/-]+$/.test(trimmed)
+    ) {
+      return { valid: false, error: "Path aset gambar lokal tidak valid." };
+    }
+    return { valid: true, url: trimmed };
+  }
+
+  const httpsCheck = validateHttpsMediaUrl(trimmed);
+  if (!httpsCheck.valid || !httpsCheck.url) {
+    return httpsCheck;
+  }
+
+  const parsed = new URL(httpsCheck.url);
+  if (!isAllowedGalleryImageHost(parsed.hostname)) {
+    return {
+      valid: false,
+      error:
+        "Domain gambar tidak diizinkan. Unggah foto ke Supabase Storage studio atau gunakan aset resmi Instagram.",
+    };
+  }
+
+  return { valid: true, url: parsed.toString() };
+}
+
+/**
+ * Validates Web Push subscription endpoints against official browser push service domains
+ * (Google FCM, Mozilla Autopush, Apple APNs Web Push, Microsoft WNS).
+ */
+export function isValidWebPushEndpoint(raw: unknown): raw is string {
+  if (typeof raw !== "string") return false;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > 2048) return false;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return false;
+  }
+
+  if (parsed.protocol !== "https:") return false;
+  if (parsed.username || parsed.password || parsed.port) return false;
+  if (!parsed.pathname || parsed.pathname === "/") return false;
+
+  const host = parsed.hostname.toLowerCase();
+  const isOfficialVendor =
+    host === "fcm.googleapis.com" ||
+    host === "updates.push.services.mozilla.com" ||
+    host.endsWith(".push.services.mozilla.com") ||
+    host.endsWith(".push.apple.com") ||
+    host.endsWith(".notify.windows.com");
+
+  return isOfficialVendor;
 }
 
 /**

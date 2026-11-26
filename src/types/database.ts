@@ -130,6 +130,11 @@ export type PushSubscriptionRow = {
   updated_at: string;
 };
 
+export type AdminUser = {
+  user_id: string;
+  created_at: string;
+};
+
 export type PublicBookingSlot = Pick<
   Booking,
   "id" | "booking_date" | "start_time" | "end_time" | "status"
@@ -380,11 +385,27 @@ export type Database = {
         Update: Partial<Omit<PushSubscriptionRow, "id" | "created_at">>;
         Relationships: [];
       };
+      admin_users: {
+        Row: AdminUser;
+        Insert: {
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
+      is_admin: {
+        Args: Record<PropertyKey, never>;
+        Returns: boolean;
+      };
       generate_madzhair_ticket_code: {
         Args: Record<PropertyKey, never>;
         Returns: string;
@@ -416,6 +437,10 @@ export type Database = {
       auto_complete_overdue_bookings: {
         Args: Record<PropertyKey, never>;
         Returns: number;
+      };
+      cleanup_expired_operational_data: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
       };
     };
     Enums: {

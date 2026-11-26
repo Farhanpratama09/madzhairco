@@ -77,13 +77,6 @@ async function loadLandingData(): Promise<{
     const supabase = await createClient();
 
     if (supabase) {
-      // Jalankan auto-complete secara berurutan SEBELUM membaca daftar booking hari ini
-      try {
-        await supabase.rpc("auto_complete_overdue_bookings");
-      } catch {
-        // Fallback aman bila migrasi belum diterapkan di lingkungan demo
-      }
-
       const defaultNow = getStoreNowParts(DEFAULT_STORE_SETTINGS.timezone);
 
       const [

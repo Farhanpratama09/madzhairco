@@ -101,7 +101,7 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email: resolvedEmail,
         password,
       });
@@ -115,6 +115,23 @@ export function AdminLoginForm({ isConfigured }: AdminLoginFormProps) {
           setErrorMessage(error.message || "Gagal masuk ke akun kasir.");
         }
         return;
+      }
+
+      const signedInUserId = signInData.user?.id ?? "";
+      if (signedInUserId) {
+        const { data: adminRow, error: adminErr } = await supabase
+          .from("admin_users")
+          .select("user_id")
+          .eq("user_id", signedInUserId)
+          .maybeSingle();
+
+        if (adminErr || !adminRow) {
+          await supabase.auth.signOut();
+          setErrorMessage(
+            "Akun ini tidak terdaftar sebagai admin kasir resmi."
+          );
+          return;
+        }
       }
 
       router.replace("/admin");

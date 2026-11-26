@@ -1,7 +1,8 @@
 import { sendNotification, setVapidDetails } from "web-push";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, PushSubscriptionRow } from "@/types/database";
+import { isValidWebPushEndpoint } from "@/lib/security/sanitize";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import type { Database, PushSubscriptionRow } from "@/types/database";
 
 export interface PushNotificationPayload {
   title: string;
@@ -41,8 +42,8 @@ export function isWebPushConfigured(): boolean {
 }
 
 /**
- * Sends a Web Push payload to all stored admin subscriptions.
- * Automatically deletes stale endpoints returning HTTP 404 or 410 Gone.
+ * Sends a Web Push payload to all stored admin subscriptions on verified vendor endpoints.
+ * Automatically deletes stale (404/410) or untrusted endpoints.
  * Never throws so public booking flow stays resilient (best-effort).
  */
 export async function sendPushToAllAdmins(
@@ -69,7 +70,7 @@ export async function sendPushToAllAdmins(
       sent: 0,
       failed: 0,
       removed: 0,
-      reason: "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi.",
+      reason: "Layanan push server belum dikonfigurasi.",
     };
   }
 
@@ -87,15 +88,20 @@ export async function sendPushToAllAdmins(
         sent: 0,
         failed: 0,
         removed: 0,
-        reason: error?.message,
+        reason: error ? "Gagal membaca daftar perangkat notifikasi." : undefined,
       };
     }
 
     const subscriptions = data as PushSubscriptionRow[];
+    const safeUrl =
+      typeof payload.url === "string" && payload.url.startsWith("/") && !payload.url.startsWith("//")
+        ? payload.url
+        : "/admin";
+
     const serializedPayload = JSON.stringify({
       title: payload.title,
       body: payload.body,
-      url: payload.url ?? "/admin",
+      url: safeUrl,
       tag: payload.tag ?? "madzhair-admin",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
@@ -107,6 +113,12 @@ export async function sendPushToAllAdmins(
 
     await Promise.all(
       subscriptions.map(async (sub) => {
+        if (!isValidWebPushEndpoint(sub.endpoint)) {
+          failed += 1;
+          staleIds.push(sub.id);
+          return;
+        }
+
         try {
           await sendNotification(
             {
@@ -147,14 +159,14 @@ export async function sendPushToAllAdmins(
       failed,
       removed: staleIds.length,
     };
-  } catch (err: unknown) {
+  } catch {
     return {
       configured: true,
       total: 0,
       sent: 0,
       failed: 1,
       removed: 0,
-      reason: err instanceof Error ? err.message : "Web Push error",
+      reason: "Gagal mengirim Web Push.",
     };
   }
 }

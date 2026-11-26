@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifySameOriginMutation } from "@/lib/security/origin";
 import {
   MAX_PAYLOAD_CHARS,
   sanitizeCustomerName,
@@ -6,7 +7,7 @@ import {
   validateServiceTimeFormat,
 } from "@/lib/security/sanitize";
 import { formatTimeHHMM, isAlignedTo15MinGrid } from "@/lib/slots";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdminSession } from "@/lib/supabase/admin-auth";
 import type { Booking } from "@/types/database";
 
 const UUID_REGEX =
@@ -38,7 +39,7 @@ function normalizeTimeWithSeconds(time: string): string {
 
 function mapRpcError(message: string): { status: number; error: string } {
   if (message.includes("UNAUTHORIZED")) {
-    return { status: 401, error: "Unauthorized" };
+    return { status: 403, error: "Akses ditolak." };
   }
   if (message.includes("STORE_CLOSED")) {
     return {
@@ -83,6 +84,12 @@ function mapRpcError(message: string): { status: number; error: string } {
   if (message.includes("PAST_DATE")) {
     return { status: 400, error: "Tanggal walk-in tidak boleh di masa lalu." };
   }
+  if (message.includes("DATE_TOO_FAR_AHEAD")) {
+    return {
+      status: 400,
+      error: "Tanggal walk-in melebihi batas maksimal 21 hari ke depan.",
+    };
+  }
 
   return {
     status: 400,
@@ -91,19 +98,19 @@ function mapRpcError(message: string): { status: number; error: string } {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  if (!supabase) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const originError = verifySameOriginMutation(request);
+  if (originError) {
+    return originError;
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const adminSession = await requireAdminSession();
+  if (!adminSession.ok) {
+    return NextResponse.json(
+      { error: adminSession.error },
+      { status: adminSession.status }
+    );
   }
+  const { supabase } = adminSession;
 
   let rawText: string;
   try {
@@ -201,24 +208,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  type RpcCaller = {
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>
-    ) => Promise<{ data: unknown; error: { message?: string } | null }>;
-  };
-
-  const { data, error: rpcError } = await (supabase as unknown as RpcCaller).rpc(
-    "create_booking_safe",
-    {
-      p_service_id: serviceId.trim(),
-      p_customer_name: resolvedWalkinName,
-      p_booking_date: bookingDate.trim(),
-      p_start_time: normalizeTimeWithSeconds(normalizedStartHHMM),
-      p_source: "WALKIN",
-      p_customer_phone: null,
-    }
-  );
+  const { data, error: rpcError } = await supabase.rpc("create_booking_safe", {
+    p_service_id: serviceId.trim(),
+    p_customer_name: resolvedWalkinName,
+    p_booking_date: bookingDate.trim(),
+    p_start_time: normalizeTimeWithSeconds(normalizedStartHHMM),
+    p_source: "WALKIN",
+    p_customer_phone: null,
+  });
 
   if (rpcError) {
     const mapped = mapRpcError(rpcError.message ?? "");

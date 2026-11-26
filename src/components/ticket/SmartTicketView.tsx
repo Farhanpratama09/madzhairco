@@ -36,6 +36,8 @@ import type {
 export interface SmartTicketViewProps {
   ticketCode: string;
   isValidCodeFormat: boolean;
+  isRateLimited?: boolean;
+  retryAfterSeconds?: number;
   isSupabaseMode: boolean;
   isAdminAuthenticated: boolean;
   initialBooking: Booking | null;
@@ -203,6 +205,8 @@ function buildCustomerConfirmWhatsAppUrl(
 export function SmartTicketView({
   ticketCode,
   isValidCodeFormat,
+  isRateLimited = false,
+  retryAfterSeconds = 60,
   isSupabaseMode,
   isAdminAuthenticated,
   initialBooking,
@@ -223,7 +227,7 @@ export function SmartTicketView({
     "reschedule" | "cancel" | null
   >(null);
   const [isCheckingDemoStorage, setIsCheckingDemoStorage] = useState<boolean>(
-    !initialBooking && isValidCodeFormat
+    !isRateLimited && !initialBooking && isValidCodeFormat
   );
 
   const booking = mutatedBooking ?? initialBooking ?? demoBooking;
@@ -236,10 +240,10 @@ export function SmartTicketView({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Realtime status sync for this ticket (so admin cancel/reschedule reflects live)
+  // Realtime status sync for verified admin sessions
   const bookingId = booking?.id ?? null;
   useEffect(() => {
-    if (!isSupabaseMode || !bookingId) return;
+    if (!isSupabaseMode || !isAdminAuthenticated || !bookingId) return;
     const supabase = createBrowserSupabase();
     if (!supabase) return;
 
@@ -265,11 +269,11 @@ export function SmartTicketView({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [isSupabaseMode, bookingId]);
+  }, [isSupabaseMode, isAdminAuthenticated, bookingId]);
 
   // Fallback check in sessionStorage for local demo mode without DB
   useEffect(() => {
-    if (initialBooking || !isValidCodeFormat) {
+    if (isRateLimited || initialBooking || !isValidCodeFormat) {
       return;
     }
 
@@ -298,7 +302,7 @@ export function SmartTicketView({
     return () => {
       cancelled = true;
     };
-  }, [initialBooking, isValidCodeFormat, ticketCode]);
+  }, [initialBooking, isRateLimited, isValidCodeFormat, ticketCode]);
 
   const matchedService = useMemo(() => {
     if (!booking) return null;
@@ -444,8 +448,30 @@ export function SmartTicketView({
       </header>
 
       <main className="mx-auto max-w-3xl px-safe py-8 pb-safe sm:py-12">
-        {/* Invalid Code Format */}
-        {!isValidCodeFormat ? (
+        {/* Rate Limit Guard */}
+        {isRateLimited ? (
+          <section className="rounded-2xl border border-crimson-alert/45 bg-surface p-6 shadow-sm sm:p-8">
+            <p className="font-sans text-xs font-semibold text-crimson-alert">
+              Batas pencarian tercapai
+            </p>
+            <h1 className="mt-2 font-sans text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+              Terlalu Banyak Permintaan Tiket
+            </h1>
+            <p className="mt-2 font-sans text-sm leading-relaxed text-muted">
+              Demi keamanan data reservasi pelanggan, silakan tunggu sekitar{" "}
+              <span className="font-semibold text-ink tabular-nums">
+                {retryAfterSeconds} detik
+              </span>{" "}
+              sebelum membuka kembali halaman tiket ini.
+            </p>
+            <Link
+              href="/"
+              className="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-terracotta px-5 py-2.5 font-sans text-xs font-semibold text-surface transition-colors hover:bg-terracotta/90 sm:text-sm"
+            >
+              Kembali ke Halaman Utama
+            </Link>
+          </section>
+        ) : !isValidCodeFormat ? (
           <section className="rounded-2xl border border-crimson-alert/45 bg-surface p-6 shadow-sm sm:p-8">
             <p className="font-sans text-xs font-semibold text-crimson-alert">
               Kode tidak valid
@@ -456,7 +482,7 @@ export function SmartTicketView({
             <p className="mt-2 font-sans text-sm leading-relaxed text-muted">
               Kode reservasi resmi Madzhair Barber &amp; Co menggunakan format{" "}
               <span className="font-sans font-semibold tracking-[0.04em] text-ink tabular-nums">
-                MDZ-XXXX
+                MDZ-XXXXXXXX
               </span>
               . Periksa kembali tautan dari WhatsApp Anda.
             </p>

@@ -5,8 +5,8 @@ import { AdminLoginForm } from "@/components/admin/AdminLoginForm";
 import { InstallPwaBanner } from "@/components/admin/InstallPwaBanner";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { EditorialSectionHeader } from "@/components/ui/EditorialSectionHeader";
+import { requireAdminSession } from "@/lib/supabase/admin-auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -14,14 +14,9 @@ export default async function AdminLoginPage() {
   const configured = isSupabaseConfigured();
 
   if (configured) {
-    const supabase = await createClient();
-    if (supabase) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        redirect("/admin");
-      }
+    const adminSession = await requireAdminSession();
+    if (adminSession.ok) {
+      redirect("/admin");
     }
   }
 

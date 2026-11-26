@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendPushToAllAdmins } from "@/lib/push/web-push";
 import {
-  checkBookingRateLimit,
+  consumeBookingIpAttempt,
+  consumeBookingPhoneAttempt,
   extractClientIp,
-  recordBookingQuotaUse,
 } from "@/lib/security/rate-limit";
 import {
   checkHoneypot,
@@ -23,15 +23,21 @@ import {
 import {
   calculateAvailableSlots,
   formatTimeHHMM,
+  getStoreNowParts,
   isAlignedTo15MinGrid,
   parseTimeToMinutes,
 } from "@/lib/slots";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import type { Booking } from "@/types/database";
 
 const DATE_YYYY_MM_DD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const DEMO_BOOKINGS_KEY = "__madzhair_demo_bookings__";
+const DEMO_CONTACTS_KEY = "__madzhair_demo_booking_phones__";
+const MAX_DEMO_BOOKINGS = 500;
+const MAX_ADVANCE_BOOKING_DAYS = 21;
+const MAX_ACTIVE_BOOKINGS_PER_PHONE = 2;
 
 interface CreateBookingRequestBody {
   serviceId?: unknown;
@@ -53,6 +59,33 @@ function getDemoBookingsStore(): Booking[] {
   }
 
   return globalObj[DEMO_BOOKINGS_KEY];
+}
+
+function getDemoContactsStore(): Map<string, string> {
+  const globalObj = globalThis as typeof globalThis & {
+    [DEMO_CONTACTS_KEY]?: Map<string, string>;
+  };
+
+  if (!globalObj[DEMO_CONTACTS_KEY]) {
+    globalObj[DEMO_CONTACTS_KEY] = new Map<string, string>();
+  }
+
+  return globalObj[DEMO_CONTACTS_KEY];
+}
+
+function pushBoundedDemoBooking(booking: Booking, phone: string): void {
+  const demoStore = getDemoBookingsStore();
+  const demoContacts = getDemoContactsStore();
+
+  while (demoStore.length >= MAX_DEMO_BOOKINGS) {
+    const evicted = demoStore.shift();
+    if (evicted) {
+      demoContacts.delete(evicted.id);
+    }
+  }
+
+  demoStore.push(booking);
+  demoContacts.set(booking.id, phone);
 }
 
 function isValidCalendarDate(dateStr: string): boolean {
@@ -85,12 +118,55 @@ function isValidCalendarDate(dateStr: string): boolean {
   );
 }
 
+function addDaysToDateStr(dateStr: string, daysToAdd: number): string {
+  const [yStr, mStr, dStr] = dateStr.split("-");
+  const year = Number.parseInt(yStr ?? "1970", 10);
+  const month = Number.parseInt(mStr ?? "1", 10);
+  const day = Number.parseInt(dStr ?? "1", 10);
+  const target = new Date(Date.UTC(year, month - 1, day + daysToAdd));
+  const y = target.getUTCFullYear();
+  const m = String(target.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(target.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function isDemoBookingOverdue(
+  booking: Booking,
+  todayDateStr: string,
+  nowMinutesFromMidnight: number
+): boolean {
+  if (booking.booking_date < todayDateStr) {
+    return true;
+  }
+  if (booking.booking_date > todayDateStr) {
+    return false;
+  }
+  return parseTimeToMinutes(booking.end_time) + 15 <= nowMinutesFromMidnight;
+}
+
 function mapRpcError(
   message: string,
   code?: string | null
 ): { status: number; error: string; conflict: boolean } {
   const upper = message.toUpperCase();
   const sqlCode = (code ?? "").toUpperCase();
+
+  if (upper.includes("MAX_ACTIVE_BOOKINGS_PER_PHONE")) {
+    return {
+      status: 429,
+      conflict: false,
+      error:
+        "Nomor WhatsApp ini sudah memiliki 2 reservasi aktif. Selesaikan atau hubungi studio bila ingin mengubah jadwal.",
+    };
+  }
+
+  if (upper.includes("DATE_TOO_FAR_AHEAD")) {
+    return {
+      status: 400,
+      conflict: false,
+      error: `Reservasi online maksimal ${MAX_ADVANCE_BOOKING_DAYS} hari ke depan.`,
+    };
+  }
 
   if (
     upper.includes("SLOT_UNAVAILABLE") ||
@@ -239,8 +315,14 @@ export async function GET(request: NextRequest) {
   }
 
   const demoStore = getDemoBookingsStore();
+  const nowParts = getStoreNowParts(DEFAULT_STORE_SETTINGS.timezone);
   const publicSlots = demoStore
-    .filter((b) => b.booking_date === dateParam && b.status === "BOOKED")
+    .filter(
+      (b) =>
+        b.booking_date === dateParam &&
+        b.status === "BOOKED" &&
+        !isDemoBookingOverdue(b, nowParts.dateStr, nowParts.minutesFromMidnight)
+    )
     .map((b) => ({
       id: b.id,
       booking_date: b.booking_date,
@@ -264,6 +346,25 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const clientIp = extractClientIp(request.headers);
+
+  // Catat kuota agregat IP pada SETIAP percobaan POST (termasuk payload cacat/fuzzing)
+  const ipRateLimit = consumeBookingIpAttempt(clientIp);
+  if (!ipRateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: `Terlalu banyak percobaan booking. Coba lagi dalam ${ipRateLimit.retryAfterSeconds} detik.`,
+        retryAfterSeconds: ipRateLimit.retryAfterSeconds,
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(ipRateLimit.retryAfterSeconds),
+        },
+      }
+    );
+  }
+
   let rawText: string;
   try {
     rawText = await request.text();
@@ -280,24 +381,6 @@ export async function POST(request: NextRequest) {
         error: `Ukuran payload melebihi batas maksimum (${MAX_PAYLOAD_CHARS} karakter).`,
       },
       { status: 400 }
-    );
-  }
-
-  const clientIp = extractClientIp(request.headers);
-  const rateLimit = checkBookingRateLimit(clientIp);
-
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      {
-        error: `Terlalu banyak percobaan booking. Coba lagi dalam ${rateLimit.retryAfterSeconds} detik.`,
-        retryAfterSeconds: rateLimit.retryAfterSeconds,
-      },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": String(rateLimit.retryAfterSeconds),
-        },
-      }
     );
   }
 
@@ -320,7 +403,6 @@ export async function POST(request: NextRequest) {
 
   // Silent fake success for automated bots triggering the hidden honeypot field
   if (checkHoneypot(body.website)) {
-    recordBookingQuotaUse(clientIp);
     const fakeCode = generateDemoTicketCode();
     const nowIso = new Date().toISOString();
     const fakeBooking: Booking = {
@@ -385,8 +467,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Batas ketat per kombinasi IP + nomor WhatsApp (maks 3 percobaan / 10 menit), agregat IP (maks 15 / 10 menit)
-  const phoneIpRateLimit = checkBookingRateLimit(
+  // Catat kuota ketat per kombinasi (IP + nomor WhatsApp) (maks 3 percobaan / 10 menit) di setiap percobaan
+  const phoneIpRateLimit = consumeBookingPhoneAttempt(
     clientIp,
     normalizedPhone.value
   );
@@ -414,6 +496,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const nowParts = getStoreNowParts(DEFAULT_STORE_SETTINGS.timezone);
+  const maxAdvanceDateStr = addDaysToDateStr(
+    nowParts.dateStr,
+    MAX_ADVANCE_BOOKING_DAYS
+  );
+  if (bookingDate < nowParts.dateStr) {
+    return NextResponse.json(
+      { error: "Tanggal booking tidak boleh di masa lalu." },
+      { status: 400 }
+    );
+  }
+  if (bookingDate > maxAdvanceDateStr) {
+    return NextResponse.json(
+      {
+        error: `Reservasi online maksimal ${MAX_ADVANCE_BOOKING_DAYS} hari ke depan.`,
+      },
+      { status: 400 }
+    );
+  }
+
   const rawStartTime =
     typeof body.startTime === "string" ? body.startTime.trim() : "";
   if (!validateServiceTimeFormat(rawStartTime)) {
@@ -435,17 +537,17 @@ export async function POST(request: NextRequest) {
   }
   const startTimeSql = `${normalizedHHMM}:00`;
 
-  // Mode 1: Supabase RPC atomic booking
+  // Mode 1: Supabase RPC atomic booking via server-only service_role client
   if (isSupabaseConfigured()) {
-    const supabase = await createClient();
-    if (!supabase) {
+    const serviceSupabase = createServiceRoleClient();
+    if (!serviceSupabase) {
       return NextResponse.json(
         { error: "Koneksi server booking tidak tersedia." },
         { status: 503 }
       );
     }
 
-    const { data, error } = await supabase.rpc("create_booking_safe", {
+    const { data, error } = await serviceSupabase.rpc("create_booking_safe", {
       p_service_id: serviceId,
       p_customer_name: sanitizedName.value.slice(0, 80),
       p_booking_date: bookingDate,
@@ -456,9 +558,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       const mapped = mapRpcError(error.message ?? "", error.code ?? null);
-      if (mapped.status === 409) {
-        recordBookingQuotaUse(clientIp, normalizedPhone.value);
-      } else {
+      if (mapped.status !== 409 && mapped.status !== 429) {
         console.error(
           "[bookings] create_booking_safe RPC error:",
           error.code,
@@ -479,18 +579,20 @@ export async function POST(request: NextRequest) {
     }
 
     const createdBooking = data as Booking;
-    recordBookingQuotaUse(clientIp, normalizedPhone.value);
 
     // Best-effort instant Web Push to admin cashier devices (never fails the booking)
     try {
-      await sendPushToAllAdmins({
-        title: `Booking Baru · ${createdBooking.ticket_code}`,
-        body: `${createdBooking.customer_name} — ${createdBooking.service_name} (${createdBooking.booking_date} ${formatTimeHHMM(
-          createdBooking.start_time
-        )} WIB)`,
-        url: "/admin",
-        tag: `booking-${createdBooking.ticket_code}`,
-      });
+      await sendPushToAllAdmins(
+        {
+          title: `Booking Baru · ${createdBooking.ticket_code}`,
+          body: `${createdBooking.customer_name} — ${createdBooking.service_name} (${createdBooking.booking_date} ${formatTimeHHMM(
+            createdBooking.start_time
+          )} WIB)`,
+          url: "/admin",
+          tag: `booking-${createdBooking.ticket_code}`,
+        },
+        serviceSupabase
+      );
     } catch {
       // Best-effort: ignore push dispatch errors
     }
@@ -514,6 +616,37 @@ export async function POST(request: NextRequest) {
   }
 
   const demoStore = getDemoBookingsStore();
+  const demoContacts = getDemoContactsStore();
+
+  // Bebaskan booking demo overdue (> end_time + 15 menit WIB) sebelum menghitung slot & kuota
+  for (const item of demoStore) {
+    if (
+      item.status === "BOOKED" &&
+      isDemoBookingOverdue(item, nowParts.dateStr, nowParts.minutesFromMidnight)
+    ) {
+      item.status = "COMPLETED";
+    }
+  }
+
+  // Batasi maksimal 2 booking aktif per nomor WhatsApp (identik dengan create_booking_safe SQL)
+  const activePhoneCount = demoStore.filter(
+    (item) =>
+      item.status === "BOOKED" &&
+      item.booking_date >= nowParts.dateStr &&
+      demoContacts.get(item.id) === normalizedPhone.value
+  ).length;
+
+  if (activePhoneCount >= MAX_ACTIVE_BOOKINGS_PER_PHONE) {
+    return NextResponse.json(
+      {
+        error:
+          "Nomor WhatsApp ini sudah memiliki 2 reservasi aktif. Selesaikan atau hubungi studio bila ingin mengubah jadwal.",
+        conflict: false,
+      },
+      { status: 429 }
+    );
+  }
+
   const slots = calculateAvailableSlots({
     date: bookingDate,
     service,
@@ -543,9 +676,6 @@ export async function POST(request: NextRequest) {
       targetSlot.status === "BOOKED" ||
       targetSlot.status === "BREAK" ||
       targetSlot.status === "INSUFFICIENT_TIME";
-    if (isConflict) {
-      recordBookingQuotaUse(clientIp, normalizedPhone.value);
-    }
     return NextResponse.json(
       {
         error:
@@ -575,7 +705,6 @@ export async function POST(request: NextRequest) {
   });
 
   if (hasOverlapInDemo) {
-    recordBookingQuotaUse(clientIp, normalizedPhone.value);
     return NextResponse.json(
       {
         error:
@@ -604,7 +733,7 @@ export async function POST(request: NextRequest) {
     end_time: `${targetSlot.endTime}:00`,
     status: "BOOKED",
     source: "ONLINE",
-    notes: null,
+    notes: validatedNotes.value,
     rescheduled_at: null,
     previous_date: null,
     previous_start_time: null,
@@ -613,8 +742,7 @@ export async function POST(request: NextRequest) {
     updated_at: nowIso,
   };
 
-  demoStore.push(demoBooking);
-  recordBookingQuotaUse(clientIp, normalizedPhone.value);
+  pushBoundedDemoBooking(demoBooking, normalizedPhone.value);
 
   return NextResponse.json(
     { booking: demoBooking, mode: "demo" },

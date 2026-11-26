@@ -8,7 +8,7 @@ import {
   DEFAULT_WEEKLY_SCHEDULES,
 } from "@/lib/seed";
 import { getTodayAndUpcomingDates } from "@/lib/slots";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdminSession } from "@/lib/supabase/admin-auth";
 import type {
   Booking,
   ClosedDate,
@@ -36,19 +36,12 @@ function normalizePriceVariants(raw: unknown): PriceVariant[] {
 }
 
 export default async function AdminPage() {
-  const supabase = await createClient();
-  if (!supabase) {
+  const adminSession = await requireAdminSession();
+  if (!adminSession.ok) {
     redirect("/admin/login");
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    redirect("/admin/login");
-  }
+  const { supabase, user } = adminSession;
 
   // Jalankan auto-complete secara berurutan SEBELUM memuat daftar booking
   try {

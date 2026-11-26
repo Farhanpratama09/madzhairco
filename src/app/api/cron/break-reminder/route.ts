@@ -9,11 +9,13 @@ import {
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import type { ClosedDate, StoreSettings, WeeklySchedule } from "@/types/database";
 
+const STRICT_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
 function verifyBearerSecret(
   authHeader: string | null,
   expectedSecret: string
 ): boolean {
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!expectedSecret || !authHeader || !authHeader.startsWith("Bearer ")) {
     return false;
   }
 
@@ -59,9 +61,7 @@ async function runHistoricalCleanup(
   supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
   todayWibStr: string
 ): Promise<HistoricalCleanupSummary> {
-  // Retensi H-1: simpan hari ini & kemarin (H-1), hapus booking_date < (hari ini WIB - 1 hari)
   const bookingsCutoffDate = subtractDaysFromDateStr(todayWibStr, 1);
-  // Retensi 7 hari untuk closed_dates: hapus closed_date < (hari ini WIB - 7 hari)
   const closedDatesCutoffDate = subtractDaysFromDateStr(todayWibStr, 7);
 
   let deletedBookingContacts = 0;
@@ -69,7 +69,12 @@ async function runHistoricalCleanup(
   let deletedClosedDates = 0;
 
   try {
-    // 1. Ambil ID booking lama (booking_date < hari ini WIB - 1 hari)
+    await supabase.rpc("auto_complete_overdue_bookings");
+  } catch {
+    // Best-effort overdue completion via service_role
+  }
+
+  try {
     const { data: oldBookingRows } = await supabase
       .from("bookings")
       .select("id")
@@ -81,7 +86,6 @@ async function runHistoricalCleanup(
           .filter((id): id is string => typeof id === "string" && id.length > 0)
       : [];
 
-    // 2. Hapus booking_contacts untuk booking lama secara eksplisit
     if (oldBookingIds.length > 0) {
       const { data: deletedContactsRows } = await supabase
         .from("booking_contacts")
@@ -94,7 +98,6 @@ async function runHistoricalCleanup(
       }
     }
 
-    // 3. Hapus bookings dengan booking_date < (hari ini WIB - 1 hari)
     const { data: deletedBookingRows } = await supabase
       .from("bookings")
       .delete()
@@ -105,7 +108,6 @@ async function runHistoricalCleanup(
       deletedBookings = deletedBookingRows.length;
     }
 
-    // 4. Hapus closed_dates dengan closed_date < (hari ini WIB - 7 hari)
     const { data: deletedClosedRows } = await supabase
       .from("closed_dates")
       .delete()
@@ -131,28 +133,21 @@ async function runHistoricalCleanup(
 
 async function handleBreakReminder(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const cronSecret = process.env.CRON_SECRET?.trim() ?? "";
 
-  // Fail-closed: refuse execution if CRON_SECRET is missing or empty
-  if (!cronSecret) {
-    return NextResponse.json(
-      { error: "CRON_SECRET belum dikonfigurasi di server." },
-      { status: 503 }
-    );
-  }
-
-  if (!verifyBearerSecret(authHeader, cronSecret)) {
+  // Uniform 401 whether CRON_SECRET is unconfigured, placeholder, or mismatched (zero oracle)
+  if (
+    !cronSecret ||
+    cronSecret === "your-cron-secret-placeholder" ||
+    !verifyBearerSecret(authHeader, cronSecret)
+  ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
     return NextResponse.json(
-      { error: "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi di server." },
+      { error: "Layanan penyimpanan belum siap." },
       { status: 503 }
     );
   }
@@ -172,34 +167,41 @@ async function handleBreakReminder(request: NextRequest) {
   ]);
 
   if (settingsRes.error) {
+    console.error(
+      "[cron/break-reminder] store_settings query failed:",
+      settingsRes.error.code,
+      settingsRes.error.message
+    );
     return NextResponse.json(
-      {
-        error: "Gagal membaca store_settings dari Supabase.",
-        code: settingsRes.error.code ?? null,
-        detail: settingsRes.error.message,
-      },
+      { error: "Gagal memuat pengaturan operasional." },
       { status: 500 }
     );
   }
 
   if (schedulesRes.error || closedDatesRes.error) {
     const dbErr = schedulesRes.error ?? closedDatesRes.error;
+    console.error(
+      "[cron/break-reminder] schedule query failed:",
+      dbErr?.code,
+      dbErr?.message
+    );
     return NextResponse.json(
-      {
-        error: "Gagal membaca jadwal operasional dari Supabase.",
-        code: dbErr?.code ?? null,
-        detail: dbErr?.message ?? null,
-      },
+      { error: "Gagal memuat jadwal operasional." },
       { status: 500 }
     );
   }
 
   const settings = settingsRes.data as StoreSettings | null;
-  // Always compute local time using valid IANA timezone (Asia/Pontianak for Sungai Kunyit, Kalimantan Barat)
   const nowParts = getStoreNowParts(settings?.timezone || "Asia/Pontianak");
   const todayStr = nowParts.dateStr;
 
-  // Jalankan auto-cleanup riwayat lama (booking_contacts & bookings < H-1 WIB, closed_dates < H-7 WIB)
+  if (!STRICT_DATE_REGEX.test(todayStr)) {
+    return NextResponse.json(
+      { error: "Format tanggal sistem tidak valid." },
+      { status: 500 }
+    );
+  }
+
   const cleanup = await runHistoricalCleanup(supabase, todayStr);
 
   if (!settings) {
@@ -223,7 +225,6 @@ async function handleBreakReminder(request: NextRequest) {
     );
   }
 
-  // Idempotency guard: send at most once per local date
   if (settings.break_reminder_sent_date === todayStr) {
     return NextResponse.json(
       {
@@ -283,7 +284,6 @@ async function handleBreakReminder(request: NextRequest) {
     );
   }
 
-  // Safe external-cron window: [break_end - 15 menit, break_end + 5 menit] (Asia/Pontianak)
   const windowStart = breakEndMinutes - 15;
   const windowEnd = breakEndMinutes + 5;
   if (
@@ -302,7 +302,7 @@ async function handleBreakReminder(request: NextRequest) {
     );
   }
 
-  // Claim idempotency atomically before sending to prevent duplicate dispatches on concurrent cron retries
+  // Claim idempotency atomically with strictly validated YYYY-MM-DD todayStr
   const { data: claimed, error: claimError } = await supabase
     .from("store_settings")
     .update({ break_reminder_sent_date: todayStr })

@@ -659,19 +659,12 @@ export function BookingExperience({
     };
   }, [selectedDate, supabase, updateBookingsForDate]);
 
-  // Supabase Realtime subscription for bookings, store_settings, weekly_schedules, closed_dates, services
+  // Supabase Realtime subscription for public schedule/catalog tables (bookings synced via read-only RPC + 30s/focus polling)
   useEffect(() => {
     if (!supabase) return;
 
     const channel = supabase
       .channel("madzhair-customer-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "bookings" },
-        () => {
-          void fetchBookingsForDate(selectedDateRef.current, { silent: true });
-        }
-      )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "store_settings" },
@@ -732,7 +725,7 @@ export function BookingExperience({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [supabase, fetchBookingsForDate]);
+  }, [supabase]);
 
   const selectedService = useMemo(
     () =>
